@@ -1,0 +1,2 @@
+# Ignoruj pliki środowiskowe z danymi wrażliwymi
+.env

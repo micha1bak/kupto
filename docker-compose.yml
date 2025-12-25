@@ -1,0 +1,23 @@
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "[::]:80:80"  
+    volumes:
+      - ./public:/usr/share/nginx/html 
+    restart: always
+
+  db:
+    image: postgres:latest
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} 
+    volumes:
+      - db_data:/var/lib/postgresql
+    restart: always
+
+volumes:
+  db_data:
