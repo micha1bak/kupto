@@ -1,0 +1,24 @@
+{
+  "name": "kupto",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/micha1bak/kupto#readme",
+  "bugs": {
+    "url": "https://github.com/micha1bak/kupto/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/micha1bak/kupto.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "pg": "^8.20.0"
+  }
+}
