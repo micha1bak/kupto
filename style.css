@@ -56,6 +56,7 @@ body {
 .select-input, .text-input {
     width: 100%;
     padding: 12px 16px;
+    margin: 10px 0px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     font-size: 1rem;
@@ -83,13 +84,12 @@ body {
 }
 
 .shopping-item {
-    background-color: var(--surface-color);
-    border-radius: var(--radius);
-    padding: 12px 16px;
+    background-color: transparent; /* Zdejmujemy białe tło z pojedynczych elementów */
+    padding: 8px 0 8px 16px; /* 16px to właśnie Twoje wcięcie (indentacja)! */
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    border-bottom: 1px solid #f3f4f6;
 }
 
 .item-info {
@@ -174,6 +174,11 @@ body {
     text-decoration: underline;
 }
 
+#add-button {
+    color: var(--text-main);
+    background-color: var(--primary);
+}
+
 /* --- MODAL (OKIENKO DODAWANIA DO BAZY) --- */
 .modal {
     position: fixed;
@@ -226,4 +231,58 @@ body {
 .btn-secondary {
     background-color: #e5e7eb;
     color: var(--text-main);
+}
+
+/* --- NAGŁÓWKI KATEGORII --- */
+.category-header {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--primary);
+    margin-top: 16px; /* Odstęp od poprzedniej kategorii */
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+/* Pierwszy nagłówek nie potrzebuje aż takiego marginesu na górze */
+.shopping-list .category-header:first-child {
+    margin-top: 0;
+}
+
+/* --- ELEMENTY LISTY (WCIĘCIE) --- */
+.shopping-item {
+    background-color: transparent; /* Zdejmujemy białe tło z pojedynczych elementów */
+    padding: 8px 0 8px 16px; /* 16px to właśnie Twoje wcięcie (indentacja)! */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.item-info {
+    display: flex;
+    align-items: center;
+}
+
+/* --- NOWOCZESNY CHECKBOX --- */
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    user-select: none;
+    gap: 12px;
+}
+
+.item-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: var(--primary); /* Zmienia kolor domyślnego checkboxa na nasz zielony */
+}
+
+/* Styl dla produktów już "kupionych" (opcjonalnie) */
+.item-checkbox:checked + .item-name {
+    text-decoration: line-through;
+    color: var(--text-muted);
 }

@@ -2,12 +2,10 @@ let products = [];
 let categories = [];
 let shopping_list = [];
 const input = document.getElementById('input');
+const addButton = document.getElementById('add-button');
 const shopping_list_ul = document.getElementById('shopping-ul');
 const suggestionsUl = document.getElementById('suggestions');
 const userId = 1;
-
-
-
 
 function renderShoppingList() {
     shopping_list_ul.innerHTML = '';
@@ -26,7 +24,6 @@ function renderShoppingList() {
         shopping_list_ul.appendChild(li);
 
         li.addEventListener("click", () => deleteItemFromList(item.id));
-
     });
 }
 
@@ -48,7 +45,7 @@ const addItemToList = async (productId) => {
             body: JSON.stringify({
                 productId: productId,
                 addedByUserId: userId,
-                quantity: 1
+                quantity: getQuantity()
             })
         });
         if (!response.ok) {
@@ -78,12 +75,13 @@ const deleteItemFromList = async (productId) => {
         const data = await response.json();
         fetchShoppingList();
     } catch (error) {
-            console.error('[ERROR] add item to list', error);
+            console.error(error);
     }
 }
 
-
-
+function getQuantity() {
+    return document.getElementById('inputQuant').value;
+}
 
 // load all products and categories
 document.addEventListener('DOMContentLoaded', async () => {
@@ -120,8 +118,27 @@ input.addEventListener('input', (e) => {
         li.textContent = item.name;
         li.dataset.id = item.id;
         suggestionsUl.appendChild(li);
-        li.addEventListener("click", () => addItemToList(item.id));
+        li.addEventListener("click", () => {
+            input.value = item.name;
+            suggestionsUl.innerHTML = ''
+        });
     })
 });
+
+addButton.addEventListener('click', () => {
+    let selectedProduct = null;
+    for (let i = 0; i < products.length; i++) {
+        if (input.value === products[i].name) {
+            selectedProduct = products[i];
+            break;
+        }
+    }
+    if (!selectedProduct){
+        alert('Nieznana nazwa produktu. Dodaj nowy produkt do bazy.');
+        return;
+    }
+
+    addItemToList(selectedProduct.id);
+})
 
 fetchShoppingList();

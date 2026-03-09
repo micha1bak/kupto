@@ -12,29 +12,17 @@
         <h1>QuickList</h1>
     </header>
 
-    <div class="toolbar">
-        <select id="category-filter" class="select-input">
-            <option value="all">Wszystkie kategorie</option>
-            <option value="1">Warzywa</option>
-            <option value="2">Owoce</option>
-        </select>
-    </div>
-
     <main class="main-content">
         <ul id="shopping-ul" class="shopping-list">
-            <li class="shopping-item">
-                <div class="item-info">
-                    <span class="item-name">Jabłko</span>
-                    <span class="item-category badge-blue">Owoce</span>
-                </div>
-                <button class="delete-btn" title="Usuń">🗑️</button>
-            </li>
+
         </ul>
     </main>
 
     <div class="add-section">
         <div class="input-wrapper">
             <input id="input" class="text-input" placeholder="Co kupujemy?" autocomplete="off">
+            <input id="inputQuant" class="text-input" placeholder="Ile kupujemy?" autocomplete="off">
+            <button id="add-button" class="text-input">Dodaj do listy!</button>
             <ul id="suggestions" class="suggestions-list"></ul>
         </div>
         <button id="btn-open-modal" class="btn-text">Brak produktu? Dodaj do bazy</button>
