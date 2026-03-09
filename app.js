@@ -5,6 +5,9 @@ const shopping_list_ul = document.getElementById('shopping-ul');
 const suggestionsUl = document.getElementById('suggestions');
 const userId = 1;
 
+
+
+
 function renderShoppingList() {
     shopping_list_ul.innerHTML = '';
     shopping_list.forEach(item => {
@@ -20,6 +23,9 @@ function renderShoppingList() {
         li.appendChild(cb);
         li.appendChild(label);
         shopping_list_ul.appendChild(li);
+
+        li.addEventListener("click", () => deleteItemFromList(item.id));
+
     });
 }
 
@@ -56,6 +62,28 @@ const addItemToList = async (productId) => {
         console.error('[ERROR] add item to list', error);
     }
 };
+
+const deleteItemFromList = async (productId) => {
+    try {
+        const response = await fetch(`/api/list/${productId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                productId: productId
+            })
+        })
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+        const data = await response.json();
+        fetchShoppingList();
+    } catch (error) {
+            console.error('[ERROR] add item to list', error);
+    }
+}
+
+
+
 
 // load all products
 document.addEventListener('DOMContentLoaded', async () => {

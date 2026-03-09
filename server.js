@@ -47,50 +47,74 @@ const server = http.createServer(async (req, res) => {
             res.end();
         }
     } else if (req.url === '/api/list' && req.method === 'POST') {
-        // 1. Odbieranie strumienia danych (bo req.body nie istnieje)
         let body = '';
-
         req.on('data', chunk => {
-            body += chunk.toString(); // Sklejamy fragmenty paczki
+            body += chunk.toString();
         });
-
         req.on('end', async () => {
             try {
-                // Zamieniamy odebrany tekst na obiekt JavaScript
                 const parsedBody = JSON.parse(body);
-
-                console.log('[DEBUG] Otrzymane dane z frontendu:', parsedBody);
-
-                // 2. Bezpieczne zapytanie SQL (Parametryzacja + Jawne nazwy kolumn + RETURNING)
                 const query = `
                     INSERT INTO shopping_list (product_id, added_by_user_id, quantity) 
                     VALUES ($1, $2, $3)
                     RETURNING *;
                 `;
-
-                // Wartości podpinamy w osobnej tablicy (kolejność musi pasować do $1, $2, $3)
                 const values = [
                     parseInt(parsedBody.productId),
                     parseInt(parsedBody.addedByUserId),
                     parseInt(parsedBody.quantity) || 1,
                 ];
-
-                // 3. Wykonanie zapytania
                 const result = await db.query(query, values);
-
-                // 4. Odsyłanie sukcesu do frontendu
                 res.writeHead(201, { 'Content-Type': 'application/json' });
-                // Odsyłamy tylko pierwszy wiersz, bo dodaliśmy tylko jeden produkt
                 res.end(JSON.stringify(result.rows[0]));
 
             } catch (err) {
-                console.error('[BŁĄD] /api/add-item:', err);
-
-                // Odsyłamy czytelny błąd, żeby frontend wiedział, że coś poszło nie tak
                 res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Błąd podczas dodawania produktu do listy.' }));
+                res.end(JSON.stringify({ error: 'Error while adding item to list.' }));
             }
         });
+    } else if (req.url.startsWith('/api/list/') && req.method === 'DELETE') {
+        try {
+            // 1. Wyciągamy ID produktu z adresu URL
+            // req.url to np. "/api/list/5". Dzielimy to po ukośnikach i bierzemy ostatni element.
+            const idString = req.url.split('/').pop();
+            const productId = parseInt(idString);
+
+            // 2. Walidacja: Upewniamy się, że na końcu URL-a była liczba
+            if (isNaN(productId)) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: 'Nieprawidłowe ID produktu' }));
+            }
+
+            // 3. Bezpieczne zapytanie SQL usuwające produkt z listy
+            const query = `
+                DELETE FROM shopping_list 
+                WHERE product_id = $1 
+                RETURNING *;
+            `;
+            const values = [productId];
+
+            const result = await db.query(query, values);
+
+            // 4. Sprawdzamy, czy produkt w ogóle był na liście
+            if (result.rowCount === 0) {
+                // rowCount to liczba usuniętych wierszy. Jeśli 0, to nie było takiego produktu.
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: 'Produkt nie znajduje się na liście zakupów' }));
+            }
+
+            // 5. Sukces! Odsyłamy informację o usunięciu
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                message: 'Produkt został usunięty z listy',
+                deletedItem: result.rows[0] // Opcjonalnie zwracamy, co dokładnie usunęliśmy
+            }));
+
+        } catch (err) {
+            console.error('[BŁĄD] Usuwanie z listy:', err);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Błąd serwera podczas usuwania produktu' }));
+        }
     }
 });
 
