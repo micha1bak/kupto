@@ -1,4 +1,5 @@
 let products = [];
+let categories = [];
 let shopping_list = [];
 const input = document.getElementById('input');
 const shopping_list_ul = document.getElementById('shopping-ul');
@@ -38,7 +39,6 @@ const fetchShoppingList = async () => {
         console.error('[ERROR] fetch shopping list: ', error);
     }
 };
-fetchShoppingList();
 
 const addItemToList = async (productId) => {
     try {
@@ -85,7 +85,7 @@ const deleteItemFromList = async (productId) => {
 
 
 
-// load all products
+// load all products and categories
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const response = await fetch('/api/products');
@@ -93,6 +93,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     catch (err){
         console.error('[ERROR] fetch all products', err);
+    }
+    try {
+        const response = await fetch('/api/categories');
+        categories = await response.json();
+    }
+    catch (err){
+        console.error('[ERROR] fetch all categories', err);
     }
 });
 
@@ -116,3 +123,5 @@ input.addEventListener('input', (e) => {
         li.addEventListener("click", () => addItemToList(item.id));
     })
 });
+
+fetchShoppingList();

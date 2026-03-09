@@ -46,6 +46,16 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(500);
             res.end();
         }
+    } else if (req.url === '/api/categories' && req.method === 'GET') {
+        try {
+            const result = await db.query(`SELECT *
+                                           from category`);
+            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify(result.rows));
+        } catch (err) {
+            res.writeHead(500);
+            res.end();
+        }
     } else if (req.url === '/api/list' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => {

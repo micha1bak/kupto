@@ -1,7 +1,229 @@
-ul {
-    list-style: none;
+/* --- ZMIENNE (Kolorystyka i wymiary) --- */
+:root {
+    --bg-color: #f3f4f6;
+    --surface-color: #ffffff;
+    --text-main: #1f2937;
+    --text-muted: #6b7280;
+    --primary: #10b981; /* Główny zielony */
+    --primary-hover: #059669;
+    --danger: #ef4444; /* Czerwony do usuwania */
+    --border: #e5e7eb;
+    --radius: 12px;
+}
+
+/* --- RESET & BAZA --- */
+* {
+    box-sizing: border-box;
+    margin: 0;
     padding: 0;
 }
-li {
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    line-height: 1.5;
+}
+
+/* Zapobiega "pływaniu" interfejsu na szerokich ekranach, centrując aplikację */
+.app-container {
+    max-width: 600px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-color);
+}
+
+/* --- NAGŁÓWEK --- */
+.header {
+    background-color: var(--surface-color);
+    padding: 16px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    text-align: center;
+}
+
+.header h1 {
+    font-size: 1.5rem;
+    color: var(--primary);
+}
+
+/* --- PASEK NARZĘDZI (FILTRY) --- */
+.toolbar {
+    padding: 16px 20px 0;
+}
+
+.select-input, .text-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 1rem;
+    background-color: var(--surface-color);
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.text-input:focus, .select-input:focus {
+    border-color: var(--primary);
+}
+
+/* --- GŁÓWNA LISTA --- */
+.main-content {
+    flex: 1; /* Pozwala liście zająć całą dostępną przestrzeń */
+    padding: 16px 20px;
+    overflow-y: auto;
+}
+
+.shopping-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.shopping-item {
+    background-color: var(--surface-color);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.item-name {
+    font-weight: 500;
+    font-size: 1.1rem;
+}
+
+.item-category {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background-color: #dbeafe;
+    color: #1e40af;
+    width: fit-content;
+}
+
+.delete-btn {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
     cursor: pointer;
+    padding: 8px; /* Większy obszar klikania dla palca */
+    color: var(--danger);
+    transition: transform 0.1s;
+}
+
+.delete-btn:active {
+    transform: scale(0.9);
+}
+
+/* --- SEKCJA DODAWANIA --- */
+.add-section {
+    background-color: var(--surface-color);
+    padding: 16px 20px 24px;
+    box-shadow: 0 -4px 6px -1px rgba(0,0,0,0.05);
+}
+
+.input-wrapper {
+    position: relative;
+    margin-bottom: 12px;
+}
+
+.suggestions-list {
+    list-style: none;
+    position: absolute;
+    bottom: 100%; /* Rozwija się do góry, ponad inputem */
+    left: 0;
+    width: 100%;
+    background: var(--surface-color);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 10;
+    margin-bottom: 4px;
+}
+
+.suggestions-list li {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+}
+.suggestions-list li:last-child { border-bottom: none; }
+.suggestions-list li:hover { background-color: #f9fafb; }
+
+.btn-text {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    width: 100%;
+    text-align: center;
+    cursor: pointer;
+    padding: 8px;
+    text-decoration: underline;
+}
+
+/* --- MODAL (OKIENKO DODAWANIA DO BAZY) --- */
+.modal {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    padding: 20px;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    background-color: var(--surface-color);
+    border-radius: var(--radius);
+    padding: 24px;
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.modal-content h2 { font-size: 1.25rem; }
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.btn-primary, .btn-secondary {
+    flex: 1;
+    padding: 12px;
+    border-radius: var(--radius);
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background-color: var(--primary);
+    color: white;
+}
+
+.btn-secondary {
+    background-color: #e5e7eb;
+    color: var(--text-main);
 }
