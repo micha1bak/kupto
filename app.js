@@ -1,3 +1,8 @@
+let products = [];
+const input = document.getElementById('input');
+const suggestionsUl = document.getElementById('suggestions');
+
+// fetch items that are currently on a list
 const fetchItems = async () => {
     try {
         const response = await fetch('/api/list');
@@ -8,7 +13,6 @@ const fetchItems = async () => {
 
         data.forEach(item => {
             const li = document.createElement('li');
-
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.id = `item-${item.id}`;
@@ -22,41 +26,42 @@ const fetchItems = async () => {
             ul.appendChild(li);
         });
     } catch (error) {
-        console.error('Błąd pobierania:', error);
+        console.error('[ERROR] fetchItems: ', error);
     }
 };
 
+// fetch items on load
 fetchItems();
 
-let catalog = [];
-
+// load all products
 document.addEventListener('DOMContentLoaded', async () => {
-    const response = await fetch('/api/catalog');
-    catalog = await response.json();
-    console.log(catalog);
+    try {
+        const response = await fetch('/api/catalog');
+        products = await response.json();
+    }
+    catch (err){
+        console.error('[ERROR]: api/catalog', err);
+    }
+
 });
 
-const input = document.getElementById('input');
-const suggestionsUl = document.getElementById('suggestions');
-
+// render suggestions
 input.addEventListener('input', (e) => {
     const value = e.target.value.toLowerCase();
 
+    suggestionsUl.innerHTML = '';
+
     if (value.length < 1) {
-        suggestionsUl.innerHTML = '';
         return;
     }
 
-    const matches = catalog.filter(item =>
+    const matches = products.filter(item =>
         item.name.toLowerCase().includes(value)
     ).slice(0, 5);
 
-    renderSuggestions(matches);
-});
-
-function renderSuggestions(matches) {
     matches.forEach(item => {
         const li = document.createElement('li');
+        li.textContent = item.name;
         suggestionsUl.appendChild(li);
     })
-}
+});

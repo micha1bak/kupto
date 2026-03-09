@@ -11,14 +11,21 @@
     "url": "git+https://github.com/micha1bak/kupto.git"
   },
   "license": "ISC",
-  "author": "",
+  "author": "Michał Bąk",
   "type": "commonjs",
-  "main": "app.js",
+  "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "db_tunnel": "ssh -N DB_kupto_dev",
+    "dev": "concurrently \"npm run db_tunnel\" \"wait-on tcp:127.0.0.1:6969 && node server.js\"",
     "start": "node server.js"
   },
   "dependencies": {
+    "dotenv": "^17.3.1",
     "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "wait-on": "^9.0.4"
   }
 }
