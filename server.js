@@ -1,11 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const db = require('./db');
-
-// TODO: Formatuj dane po stronie serwera tak, aby lista zakupów była już posortowana
-//       wg. kategorii.
-
-
+let MAX_PROD_ID;
 
 const server = http.createServer(async (req, res) => {
     if (req.url === '/' && req.method === 'GET') {
@@ -103,7 +99,34 @@ const server = http.createServer(async (req, res) => {
             }
         });
     } else if (req.url === '/api/products' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            try {
+                const parsedBody = JSON.parse(body);
+                const query = `
+                    INSERT INTO product (product_id, category, name)
+                    VALUES ($1, $2, $3) RETURNING *;
+                `;
+                const values = [
+                    ++MAX_PROD_ID,
+                    2,
+                    parsedBody.name
+                ];
 
+                const result = await db.query(query, values);
+
+                console.log(result);
+                res.writeHead(201, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify(result.rows[0]));
+
+            } catch (err) {
+                res.writeHead(500, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({error: 'Error while adding product to db.'}));
+            }
+        });
     } else if (req.url.startsWith('/api/list/') && req.method === 'DELETE') {
         try {
             const idString = req.url.split('/').pop();
@@ -134,5 +157,12 @@ const server = http.createServer(async (req, res) => {
         }
     }
 });
+
+db.query("select max(product_id) from product", (err, res) => {
+    if (err) {
+        console.error('[ERROR] Failed connect to database: ', err.stack);
+    }
+    MAX_PROD_ID = res.rows[0].max;
+})
 
 server.listen(3000, () => console.log('Server listening at http://localhost:3000'));

@@ -2,12 +2,15 @@ let products = [];
 let categories = [];
 let shoppingList = [];
 const input = document.getElementById('input');
-const addButton = document.getElementById('add-button');
+const addToListButton = document.getElementById('add-button');
 const shoppingListUl = document.getElementById('shopping-ul');
 const suggestionsUl = document.getElementById('suggestions');
 const newProductModal = document.getElementById('new-product-modal');
 const btnOpenModal = document.getElementById('btn-open-modal');
+const newProductName = document.getElementById('new-product-name');
+const newProductCategory = document.getElementById('new-product-category');
 const btnCancel = document.getElementById('btn-cancel');
+const btnSaveProduct = document.getElementById('btn-save-product')
 const userId = 1;
 
 function renderShoppingList() {
@@ -136,7 +139,7 @@ input.addEventListener('input', (e) => {
     })
 });
 
-addButton.addEventListener('click', () => {
+addToListButton.addEventListener('click', () => {
     let selectedProduct = null;
     for (let i = 0; i < products.length; i++) {
         if (input.value === products[i].name) {
@@ -158,6 +161,10 @@ btnOpenModal.addEventListener('click', () => {
 
 btnCancel.addEventListener('click', () => {
     newProductModal.className = 'modal hidden' // add class 'hidden'
+})
+
+btnSaveProduct.addEventListener('click', () => {
+
 })
 
 
