@@ -1,20 +1,24 @@
 services:
-  web:
-    image: nginx:latest
+  app:
+    build: .
     ports:
-      - "[::]:80:80"  
-    volumes:
-      - ./public:/usr/share/nginx/html 
+      - "[::]:80:3000"
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+    depends_on:
+      - db
     restart: always
-
   db:
-    image: postgres:latest
+    image: postgres:18.1
     ports:
       - "[::]:5432:5432"
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} 
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - db_data:/var/lib/postgresql
     restart: always
