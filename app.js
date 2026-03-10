@@ -45,6 +45,15 @@ function renderShoppingList() {
     });
 }
 
+function renderCategory() {
+    categories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category.name;
+        option.textContent = category.name;
+        newProductCategory.appendChild(option);
+    })
+}
+
 const fetchShoppingList = async () => {
     try {
         const response = await fetch('/api/list');
@@ -83,11 +92,11 @@ const deleteItemFromList = async (productId) => {
             body: JSON.stringify({
                 productId: productId
             })
-        })
+        });
         if (!response.ok) {
             throw new Error(`Server error: ${response.status}`);
         }
-        fetchShoppingList();
+        await fetchShoppingList();
     } catch (error) {
             console.error(error);
     }
@@ -97,22 +106,49 @@ function getQuantity() {
     return document.getElementById('inputQuant').value;
 }
 
-// load all products and categories
-document.addEventListener('DOMContentLoaded', async () => {
+const addNewProductToDB = async (categoryId, name) => {
+    try {
+        const res = await fetch('/api/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                categoryId: categoryId,
+                name: name
+            })
+        });
+        if (!res.ok) {
+            throw new Error(`Server error: ${res.status}`);
+        }
+        await fetchProducts();
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function fetchProducts() {
     try {
         const response = await fetch('/api/products');
         products = await response.json();
     }
     catch (err){
-        console.error('[ERROR] fetch all products', err);
+        console.error(err);
     }
+}
+
+async function fetchCategories() {
     try {
         const response = await fetch('/api/categories');
         categories = await response.json();
     }
     catch (err){
-        console.error('[ERROR] fetch all categories', err);
+        console.error(err);
     }
+}
+
+// load all products and categories
+document.addEventListener('DOMContentLoaded', async () => {
+    await fetchProducts();
+    await fetchCategories();
 });
 
 // render suggestions
@@ -159,11 +195,31 @@ btnOpenModal.addEventListener('click', () => {
     newProductModal.className = 'modal' // remove class 'hidden'
 })
 
+newProductCategory.addEventListener('click', () => {
+    renderCategory();
+})
+
 btnCancel.addEventListener('click', () => {
     newProductModal.className = 'modal hidden' // add class 'hidden'
 })
 
 btnSaveProduct.addEventListener('click', () => {
+    const categoryName = newProductCategory.value;
+    const name = newProductName.value;
+    let categoryId = 0;
+    categories.forEach(category => {
+        if (category.name === categoryName){
+            categoryId = category.category_id;
+        }
+    })
+    if (categoryId === 0) {
+        alert('Zła kategoria.');
+        newProductModal.className = 'modal hidden' // add class 'hidden'
+        return;
+    }
+
+    addNewProductToDB(categoryId, name);
+    newProductModal.className = 'modal hidden' // add class 'hidden'
 
 })
 

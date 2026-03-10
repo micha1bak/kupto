@@ -3,6 +3,11 @@ const fs = require('fs');
 const db = require('./db');
 let MAX_PROD_ID;
 
+const getFormatedProductName = (s) => {
+    if (!s) return '';
+    return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+};
+
 const server = http.createServer(async (req, res) => {
     if (req.url === '/' && req.method === 'GET') {
         fs.readFile('./index.html', (err, content) => {
@@ -112,17 +117,17 @@ const server = http.createServer(async (req, res) => {
                 `;
                 const values = [
                     ++MAX_PROD_ID,
-                    2,
-                    parsedBody.name
+                    parseInt(parsedBody.categoryId) || 100, // 100 -> 'Inne'
+                    getFormatedProductName(parsedBody.name)
                 ];
 
                 const result = await db.query(query, values);
 
-                console.log(result);
                 res.writeHead(201, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify(result.rows[0]));
 
             } catch (err) {
+                MAX_PROD_ID--;
                 res.writeHead(500, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify({error: 'Error while adding product to db.'}));
             }
