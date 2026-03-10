@@ -48,27 +48,6 @@ body {
     color: var(--primary);
 }
 
-/* --- PASEK NARZĘDZI (FILTRY) --- */
-.toolbar {
-    padding: 16px 20px 0;
-}
-
-.select-input, .text-input {
-    width: 100%;
-    padding: 12px 16px;
-    margin: 10px 0px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    font-size: 1rem;
-    background-color: var(--surface-color);
-    outline: none;
-    transition: border-color 0.2s;
-}
-
-.text-input:focus, .select-input:focus {
-    border-color: var(--primary);
-}
-
 /* --- GŁÓWNA LISTA --- */
 .main-content {
     flex: 1; /* Pozwala liście zająć całą dostępną przestrzeń */
@@ -83,27 +62,7 @@ body {
     gap: 12px;
 }
 
-.shopping-item {
-    background-color: transparent; /* Zdejmujemy białe tło z pojedynczych elementów */
-    padding: 8px 0 8px 16px; /* 16px to właśnie Twoje wcięcie (indentacja)! */
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #f3f4f6;
-}
-
-.item-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.item-name {
-    font-weight: 500;
-    font-size: 1.1rem;
-}
-
-.item-category {
+.category-header {
     font-size: 0.75rem;
     padding: 2px 8px;
     border-radius: 999px;
@@ -112,18 +71,22 @@ body {
     width: fit-content;
 }
 
-.delete-btn {
-    background: none;
-    border: none;
-    font-size: 1.2rem;
-    cursor: pointer;
-    padding: 8px; /* Większy obszar klikania dla palca */
-    color: var(--danger);
-    transition: transform 0.1s;
+.item-name {
+    font-weight: 500;
+    font-size: 1.1rem;
 }
 
-.delete-btn:active {
-    transform: scale(0.9);
+.prod-container {
+    background-color: transparent; /* Zdejmujemy białe tło z pojedynczych elementów */
+    padding: 8px 0 8px 16px; /* 16px to właśnie Twoje wcięcie (indentacja)! */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.rm-button:hover {
+    cursor: pointer;
 }
 
 /* --- SEKCJA DODAWANIA --- */
@@ -179,6 +142,10 @@ body {
     background-color: var(--primary);
 }
 
+#add-button:hover {
+    cursor: pointer;
+}
+
 /* --- MODAL (OKIENKO DODAWANIA DO BAZY) --- */
 .modal {
     position: fixed;
@@ -212,6 +179,22 @@ body {
     display: flex;
     gap: 12px;
     margin-top: 8px;
+}
+
+.select-input, .text-input {
+    width: 100%;
+    padding: 12px 16px;
+    margin: 10px 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 1rem;
+    background-color: var(--surface-color);
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.text-input:focus, .select-input:focus {
+    border-color: var(--primary);
 }
 
 .btn-primary, .btn-secondary {

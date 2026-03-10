@@ -1,36 +1,51 @@
 let products = [];
 let categories = [];
-let shopping_list = [];
+let shoppingList = [];
 const input = document.getElementById('input');
 const addButton = document.getElementById('add-button');
-const shopping_list_ul = document.getElementById('shopping-ul');
+const shoppingListUl = document.getElementById('shopping-ul');
 const suggestionsUl = document.getElementById('suggestions');
+const newProductModal = document.getElementById('new-product-modal');
+const btnOpenModal = document.getElementById('btn-open-modal');
+const btnCancel = document.getElementById('btn-cancel');
 const userId = 1;
 
 function renderShoppingList() {
-    shopping_list_ul.innerHTML = '';
-    shopping_list.forEach(item => {
-        const li = document.createElement('li');
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.id = `item-${item.id}`;
+    shoppingListUl.innerHTML = '';
+    shoppingList.forEach(category => {
+        const h4 = document.createElement('h4');
+        h4.className = 'category-header';
+        h4.textContent = category.category;
+        shoppingListUl.appendChild(h4);
 
-        const label = document.createElement('label');
-        label.setAttribute('for', `item-${item.id}`);
-        label.textContent = item.name;
+        category.items.forEach(product => {
+            const name = document.createElement('span');
+            const quantity = document.createElement('span');
+            const X = document.createElement('span');
+            const div = document.createElement('div');
 
-        li.appendChild(cb);
-        li.appendChild(label);
-        shopping_list_ul.appendChild(li);
+            name.className = 'item-name';
+            quantity.className = 'quantity';
+            X.className = 'rm-button';
+            div.className = 'prod-container';
 
-        li.addEventListener("click", () => deleteItemFromList(item.id));
+            name.textContent = product.name;
+            quantity.textContent = product.quantity;
+            X.textContent = 'X';
+            div.appendChild(name);
+            div.appendChild(quantity);
+            div.appendChild(X);
+            shoppingListUl.appendChild(div);
+
+            X.addEventListener("click", () => deleteItemFromList(product.id));
+        });
     });
 }
 
 const fetchShoppingList = async () => {
     try {
         const response = await fetch('/api/list');
-        shopping_list = await response.json();
+        shoppingList = await response.json();
         renderShoppingList();
     } catch (error) {
         console.error('[ERROR] fetch shopping list: ', error);
@@ -51,10 +66,7 @@ const addItemToList = async (productId) => {
         if (!response.ok) {
             throw new Error(`Server error: ${response.status}`);
         }
-
-        const data = await response.json();
-        fetchShoppingList();
-
+        await fetchShoppingList();
     } catch (error) {
         console.error('[ERROR] add item to list', error);
     }
@@ -72,7 +84,6 @@ const deleteItemFromList = async (productId) => {
         if (!response.ok) {
             throw new Error(`Server error: ${response.status}`);
         }
-        const data = await response.json();
         fetchShoppingList();
     } catch (error) {
             console.error(error);
@@ -140,5 +151,14 @@ addButton.addEventListener('click', () => {
 
     addItemToList(selectedProduct.id);
 })
+
+btnOpenModal.addEventListener('click', () => {
+    newProductModal.className = 'modal' // remove class 'hidden'
+})
+
+btnCancel.addEventListener('click', () => {
+    newProductModal.className = 'modal hidden' // add class 'hidden'
+})
+
 
 fetchShoppingList();

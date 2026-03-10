@@ -36,8 +36,23 @@ const server = http.createServer(async (req, res) => {
     } else if (req.url === '/api/list' && req.method === 'GET') {
         try {
             const result = await db.query('SELECT * FROM full_shopping_list');
+
+            const rows = result.rows;
+            // Grupowanie
+            const grouped = rows.reduce((acc, item) => {
+                const cat = item.category;
+                if (!acc[cat]) acc[cat] = [];
+                acc[cat].push(item);
+                return acc;
+            }, {});
+
+            // Zamiana na tablicę i opcjonalne sortowanie kategorii alfabetycznie
+            const response = Object.entries(grouped)
+                .sort(([a], [b]) => a.localeCompare(b, 'pl'))
+                .map(([category, items]) => ({ category, items }));
             res.writeHead(200, {'Content-Type': 'application/json'});
-            res.end(JSON.stringify(result.rows));
+            res.end(JSON.stringify(response));
+
         } catch (err) {
             res.writeHead(500);
             res.end();
