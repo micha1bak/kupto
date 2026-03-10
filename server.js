@@ -2,6 +2,11 @@ const http = require('http');
 const fs = require('fs');
 const db = require('./db');
 
+// TODO: Formatuj dane po stronie serwera tak, aby lista zakupów była już posortowana
+//       wg. kategorii.
+
+
+
 const server = http.createServer(async (req, res) => {
     if (req.url === '/' && req.method === 'GET') {
         fs.readFile('./index.html', (err, content) => {
@@ -71,7 +76,7 @@ const server = http.createServer(async (req, res) => {
                 const values = [
                     parseInt(parsedBody.productId),
                     parseInt(parsedBody.addedByUserId),
-                    parseInt(parsedBody.quantity) || 1,
+                    parsedBody.quantity || 1,
                 ];
                 const result = await db.query(query, values);
                 res.writeHead(201, {'Content-Type': 'application/json'});
