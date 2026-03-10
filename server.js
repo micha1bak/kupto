@@ -9,6 +9,7 @@ const getFormatedProductName = (s) => {
 };
 
 const server = http.createServer(async (req, res) => {
+    console.log(`[REQ]: ${req.method} ${req.url}`);
     if (req.url === '/' && req.method === 'GET') {
         fs.readFile('./index.html', (err, content) => {
             res.writeHead(200, {'Content-Type': 'text/html'});
@@ -160,6 +161,10 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end();
         }
+    } else {
+        console.log(`[NO FILE!] url: ${url}`);
+        res.writeHead(404);
+        res.end();
     }
 });
 
