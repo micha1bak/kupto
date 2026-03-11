@@ -1,7 +1,32 @@
 const http = require('http');
 const fs = require('fs');
 const db = require('./db');
+const {SignJWT} = require("jose");
 let MAX_PROD_ID;
+
+// TODO: Real-Time Collaboration (WebSockets): Make it so you and your girlfriend
+//  can have the app open on different phones, and if she checks off "Milk"
+//  it instantly checks off on your screen without refreshing.
+
+// TODO: Security & Auth: Implement secure login (JWT or session-based)
+//  and password hashing (bcrypt). Show that you know how to protect user data.
+
+// Podsumowanie zmian architektonicznych w pigułce:
+// 1. `app.js`: Usunięcie const userId = 1. Dodanie panelu logowania. Zmiana każdej funkcji wywołującej fetch,
+//      aby pobierała JWT z pamięci przeglądarki i wstrzykiwała go do nagłówków Authorization.
+// 2. `server.js`: Implementacja endopointu /api/login dla logowania. Zabezpieczenie obecnych endopintów
+//      (sprawdzanie nagłówka przez jwtVerify). Używanie zdekodowanego z tokenu id użytkownika do modyfikacji bazy danych,
+//      zamiast polegania na danych wysłanych przez frontend.
+// 3.  Obsługa błędów: app.js musi reagować na błędy HTTP statusu 401 i 403 przez wylogowanie użytkownika
+//      (np. czyszczenie localStorage i pokazanie okna logowania) — oznacza to, że sesja (JWT) wygasła.
+
+// TODO: Testing: Write unit and integration tests (using a tool like Jest).
+//  Junior devs who know how to write tests are unicorns.
+
+// TODO: Offline Mode (PWA): Supermarkets often have terrible cell service.
+//  Make the app work offline using Service Workers and sync to the database once the connection returns.
+
+// TODO: Store list and products in local storage for faster render time.
 
 const getFormatedProductName = (s) => {
     if (!s) return '';
@@ -32,6 +57,45 @@ const server = http.createServer(async (req, res) => {
             } else {
                 res.writeHead(200, {'Content-Type': 'text/css'});
                 res.end(content);
+            }
+        });
+    } else if (req.url === '/api/login' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            try {
+                console.log(body);
+                const parsedBody = JSON.parse(body);
+
+                const query = `
+                   SELECT validate_user($1, $2);
+                `;
+                const values = [
+                    parsedBody.login,
+                    parsedBody.password
+                ]
+                try {
+                    const result = await db.query(query, values);
+                    const is_valid_user = parseInt(result.rows[0].validate_user);
+                    if (is_valid_user) {
+                        const secret = new TextEncoder().encode('secret');
+                        const jwt = await new SignJWT({userId: '1'})
+                            .setProtectedHeader({alg: 'HS256'})
+                            .setIssuedAt()
+                            .sign(secret);
+                        res.writeHead(200, {'Content-Type': 'application/json'});
+                        res.end(JSON.stringify({token: jwt}));
+                    } else {
+                        res.writeHead(401, {'Content-Type': 'application/json'});
+                        res.end();
+                    }
+                } catch (err) {
+                    console.error('bd login err:', err);
+                }
+            } catch (err) {
+                console.error(err);
             }
         });
     } else if (req.url === '/api/list' && req.method === 'GET') {

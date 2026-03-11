@@ -11,7 +11,116 @@ const newProductName = document.getElementById('new-product-name');
 const newProductCategory = document.getElementById('new-product-category');
 const btnCancel = document.getElementById('btn-cancel');
 const btnSaveProduct = document.getElementById('btn-save-product')
-const userId = 1;
+
+function renderLoginPage() {
+    if (document.getElementById('login-container')) {
+        return;
+    }
+
+    const appElementsToHide = [
+        document.querySelector('.search-container'),
+        document.getElementById('shopping-ul'),
+        document.getElementById('btn-open-modal')
+    ];
+
+    appElementsToHide.forEach(el => {
+        if (el) el.style.display = 'none';
+    });
+
+    const loginContainer = document.createElement('div');
+    loginContainer.id = 'login-container';
+    loginContainer.className = 'login-container';
+
+    const form = document.createElement('form');
+    form.id = 'login-form';
+    form.className = 'login-form';
+
+    const title = document.createElement('h2');
+    title.textContent = 'Zaloguj się';
+    title.className = 'login-title';
+
+    const emailGroup = document.createElement('div');
+    emailGroup.className = 'input-group';
+    const emailLabel = document.createElement('label');
+    emailLabel.htmlFor = 'login-email';
+    emailLabel.textContent = 'Email';
+    const emailInput = document.createElement('input');
+    emailInput.id = 'login-email';
+    emailInput.required = true;
+    emailInput.placeholder = 'Wprowadź adres email';
+    emailGroup.appendChild(emailLabel);
+    emailGroup.appendChild(emailInput);
+
+    const passwordGroup = document.createElement('div');
+    passwordGroup.className = 'input-group';
+    const passwordLabel = document.createElement('label');
+    passwordLabel.htmlFor = 'login-password';
+    passwordLabel.textContent = 'Hasło';
+    const passwordInput = document.createElement('input');
+    passwordInput.type = 'password';
+    passwordInput.id = 'login-password';
+    passwordInput.required = true;
+    passwordInput.placeholder = 'Wprowadź hasło';
+    passwordGroup.appendChild(passwordLabel);
+    passwordGroup.appendChild(passwordInput);
+
+    const errorMsg = document.createElement('p');
+    errorMsg.id = 'login-error';
+    errorMsg.className = 'login-error hidden';
+    errorMsg.textContent = 'Nieprawidłowy email lub hasło.';
+
+    const submitBtn = document.createElement('button');
+    submitBtn.type = 'submit';
+    submitBtn.className = 'btn-login';
+    submitBtn.textContent = 'Zaloguj';
+
+    form.appendChild(title);
+    form.appendChild(emailGroup);
+    form.appendChild(passwordGroup);
+    form.appendChild(errorMsg);
+    form.appendChild(submitBtn);
+    loginContainer.appendChild(form);
+
+    document.body.appendChild(loginContainer);
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const email = emailInput.value;
+        const password = passwordInput.value;
+        console.log('Logowanie dla:', email);
+        try {
+            const response = await fetch('api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    login: email,
+                    password: password
+                })
+            })
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
+            console.log(response.token);
+            localStorage.setItem('jwt_token', response.token);
+
+            errorMsg.classList.add('hidden');
+
+            document.body.removeChild(loginContainer);
+            appElementsToHide.forEach(el => {
+                if (el) el.style.display = '';
+            });
+
+        } catch (error) {
+            errorMsg.classList.remove('hidden');
+            console.error('[ERROR] logowanie:', error);
+        }
+    });
+}
+
+renderLoginPage();
+
 
 function renderShoppingList() {
     shoppingListUl.innerHTML = '';
@@ -63,7 +172,13 @@ function renderCategory() {
 
 const fetchShoppingList = async () => {
     try {
-        const response = await fetch('/api/list');
+        const response = await fetch('/api/list', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            }
+        });
         shoppingList = await response.json();
         renderShoppingList();
     } catch (error) {
@@ -75,10 +190,12 @@ const addItemToList = async (productId) => {
     try {
         const response = await fetch('/api/list', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            },
             body: JSON.stringify({
                 productId: productId,
-                addedByUserId: userId,
                 quantity: getQuantity()
             })
         });
@@ -95,7 +212,10 @@ const deleteItemFromList = async (productId) => {
     try {
         const response = await fetch(`/api/list/${productId}`, {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            },
             body: JSON.stringify({
                 productId: productId
             })
@@ -117,7 +237,10 @@ const addNewProductToDB = async (categoryId, name) => {
     try {
         const res = await fetch('/api/products', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            },
             body: JSON.stringify({
                 categoryId: categoryId,
                 name: name
@@ -134,7 +257,13 @@ const addNewProductToDB = async (categoryId, name) => {
 
 async function fetchProducts() {
     try {
-        const response = await fetch('/api/products');
+        const response = await fetch('/api/products', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            }
+        });
         products = await response.json();
     }
     catch (err){
@@ -144,7 +273,13 @@ async function fetchProducts() {
 
 async function fetchCategories() {
     try {
-        const response = await fetch('/api/categories');
+        const response = await fetch('/api/categories', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            }
+        });
         categories = await response.json();
     }
     catch (err){
