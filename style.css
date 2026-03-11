@@ -74,19 +74,43 @@ body {
 .item-name {
     font-weight: 500;
     font-size: 1.1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .prod-container {
     background-color: transparent; /* Zdejmujemy białe tło z pojedynczych elementów */
     padding: 8px 0 8px 16px; /* 16px to właśnie Twoje wcięcie (indentacja)! */
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 60px 40px;
+    align-items: center; /* Wyrównuje tekst i ikonki idealnie na środku w pionie */
+    gap: 10px;           /* Tworzy bezpieczny odstęp między kolumnami */
+    border-bottom: 1px solid #e0e0e0;
     justify-content: space-between;
-    align-items: center;
     border-bottom: 1px solid #f3f4f6;
 }
 
+.green-list-row {
+    background-color: #6CFFCFFF;
+    border-radius: var(--radius);
+}
+
+.quantity {
+    text-align: center; /* Wyrównuje liczbę na środku swojej 60-pikselowej kolumny */
+    font-weight: bold;
+    color: #555;
+}
+
 .rm-button:hover {
-    cursor: pointer;
+    text-align: center; /* Śmietnik ląduje na środku swojej kolumny */
+    cursor: pointer;    /* Zmienia kursor na "łapkę" przy najechaniu */
+    font-size: 1.2rem;
+    transition: transform 0.2s;
+}
+
+.rm-button:hover {
+    transform: scale(1.2); /* Lekko powiększa śmietnik przy najechaniu myszką */
 }
 
 /* --- SEKCJA DODAWANIA --- */
@@ -138,12 +162,13 @@ body {
 }
 
 #add-button {
-    color: var(--text-main);
+    color: whitesmoke;
     background-color: var(--primary);
 }
 
 #add-button:hover {
     cursor: pointer;
+    background-color: var(--primary-hover);
 }
 
 /* --- MODAL (OKIENKO DODAWANIA DO BAZY) --- */

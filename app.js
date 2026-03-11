@@ -21,6 +21,7 @@ function renderShoppingList() {
         h4.textContent = category.category;
         shoppingListUl.appendChild(h4);
 
+        let i = 0;
         category.items.forEach(product => {
             const name = document.createElement('span');
             const quantity = document.createElement('span');
@@ -30,11 +31,17 @@ function renderShoppingList() {
             name.className = 'item-name';
             quantity.className = 'quantity';
             X.className = 'rm-button';
-            div.className = 'prod-container';
+            if (i % 2 === 0){
+                div.className = 'prod-container green-list-row';
+                i = 1;
+            } else {
+                div.className = 'prod-container';
+                i = 0;
+            }
 
             name.textContent = product.name;
             quantity.textContent = product.quantity;
-            X.textContent = 'X';
+            X.textContent = '🗑️';
             div.appendChild(name);
             div.appendChild(quantity);
             div.appendChild(X);
