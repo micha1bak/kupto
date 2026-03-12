@@ -1,12 +1,60 @@
 const http = require('http');
 const fs = require('fs');
 const db = require('./db');
+const { SignJWT, jwtVerify } = require("jose");
+const jwtSecret = new TextEncoder().encode(process.env.JWT_SECRET);
 let MAX_PROD_ID;
 
-const getFormatedProductName = (s) => {
+// TODO: Real-Time Collaboration (WebSockets)
+
+// TODO: Add password hashing
+
+// TODO: Testing with jest
+
+// TODO: Offline Mode (PWA): Supermarkets often have terrible cell service.
+//  Make the app work offline using Service Workers and sync to the database once the connection returns.
+
+// TODO: Store list and products in local storage for faster render time.
+
+// TODO: Add loging to file
+
+function getFormatedProductName(s) {
     if (!s) return '';
     return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-};
+}
+
+function getTokenFromRequest(request) {
+    return request.headers['authorization'].split(' ')[1];
+}
+
+function getParsedBodyFromRequest(request) {
+    return new Promise((resolve, reject) => {
+        let body = '';
+
+        request.on('data', chunk => {
+            body += chunk.toString();
+        })
+
+        request.on('end', () => {
+            try {
+                if (!body) {
+                    return resolve({});
+                }
+                const parsedBody = JSON.parse(body);
+                resolve(parsedBody);
+            }
+            catch (err) {
+                reject(err);
+            }
+        });
+
+        request.on('error', (err) => {
+            reject(err);
+        });
+    });
+}
+
+
 
 const server = http.createServer(async (req, res) => {
     console.log(`[REQ]: ${req.method} ${req.url}`);
@@ -15,7 +63,8 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(200, {'Content-Type': 'text/html'});
             res.end(content);
         });
-    } else if (req.url === '/app.js' && req.method === 'GET') {
+    }
+    else if (req.url === '/app.js' && req.method === 'GET') {
         fs.readFile('./app.js', (err, content) => {
             if (err) {
                 res.writeHead(404);
@@ -25,7 +74,8 @@ const server = http.createServer(async (req, res) => {
                 res.end(content);
             }
         });
-    } else if (req.url === '/style.css' && req.method === 'GET') {
+    }
+    else if (req.url === '/style.css' && req.method === 'GET') {
         fs.readFile('./style.css', (err, content) => {
             if (err) {
                 res.writeHead(404);
@@ -35,11 +85,71 @@ const server = http.createServer(async (req, res) => {
                 res.end(content);
             }
         });
-    } else if (req.url === '/api/list' && req.method === 'GET') {
+    }
+    else if (req.url === '/api/login' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            try {
+                const parsedBody = JSON.parse(body);
+
+                const query = `
+                   SELECT user_id
+                   FROM users u
+                   WHERE u.login = $1 AND u.password = $2;
+                `;
+
+                const values = [
+                    parsedBody.login,
+                    parsedBody.password
+                ]
+
+                try {
+                    const result = await db.query(query, values);
+
+                    if (result.rows.length === 1) {
+
+                        const userId = result.rows[0].user_id;
+                        const jwt = await new SignJWT({userId: userId})
+                            .setProtectedHeader({alg: 'HS256'})
+                            .setIssuedAt()
+                            .sign(jwtSecret);
+
+                        res.writeHead(200, {'Content-Type': 'application/json'});
+                        res.end(JSON.stringify({token: jwt}));
+
+                    } else {
+                        res.writeHead(401, {'Content-Type': 'application/json'});
+                        res.end();
+                    }
+
+                } catch (err) {
+                    console.error('bd login err:', err);
+                }
+
+            } catch (err) {
+                console.error(err);
+            }
+        });
+    }
+    else if (req.url === '/api/list' && req.method === 'GET') {
         try {
+
+            const token = getTokenFromRequest(req);
+            try {
+                await jwtVerify(token, jwtSecret);
+            }
+            catch (err) {
+                res.writeHead(401);
+                return res.end();
+            }
+
             const result = await db.query('SELECT * FROM full_shopping_list');
 
             const rows = result.rows;
+
             // Grupowanie
             const grouped = rows.reduce((acc, item) => {
                 const cat = item.category;
@@ -54,91 +164,151 @@ const server = http.createServer(async (req, res) => {
                 .map(([category, items]) => ({ category, items }));
             res.writeHead(200, {'Content-Type': 'application/json'});
             res.end(JSON.stringify(response));
-
-        } catch (err) {
+        }
+        catch (err) {
             res.writeHead(500);
             res.end();
         }
-    } else if (req.url === '/api/products' && req.method === 'GET') {
+    }
+    else if (req.url === '/api/products' && req.method === 'GET') {
         try {
+
+            const token = getTokenFromRequest(req);
+            try {
+                await jwtVerify(token, jwtSecret);
+            }
+            catch (err) {
+                res.writeHead(401);
+                return res.end();
+            }
+
             const result = await db.query(`SELECT * from prod_cat`);
+
             res.writeHead(200, {'Content-Type': 'application/json'});
             res.end(JSON.stringify(result.rows));
-        } catch (err) {
+
+        }
+        catch (err) {
             res.writeHead(500);
             res.end();
         }
-    } else if (req.url === '/api/categories' && req.method === 'GET') {
+    }
+    else if (req.url === '/api/categories' && req.method === 'GET') {
         try {
-            const result = await db.query(`SELECT *
-                                           from category`);
+
+            const token = getTokenFromRequest(req);
+            try {
+                await jwtVerify(token, jwtSecret);
+            }
+            catch (err) {
+                res.writeHead(401);
+                return res.end();
+            }
+
+            const result = await db.query(`SELECT * from category`);
+
             res.writeHead(200, {'Content-Type': 'application/json'});
             res.end(JSON.stringify(result.rows));
-        } catch (err) {
+
+        }
+        catch (err) {
             res.writeHead(500);
             res.end();
         }
-    } else if (req.url === '/api/list' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => {
-            body += chunk.toString();
-        });
-        req.on('end', async () => {
-            try {
-                const parsedBody = JSON.parse(body);
-                const query = `
-                    INSERT INTO shopping_list (product_id, added_by_user_id, quantity)
-                    VALUES ($1, $2, $3) RETURNING *;
-                `;
-                const values = [
-                    parseInt(parsedBody.productId),
-                    parseInt(parsedBody.addedByUserId),
-                    parsedBody.quantity || 1,
-                ];
-                const result = await db.query(query, values);
-                res.writeHead(201, {'Content-Type': 'application/json'});
-                res.end(JSON.stringify(result.rows[0]));
-
-            } catch (err) {
-                res.writeHead(500, {'Content-Type': 'application/json'});
-                res.end(JSON.stringify({error: 'Error while adding item to list.'}));
-            }
-        });
-    } else if (req.url === '/api/products' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => {
-            body += chunk.toString();
-        });
-        req.on('end', async () => {
-            try {
-                const parsedBody = JSON.parse(body);
-                const query = `
-                    INSERT INTO product (product_id, category, name)
-                    VALUES ($1, $2, $3) RETURNING *;
-                `;
-                const values = [
-                    ++MAX_PROD_ID,
-                    parseInt(parsedBody.categoryId) || 100, // 100 -> 'Inne'
-                    getFormatedProductName(parsedBody.name)
-                ];
-
-                const result = await db.query(query, values);
-
-                res.writeHead(201, {'Content-Type': 'application/json'});
-                res.end(JSON.stringify(result.rows[0]));
-
-            } catch (err) {
-                MAX_PROD_ID--;
-                res.writeHead(500, {'Content-Type': 'application/json'});
-                res.end(JSON.stringify({error: 'Error while adding product to db.'}));
-            }
-        });
-    } else if (req.url.startsWith('/api/list/') && req.method === 'DELETE') {
+    }
+    else if (req.url === '/api/list' && req.method === 'POST') {
         try {
-            const idString = req.url.split('/').pop();
-            const productId = parseInt(idString);
 
-            if (isNaN(productId)) {
+            const token = getTokenFromRequest(req);
+            let userId;
+
+            try {
+                const { payload } = await jwtVerify(token, jwtSecret);
+                userId = payload.userId;
+            }
+            catch (err) {
+                res.writeHead(401);
+                return res.end();
+            }
+
+            const body = await getParsedBodyFromRequest(req);
+
+            const query = `
+                        INSERT INTO shopping_list (product_id, added_by_user_id, quantity)
+                        VALUES ($1, $2, $3) RETURNING *;
+                    `;
+
+            const values = [
+                parseInt(body.productId),
+                userId,
+                body.quantity || 1,
+            ];
+
+            const result = await db.query(query, values);
+
+            res.writeHead(201, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify(result.rows[0]));
+
+        }
+        catch (err) {
+            res.writeHead(500, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({error: 'Error while adding item to list.'}));
+        }
+    }
+    else if (req.url === '/api/products' && req.method === 'POST') {
+        try {
+
+            const token = getTokenFromRequest(req);
+
+            try {
+                await jwtVerify(token, jwtSecret);
+            }
+            catch (err) {
+                res.writeHead(401);
+                return res.end();
+            }
+
+            const body = await getParsedBodyFromRequest(req);
+
+            const query = `
+                        INSERT INTO product (product_id, category, name)
+                        VALUES ($1, $2, $3) RETURNING *;
+                    `;
+
+            const values = [
+                ++MAX_PROD_ID,
+                parseInt(body.categoryId) || 100, // 100 -> 'Inne'
+                getFormatedProductName(body.name)
+            ];
+
+            const result = await db.query(query, values);
+
+            res.writeHead(201, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify(result.rows[0]));
+
+        }
+        catch (err) {
+            MAX_PROD_ID--;
+            res.writeHead(500, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({error: 'Error while adding item to list.'}));
+        }
+    }
+    else if (req.url.startsWith('/api/list/') && req.method === 'DELETE') {
+        try  {
+
+            const token = getTokenFromRequest(req);
+
+            try {
+                await jwtVerify(token, jwtSecret);
+            }
+            catch (err) {
+                res.writeHead(401);
+                return res.end();
+            }
+
+            const productIdToDeleteFromList = parseInt(req.url.split('/').pop());
+
+            if (isNaN(productIdToDeleteFromList)) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 return res.end();
             }
@@ -148,16 +318,15 @@ const server = http.createServer(async (req, res) => {
                 WHERE product_id = $1 
                 RETURNING *;
             `;
-            const values = [productId];
+
+            const values = [productIdToDeleteFromList];
+
             const result = await db.query(query, values);
 
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-                deletedItem: result.rows[0]
-            }));
-
-        } catch (err) {
-            console.error(err);
+            res.end(JSON.stringify({ deletedItem: result.rows[0] }));
+        }
+        catch (err) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end();
         }
@@ -166,7 +335,10 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(404);
         res.end();
     }
+
 });
+
+
 
 db.query("select max(product_id) from product", (err, res) => {
     if (err) {

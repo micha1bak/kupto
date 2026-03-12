@@ -2,6 +2,7 @@ let products = [];
 let categories = [];
 let shoppingList = [];
 const input = document.getElementById('input');
+const inputQuant = document.getElementById('inputQuant');
 const addToListButton = document.getElementById('add-button');
 const shoppingListUl = document.getElementById('shopping-ul');
 const suggestionsUl = document.getElementById('suggestions');
@@ -11,7 +12,123 @@ const newProductName = document.getElementById('new-product-name');
 const newProductCategory = document.getElementById('new-product-category');
 const btnCancel = document.getElementById('btn-cancel');
 const btnSaveProduct = document.getElementById('btn-save-product')
-const userId = 1;
+
+
+
+/* --- RENDER --- */
+function renderLoginPage() {
+
+    if (document.getElementById('login-container')) {
+        return;
+    }
+
+    const appElementsToHide = [
+        document.querySelector('.search-container'),
+        document.getElementById('shopping-ul'),
+        document.getElementById('btn-open-modal')
+    ];
+
+    appElementsToHide.forEach(el => {
+        if (el) el.style.display = 'none';
+    });
+
+    const loginContainer = document.createElement('div');
+    loginContainer.id = 'login-container';
+    loginContainer.className = 'login-container';
+
+    const form = document.createElement('form');
+    form.id = 'login-form';
+    form.className = 'login-form';
+
+    const title = document.createElement('h2');
+    title.textContent = 'Zaloguj się';
+    title.className = 'login-title';
+
+    const emailGroup = document.createElement('div');
+    emailGroup.className = 'input-group';
+    const emailLabel = document.createElement('label');
+    emailLabel.htmlFor = 'login-email';
+    emailLabel.textContent = 'Email';
+    const emailInput = document.createElement('input');
+    emailInput.id = 'login-email';
+    emailInput.required = true;
+    emailInput.placeholder = 'Wprowadź adres email';
+    emailGroup.appendChild(emailLabel);
+    emailGroup.appendChild(emailInput);
+
+    const passwordGroup = document.createElement('div');
+    passwordGroup.className = 'input-group';
+    const passwordLabel = document.createElement('label');
+    passwordLabel.htmlFor = 'login-password';
+    passwordLabel.textContent = 'Hasło';
+    const passwordInput = document.createElement('input');
+    passwordInput.type = 'password';
+    passwordInput.id = 'login-password';
+    passwordInput.required = true;
+    passwordInput.placeholder = 'Wprowadź hasło';
+    passwordGroup.appendChild(passwordLabel);
+    passwordGroup.appendChild(passwordInput);
+
+    const errorMsg = document.createElement('p');
+    errorMsg.id = 'login-error';
+    errorMsg.className = 'login-error hidden';
+    errorMsg.textContent = 'Nieprawidłowy email lub hasło.';
+
+    const submitBtn = document.createElement('button');
+    submitBtn.type = 'submit';
+    submitBtn.className = 'btn-login';
+    submitBtn.textContent = 'Zaloguj';
+
+    form.appendChild(title);
+    form.appendChild(emailGroup);
+    form.appendChild(passwordGroup);
+    form.appendChild(errorMsg);
+    form.appendChild(submitBtn);
+    loginContainer.appendChild(form);
+
+    document.body.appendChild(loginContainer);
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const email = emailInput.value;
+        const password = passwordInput.value;
+
+        try {
+
+            const response = await fetch('api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    login: email,
+                    password: password
+                })
+            })
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            localStorage.setItem('jwt_token', data.token);
+
+            await fetchShoppingList();
+            await fetchProducts();
+            await fetchCategories();
+
+            errorMsg.classList.add('hidden');
+            document.body.removeChild(loginContainer);
+
+            appElementsToHide.forEach(el => {
+                if (el) el.style.display = '';
+            });
+        }
+        catch (error) {
+            errorMsg.classList.remove('hidden');
+            console.error('[ERROR] logowanie:', error);
+        }
+    });
+}
 
 function renderShoppingList() {
     shoppingListUl.innerHTML = '';
@@ -21,6 +138,7 @@ function renderShoppingList() {
         h4.textContent = category.category;
         shoppingListUl.appendChild(h4);
 
+        let i = 0;
         category.items.forEach(product => {
             const name = document.createElement('span');
             const quantity = document.createElement('span');
@@ -30,11 +148,17 @@ function renderShoppingList() {
             name.className = 'item-name';
             quantity.className = 'quantity';
             X.className = 'rm-button';
-            div.className = 'prod-container';
+            if (i % 2 === 0){
+                div.className = 'prod-container green-list-row';
+                i = 1;
+            } else {
+                div.className = 'prod-container';
+                i = 0;
+            }
 
             name.textContent = product.name;
             quantity.textContent = product.quantity;
-            X.textContent = 'X';
+            X.textContent = '🗑️';
             div.appendChild(name);
             div.appendChild(quantity);
             div.appendChild(X);
@@ -54,106 +178,9 @@ function renderCategory() {
     })
 }
 
-const fetchShoppingList = async () => {
-    try {
-        const response = await fetch('/api/list');
-        shoppingList = await response.json();
-        renderShoppingList();
-    } catch (error) {
-        console.error('[ERROR] fetch shopping list: ', error);
-    }
-};
-
-const addItemToList = async (productId) => {
-    try {
-        const response = await fetch('/api/list', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                productId: productId,
-                addedByUserId: userId,
-                quantity: getQuantity()
-            })
-        });
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-        }
-        await fetchShoppingList();
-    } catch (error) {
-        console.error('[ERROR] add item to list', error);
-    }
-};
-
-const deleteItemFromList = async (productId) => {
-    try {
-        const response = await fetch(`/api/list/${productId}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                productId: productId
-            })
-        });
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-        }
-        await fetchShoppingList();
-    } catch (error) {
-            console.error(error);
-    }
-}
-
-function getQuantity() {
-    return document.getElementById('inputQuant').value;
-}
-
-const addNewProductToDB = async (categoryId, name) => {
-    try {
-        const res = await fetch('/api/products', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                categoryId: categoryId,
-                name: name
-            })
-        });
-        if (!res.ok) {
-            throw new Error(`Server error: ${res.status}`);
-        }
-        await fetchProducts();
-    } catch (err) {
-        console.error(err);
-    }
-}
-
-async function fetchProducts() {
-    try {
-        const response = await fetch('/api/products');
-        products = await response.json();
-    }
-    catch (err){
-        console.error(err);
-    }
-}
-
-async function fetchCategories() {
-    try {
-        const response = await fetch('/api/categories');
-        categories = await response.json();
-    }
-    catch (err){
-        console.error(err);
-    }
-}
-
-// load all products and categories
-document.addEventListener('DOMContentLoaded', async () => {
-    await fetchProducts();
-    await fetchCategories();
-});
-
-// render suggestions
-input.addEventListener('input', (e) => {
-    const value = e.target.value.toLowerCase();
+function renderSuggestions() {
+    console.log('render suggestions');
+    const value = input.value.toLowerCase();
     suggestionsUl.innerHTML = '';
     if (value.length < 1) {
         return;
@@ -173,10 +200,160 @@ input.addEventListener('input', (e) => {
             suggestionsUl.innerHTML = ''
         });
     })
+}
+
+
+
+/* --- FETCH --- */
+async function fetchShoppingList() {
+    try {
+        const response = await fetch('/api/list', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            }
+        });
+        if (!response.ok) {
+            throw new Error('list');
+        }
+        shoppingList = await response.json();
+        renderShoppingList();
+    } catch (error) {
+        console.error(error);
+        renderLoginPage();
+    }
+}
+
+async function fetchProducts() {
+    try {
+        const response = await fetch('/api/products', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            }
+        });
+        products = await response.json();
+    }
+    catch (err){
+        console.error(err);
+    }
+}
+
+async function fetchCategories() {
+    try {
+        const response = await fetch('/api/categories', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            }
+        });
+        categories = await response.json();
+
+        renderCategory();
+    }
+    catch (err){
+        console.error(err);
+    }
+}
+
+
+
+/* --- ACTIONS --- */
+const addItemToList = async (productId) => {
+    try {
+        const response = await fetch('/api/list', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            },
+            body: JSON.stringify({
+                productId: productId,
+                quantity: getQuantity()
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+
+        await fetchShoppingList();
+
+        input.value = '';
+        inputQuant. value = '';
+        suggestionsUl.innerHTML = '';
+    }
+    catch (error) {
+        console.error('[ERROR] add item to list', error);
+    }
+};
+
+const deleteItemFromList = async (productId) => {
+    try {
+        const response = await fetch(`/api/list/${productId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            },
+            body: JSON.stringify({
+                productId: productId
+            })
+        });
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+        await fetchShoppingList();
+    } catch (error) {
+            console.error(error);
+    }
+}
+
+function getQuantity() {
+    return document.getElementById('inputQuant').value;
+}
+
+function getFormatedProductName(s) {
+    if (!s) return '';
+    return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+const addNewProductToDB = async (categoryId, name) => {
+    try {
+        const res = await fetch('/api/products', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            },
+            body: JSON.stringify({
+                categoryId: categoryId,
+                name: name
+            })
+        });
+        if (!res.ok) {
+            throw new Error(`Server error: ${res.status}`);
+        }
+        await fetchProducts();
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+
+
+// --- EVENTS --- //
+
+// render suggestions
+input.addEventListener('input', () => {
+    renderSuggestions()
 });
 
 addToListButton.addEventListener('click', () => {
-    let selectedProduct = null;
+    let selectedProduct;
     for (let i = 0; i < products.length; i++) {
         if (input.value === products[i].name) {
             selectedProduct = products[i];
@@ -191,12 +368,11 @@ addToListButton.addEventListener('click', () => {
     addItemToList(selectedProduct.id);
 })
 
+
+
+/* --- MODAL --- */
 btnOpenModal.addEventListener('click', () => {
     newProductModal.className = 'modal' // remove class 'hidden'
-})
-
-newProductCategory.addEventListener('click', () => {
-    renderCategory();
 })
 
 btnCancel.addEventListener('click', () => {
@@ -223,5 +399,22 @@ btnSaveProduct.addEventListener('click', () => {
 
 })
 
+async function initApp() {
+    const token = localStorage.getItem('jwt_token');
 
-fetchShoppingList();
+    if (!token) {
+        renderLoginPage();
+        return;
+    }
+
+    try {
+        await fetchShoppingList();
+        await fetchCategories();
+        await fetchProducts();
+    }
+    catch (err) {
+        console.warn('Wymagane logowanie', err);
+    }
+}
+
+initApp();
