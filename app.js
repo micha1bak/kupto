@@ -2,6 +2,7 @@ let products = [];
 let categories = [];
 let shoppingList = [];
 const input = document.getElementById('input');
+const inputQuant = document.getElementById('inputQuant');
 const addToListButton = document.getElementById('add-button');
 const shoppingListUl = document.getElementById('shopping-ul');
 const suggestionsUl = document.getElementById('suggestions');
@@ -12,7 +13,11 @@ const newProductCategory = document.getElementById('new-product-category');
 const btnCancel = document.getElementById('btn-cancel');
 const btnSaveProduct = document.getElementById('btn-save-product')
 
+
+
+/* --- RENDER --- */
 function renderLoginPage() {
+
     if (document.getElementById('login-container')) {
         return;
     }
@@ -88,8 +93,9 @@ function renderLoginPage() {
 
         const email = emailInput.value;
         const password = passwordInput.value;
-        console.log('Logowanie dla:', email);
+
         try {
+
             const response = await fetch('api/login', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -98,29 +104,31 @@ function renderLoginPage() {
                     password: password
                 })
             })
+
             if (!response.ok) {
                 throw new Error(`Server error: ${response.status}`);
             }
 
-            console.log(response.token);
-            localStorage.setItem('jwt_token', response.token);
+            const data = await response.json();
+            localStorage.setItem('jwt_token', data.token);
+
+            await fetchShoppingList();
+            await fetchProducts();
+            await fetchCategories();
 
             errorMsg.classList.add('hidden');
-
             document.body.removeChild(loginContainer);
+
             appElementsToHide.forEach(el => {
                 if (el) el.style.display = '';
             });
-
-        } catch (error) {
+        }
+        catch (error) {
             errorMsg.classList.remove('hidden');
             console.error('[ERROR] logowanie:', error);
         }
     });
 }
-
-renderLoginPage();
-
 
 function renderShoppingList() {
     shoppingListUl.innerHTML = '';
@@ -170,7 +178,34 @@ function renderCategory() {
     })
 }
 
-const fetchShoppingList = async () => {
+function renderSuggestions() {
+    console.log('render suggestions');
+    const value = input.value.toLowerCase();
+    suggestionsUl.innerHTML = '';
+    if (value.length < 1) {
+        return;
+    }
+
+    const matches = products.filter(item =>
+        item.name.toLowerCase().includes(value)
+    ).slice(0, 5);
+
+    matches.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item.name;
+        li.dataset.id = item.id;
+        suggestionsUl.appendChild(li);
+        li.addEventListener("click", () => {
+            input.value = item.name;
+            suggestionsUl.innerHTML = ''
+        });
+    })
+}
+
+
+
+/* --- FETCH --- */
+async function fetchShoppingList() {
     try {
         const response = await fetch('/api/list', {
             method: 'GET',
@@ -179,79 +214,14 @@ const fetchShoppingList = async () => {
                 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
             }
         });
+        if (!response.ok) {
+            throw new Error('list');
+        }
         shoppingList = await response.json();
         renderShoppingList();
     } catch (error) {
-        console.error('[ERROR] fetch shopping list: ', error);
-    }
-};
-
-const addItemToList = async (productId) => {
-    try {
-        const response = await fetch('/api/list', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-            },
-            body: JSON.stringify({
-                productId: productId,
-                quantity: getQuantity()
-            })
-        });
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-        }
-        await fetchShoppingList();
-    } catch (error) {
-        console.error('[ERROR] add item to list', error);
-    }
-};
-
-const deleteItemFromList = async (productId) => {
-    try {
-        const response = await fetch(`/api/list/${productId}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-            },
-            body: JSON.stringify({
-                productId: productId
-            })
-        });
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-        }
-        await fetchShoppingList();
-    } catch (error) {
-            console.error(error);
-    }
-}
-
-function getQuantity() {
-    return document.getElementById('inputQuant').value;
-}
-
-const addNewProductToDB = async (categoryId, name) => {
-    try {
-        const res = await fetch('/api/products', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-            },
-            body: JSON.stringify({
-                categoryId: categoryId,
-                name: name
-            })
-        });
-        if (!res.ok) {
-            throw new Error(`Server error: ${res.status}`);
-        }
-        await fetchProducts();
-    } catch (err) {
-        console.error(err);
+        console.error(error);
+        renderLoginPage();
     }
 }
 
@@ -281,44 +251,109 @@ async function fetchCategories() {
             }
         });
         categories = await response.json();
+
+        renderCategory();
     }
     catch (err){
         console.error(err);
     }
 }
 
-// load all products and categories
-document.addEventListener('DOMContentLoaded', async () => {
-    await fetchProducts();
-    await fetchCategories();
-});
+
+
+/* --- ACTIONS --- */
+const addItemToList = async (productId) => {
+    try {
+        const response = await fetch('/api/list', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            },
+            body: JSON.stringify({
+                productId: productId,
+                quantity: getQuantity()
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+
+        await fetchShoppingList();
+
+        input.value = '';
+        inputQuant. value = '';
+        suggestionsUl.innerHTML = '';
+    }
+    catch (error) {
+        console.error('[ERROR] add item to list', error);
+    }
+};
+
+const deleteItemFromList = async (productId) => {
+    try {
+        const response = await fetch(`/api/list/${productId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            },
+            body: JSON.stringify({
+                productId: productId
+            })
+        });
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+        await fetchShoppingList();
+    } catch (error) {
+            console.error(error);
+    }
+}
+
+function getQuantity() {
+    return document.getElementById('inputQuant').value;
+}
+
+function getFormatedProductName(s) {
+    if (!s) return '';
+    return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+const addNewProductToDB = async (categoryId, name) => {
+    try {
+        const res = await fetch('/api/products', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            },
+            body: JSON.stringify({
+                categoryId: categoryId,
+                name: name
+            })
+        });
+        if (!res.ok) {
+            throw new Error(`Server error: ${res.status}`);
+        }
+        await fetchProducts();
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+
+
+// --- EVENTS --- //
 
 // render suggestions
-input.addEventListener('input', (e) => {
-    const value = e.target.value.toLowerCase();
-    suggestionsUl.innerHTML = '';
-    if (value.length < 1) {
-        return;
-    }
-
-    const matches = products.filter(item =>
-        item.name.toLowerCase().includes(value)
-    ).slice(0, 5);
-
-    matches.forEach(item => {
-        const li = document.createElement('li');
-        li.textContent = item.name;
-        li.dataset.id = item.id;
-        suggestionsUl.appendChild(li);
-        li.addEventListener("click", () => {
-            input.value = item.name;
-            suggestionsUl.innerHTML = ''
-        });
-    })
+input.addEventListener('input', () => {
+    renderSuggestions()
 });
 
 addToListButton.addEventListener('click', () => {
-    let selectedProduct = null;
+    let selectedProduct;
     for (let i = 0; i < products.length; i++) {
         if (input.value === products[i].name) {
             selectedProduct = products[i];
@@ -333,12 +368,11 @@ addToListButton.addEventListener('click', () => {
     addItemToList(selectedProduct.id);
 })
 
+
+
+/* --- MODAL --- */
 btnOpenModal.addEventListener('click', () => {
     newProductModal.className = 'modal' // remove class 'hidden'
-})
-
-newProductCategory.addEventListener('click', () => {
-    renderCategory();
 })
 
 btnCancel.addEventListener('click', () => {
@@ -365,5 +399,22 @@ btnSaveProduct.addEventListener('click', () => {
 
 })
 
+async function initApp() {
+    const token = localStorage.getItem('jwt_token');
 
-fetchShoppingList();
+    if (!token) {
+        renderLoginPage();
+        return;
+    }
+
+    try {
+        await fetchShoppingList();
+        await fetchCategories();
+        await fetchProducts();
+    }
+    catch (err) {
+        console.warn('Wymagane logowanie', err);
+    }
+}
+
+initApp();

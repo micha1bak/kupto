@@ -2,32 +2,21 @@ const http = require('http');
 const fs = require('fs');
 const db = require('./db');
 const { SignJWT, jwtVerify } = require("jose");
-const jwtSecret = new TextEncoder().encode('twoj-bardzo-tajny-sekret-z-pliku-.env');
+const jwtSecret = new TextEncoder().encode(process.env.JWT_SECRET);
 let MAX_PROD_ID;
 
-// TODO: Real-Time Collaboration (WebSockets): Make it so you and your girlfriend
-//  can have the app open on different phones, and if she checks off "Milk"
-//  it instantly checks off on your screen without refreshing.
+// TODO: Real-Time Collaboration (WebSockets)
 
-// TODO: Security & Auth: Implement secure login (JWT or session-based)
-//  and password hashing (bcrypt). Show that you know how to protect user data.
+// TODO: Add password hashing
 
-// Podsumowanie zmian architektonicznych w pigułce:
-// 1. `app.js`: Usunięcie const userId = 1. Dodanie panelu logowania. Zmiana każdej funkcji wywołującej fetch,
-//      aby pobierała JWT z pamięci przeglądarki i wstrzykiwała go do nagłówków Authorization.
-// 2. `server.js`: Implementacja endopointu /api/login dla logowania. Zabezpieczenie obecnych endopintów
-//      (sprawdzanie nagłówka przez jwtVerify). Używanie zdekodowanego z tokenu id użytkownika do modyfikacji bazy danych,
-//      zamiast polegania na danych wysłanych przez frontend.
-// 3.  Obsługa błędów: app.js musi reagować na błędy HTTP statusu 401 i 403 przez wylogowanie użytkownika
-//      (np. czyszczenie localStorage i pokazanie okna logowania) — oznacza to, że sesja (JWT) wygasła.
-
-// TODO: Testing: Write unit and integration tests (using a tool like Jest).
-//  Junior devs who know how to write tests are unicorns.
+// TODO: Testing with jest
 
 // TODO: Offline Mode (PWA): Supermarkets often have terrible cell service.
 //  Make the app work offline using Service Workers and sync to the database once the connection returns.
 
 // TODO: Store list and products in local storage for faster render time.
+
+// TODO: Add loging to file
 
 function getFormatedProductName(s) {
     if (!s) return '';
@@ -344,6 +333,8 @@ const server = http.createServer(async (req, res) => {
     }
 
 });
+
+
 
 db.query("select max(product_id) from product", (err, res) => {
     if (err) {
