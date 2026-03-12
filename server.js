@@ -60,13 +60,15 @@ const server = http.createServer(async (req, res) => {
 
     console.log(`[REQ]: ${req.method} ${req.url}`);
 
-    if (req.url === '/' && req.method === 'GET') {
+    const cleanUrl = req.url.split('?')[0];
+
+    if (cleanUrl === '/' && req.method === 'GET') {
         fs.readFile('./index.html', (err, content) => {
             res.writeHead(200, {'Content-Type': 'text/html'});
             res.end(content);
         });
     }
-    else if (req.url === '/app.js' && req.method === 'GET') {
+    else if (cleanUrl === '/app.js' && req.method === 'GET') {
         fs.readFile('./app.js', (err, content) => {
             if (err) {
                 res.writeHead(404);
@@ -77,7 +79,7 @@ const server = http.createServer(async (req, res) => {
             }
         });
     }
-    else if (req.url === '/style.css' && req.method === 'GET') {
+    else if (cleanUrl === '/style.css' && req.method === 'GET') {
         fs.readFile('./style.css', (err, content) => {
             if (err) {
                 res.writeHead(404);
@@ -88,7 +90,7 @@ const server = http.createServer(async (req, res) => {
             }
         });
     }
-    else if (req.url === '/api/login' && req.method === 'POST') {
+    else if (cleanUrl === '/api/login' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => {
             body += chunk.toString();
@@ -136,7 +138,7 @@ const server = http.createServer(async (req, res) => {
             }
         });
     }
-    else if (req.url === '/api/list' && req.method === 'GET') {
+    else if (cleanUrl === '/api/list' && req.method === 'GET') {
         try {
 
             const token = getTokenFromRequest(req);
@@ -172,7 +174,7 @@ const server = http.createServer(async (req, res) => {
             res.end();
         }
     }
-    else if (req.url === '/api/products' && req.method === 'GET') {
+    else if (cleanUrl === '/api/products' && req.method === 'GET') {
         try {
 
             const token = getTokenFromRequest(req);
@@ -195,7 +197,7 @@ const server = http.createServer(async (req, res) => {
             res.end();
         }
     }
-    else if (req.url === '/api/categories' && req.method === 'GET') {
+    else if (cleanUrl === '/api/categories' && req.method === 'GET') {
         try {
 
             const token = getTokenFromRequest(req);
@@ -218,7 +220,7 @@ const server = http.createServer(async (req, res) => {
             res.end();
         }
     }
-    else if (req.url === '/api/list' && req.method === 'POST') {
+    else if (cleanUrl === '/api/list' && req.method === 'POST') {
         try {
 
             const token = getTokenFromRequest(req);
@@ -257,7 +259,7 @@ const server = http.createServer(async (req, res) => {
             res.end(JSON.stringify({error: 'Error while adding item to list.'}));
         }
     }
-    else if (req.url === '/api/products' && req.method === 'POST') {
+    else if (cleanUrl === '/api/products' && req.method === 'POST') {
         try {
 
             const token = getTokenFromRequest(req);
@@ -295,7 +297,7 @@ const server = http.createServer(async (req, res) => {
             res.end(JSON.stringify({error: 'Error while adding item to list.'}));
         }
     }
-    else if (req.url.startsWith('/api/list/') && req.method === 'DELETE') {
+    else if (cleanUrl.startsWith('/api/list/') && req.method === 'DELETE') {
         try  {
 
             const token = getTokenFromRequest(req);
