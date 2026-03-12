@@ -17,15 +17,18 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "db_tunnel": "ssh -N DB_kupto_dev",
-    "dev": "concurrently \"npm run db_tunnel\" \"wait-on tcp:127.0.0.1:6969 && node server.js\"",
+    "dev": "concurrently \"npm run db_tunnel\" \"wait-on tcp:127.0.0.1:6969 && nodemon server.js\"",
     "start": "node server.js"
   },
   "dependencies": {
     "dotenv": "^17.3.1",
-    "pg": "^8.20.0"
+    "pg": "^8.20.0",
+    "jose": "^6.2.1"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
+    "jest": "^30.3.0",
+    "nodemon": "^3.1.14",
     "wait-on": "^9.0.4"
   }
 }

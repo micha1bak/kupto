@@ -25,6 +25,96 @@ body {
     line-height: 1.5;
 }
 
+/* --- LOGOWANIE --- */
+.login-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    background-color: #f4f4f9;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.login-form {
+    background-color: #ffffff;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    width: 90%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.login-title {
+    text-align: center;
+    color: #333;
+    margin: 0 0 1rem 0;
+    font-size: 1.8rem;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.input-group label {
+    font-size: 0.9rem;
+    color: #555;
+    font-weight: 600;
+}
+
+.input-group input {
+    padding: 0.8rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.input-group input:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+.btn-login {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 1rem;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-top: 0.5rem;
+}
+
+.btn-login:hover {
+    background-color: #45a049;
+}
+
+.login-error {
+    color: #e74c3c;
+    font-size: 0.9rem;
+    text-align: center;
+    margin: 0;
+    padding: 0.5rem;
+    background-color: #fce4e4;
+    border-radius: 6px;
+}
+
+.login-error.hidden {
+    display: none;
+}
+
 /* Zapobiega "pływaniu" interfejsu na szerokich ekranach, centrując aplikację */
 .app-container {
     max-width: 600px;
