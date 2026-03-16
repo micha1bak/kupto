@@ -1,6 +1,8 @@
 let products = [];
 let categories = [];
 let shoppingList = [];
+let templates = [];
+const templatesUl = document.getElementById('templates');
 const input = document.getElementById('input');
 const inputQuant = document.getElementById('inputQuant');
 const addToListButton = document.getElementById('add-button');
@@ -179,7 +181,6 @@ function renderCategory() {
 }
 
 function renderSuggestions() {
-    console.log('render suggestions');
     const value = input.value.toLowerCase();
     suggestionsUl.innerHTML = '';
     if (value.length < 1) {
@@ -199,6 +200,20 @@ function renderSuggestions() {
             input.value = item.name;
             suggestionsUl.innerHTML = ''
         });
+    })
+}
+
+function renderTemplates() {
+    templatesUl.innerHTML = '';
+    templates.forEach((item) => {
+        const span = document.createElement('span');
+        span.textContent = item.name;
+        span.addEventListener('click', () => {
+            loadListFromTemplate(item.template_id);
+        })
+
+        templatesUl.appendChild(span);
+
     })
 }
 
@@ -255,6 +270,25 @@ async function fetchCategories() {
         renderCategory();
     }
     catch (err){
+        console.error(err);
+    }
+}
+
+async function fetchTemplates() {
+    try {
+        const response = await fetch('/api/templates', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            }
+        });
+
+        templates = await response.json();
+
+        renderTemplates();
+    }
+    catch (err) {
         console.error(err);
     }
 }
@@ -343,6 +377,28 @@ const addNewProductToDB = async (categoryId, name) => {
     }
 }
 
+async function loadListFromTemplate(template_id) {
+    try {
+        const res = await fetch('/api/templates', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            },
+            body: JSON.stringify({
+                template_id: template_id
+            })
+        });
+        if (!res.ok) {
+            throw new Error(`Server error: ${res.status}`);
+        }
+
+        fetchShoppingList();
+
+    } catch (err) {
+        console.error(err);
+    }
+}
 
 
 // --- EVENTS --- //
@@ -411,6 +467,7 @@ async function initApp() {
         await fetchShoppingList();
         await fetchCategories();
         await fetchProducts();
+        await fetchTemplates();
     }
     catch (err) {
         console.warn('Wymagane logowanie', err);

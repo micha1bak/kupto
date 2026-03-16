@@ -54,8 +54,6 @@ function getParsedBodyFromRequest(request) {
     });
 }
 
-
-
 const server = http.createServer(async (req, res) => {
     console.log(`[REQ]: ${req.method} ${req.url}`);
     if (req.url === '/' && req.method === 'GET') {
@@ -131,6 +129,8 @@ const server = http.createServer(async (req, res) => {
 
             } catch (err) {
                 console.error(err);
+                res.writeHead(500, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({error: 'Error while adding item to list.'}));
             }
         });
     }
@@ -183,6 +183,29 @@ const server = http.createServer(async (req, res) => {
             }
 
             const result = await db.query(`SELECT * from prod_cat`);
+
+            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify(result.rows));
+
+        }
+        catch (err) {
+            res.writeHead(500);
+            res.end();
+        }
+    }
+    else if (req.url === '/api/templates' && req.method === 'GET') {
+        try {
+
+            const token = getTokenFromRequest(req);
+            try {
+                await jwtVerify(token, jwtSecret);
+            }
+            catch (err) {
+                res.writeHead(401);
+                return res.end();
+            }
+
+            const result = await db.query(`SELECT * FROM template`);
 
             res.writeHead(200, {'Content-Type': 'application/json'});
             res.end(JSON.stringify(result.rows));
@@ -293,6 +316,35 @@ const server = http.createServer(async (req, res) => {
             res.end(JSON.stringify({error: 'Error while adding item to list.'}));
         }
     }
+    else if (req.url === '/api/templates' && req.method === 'POST') {
+        try {
+
+            const token = getTokenFromRequest(req);
+
+            try {
+                await jwtVerify(token, jwtSecret);
+            }
+            catch (err) {
+                res.writeHead(401);
+                return res.end();
+            }
+
+            const body = await getParsedBodyFromRequest(req);
+
+            const result = await db.query(`
+                CALL load_template_into_shopping_list($1)
+            `, [body.template_id]);
+
+            res.writeHead(200, {'Content-Type' : 'application/json'});
+            res.end(JSON.stringify(result.rows));
+
+        }
+        catch (err) {
+            console.error(err);
+            res.writeHead(500, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({error: 'Error while adding item to list.'}));
+        }
+    }
     else if (req.url.startsWith('/api/list/') && req.method === 'DELETE') {
         try  {
 
@@ -330,8 +382,9 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end();
         }
-    } else {
-        console.log(`[NO FILE!] url: ${url}`);
+    }
+    else {
+        console.log(`[NO FILE!] url: ${req.url}`);
         res.writeHead(404);
         res.end();
     }

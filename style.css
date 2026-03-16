@@ -25,6 +25,10 @@ body {
     line-height: 1.5;
 }
 
+li {
+
+}
+
 /* --- LOGOWANIE --- */
 .login-container {
     position: fixed;
