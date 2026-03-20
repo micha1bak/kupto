@@ -1,8 +1,22 @@
 'use client'
 
-import React from 'react';
+import React, { useState } from 'react';
+import { login } from '@/app/actions/auth';
 
 export default function LoginForm() {
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(formData: FormData) {
+    setLoading(true);
+    setError(null);
+    const result = await login(formData);
+    if (result?.error) {
+      setError(result.error);
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8 bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl max-w-md w-full mx-auto border border-zinc-200 dark:border-zinc-800">
       <div className="sm:mx-auto sm:w-full sm:max-w-sm">
@@ -18,10 +32,15 @@ export default function LoginForm() {
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
-        <form className="space-y-6" action="#" method="POST">
+        <form className="space-y-6" action={handleSubmit}>
+          {error && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-bold rounded-xl border border-red-100 dark:border-red-900/30 text-center animate-shake">
+              {error}
+            </div>
+          )}
           <div>
             <label htmlFor="login" className="block text-sm font-semibold leading-6 text-zinc-900 dark:text-zinc-100">
-              Użytkownik
+              Email / Login
             </label>
             <div className="mt-2">
               <input
@@ -58,9 +77,10 @@ export default function LoginForm() {
           <div className="pt-2">
             <button
               type="submit"
-              className="group relative flex w-full justify-center rounded-xl bg-indigo-600 px-3 py-3 text-sm font-bold leading-6 text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all active:scale-[0.98]"
+              disabled={loading}
+              className="group relative flex w-full justify-center rounded-xl bg-indigo-600 px-3 py-3 text-sm font-bold leading-6 text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Zaloguj się
+              {loading ? 'Logowanie...' : 'Zaloguj się'}
             </button>
           </div>
         </form>

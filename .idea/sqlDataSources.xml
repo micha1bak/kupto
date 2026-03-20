@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SqlDataSourceStorage">
+    <option name="dataSources">
+      <list>
+        <State>
+          <option name="id" value="dfe8f8fb-fc85-4632-bc03-65d5c2322819" />
+          <option name="name" value="kupto_dev@localhost (DDL)" />
+          <option name="dbmsName" value="POSTGRES" />
+          <option name="urls">
+            <array>
+              <option value="file://$PROJECT_DIR$/db/public/load_template_into_shopping_list.sql" />
+              <option value="file://$PROJECT_DIR$/db/public/save_shopping_list_to_template.sql" />
+              <option value="file://$PROJECT_DIR$/db/public/validate_user.sql" />
+              <option value="file://$PROJECT_DIR$/db/public/category.sql" />
+              <option value="file://$PROJECT_DIR$/db/public/product.sql" />
+              <option value="file://$PROJECT_DIR$/db/public/shopping_list.sql" />
+              <option value="file://$PROJECT_DIR$/db/public/template.sql" />
+              <option value="file://$PROJECT_DIR$/db/public/template_item.sql" />
+              <option value="file://$PROJECT_DIR$/db/public/users.sql" />
+              <option value="file://$PROJECT_DIR$/db/public/full_shopping_list.sql" />
+              <option value="file://$PROJECT_DIR$/db/public/prod_cat.sql" />
+            </array>
+          </option>
+          <option name="outLayout" value="File per object by schema.groovy" />
+        </State>
+      </list>
+    </option>
+  </component>
+</project>
