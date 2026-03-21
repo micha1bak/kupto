@@ -8,7 +8,7 @@ interface ListItemProps {
   unit?: string;
 }
 
-export default function ListItem({ name, quantity, unit = 'szt.' }: ListItemProps) {
+export default function ListItem({ name, quantity, unit }: ListItemProps) {
   const [isChecked, setIsChecked] = useState(false);
 
   return (

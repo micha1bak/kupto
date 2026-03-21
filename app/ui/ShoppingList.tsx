@@ -2,45 +2,22 @@
 
 import React from 'react';
 import ListItem from './ListItem';
+import { ShoppingListCategoryGroup } from '@/app/actions/shopping-list';
 
-// Przykładowe dane zainspirowane strukturą v1.0
-const MOCK_DATA = [
-  {
-    category: 'Warzywa i owoce',
-    items: [
-      { id: 1, name: 'Pomidory malinowe', quantity: 4, unit: 'szt.' },
-      { id: 2, name: 'Banan', quantity: 2, unit: 'kg' },
-      { id: 3, name: 'Szczypiorek', quantity: 1, unit: 'pęczek' },
-    ]
-  },
-  {
-    category: 'Nabiał',
-    items: [
-      { id: 4, name: 'Mleko 3.2%', quantity: 2, unit: 'l' },
-      { id: 5, name: 'Ser żółty Gouda', quantity: 200, unit: 'g' },
-      { id: 6, name: 'Jogurt naturalny', quantity: 3, unit: 'szt.' },
-    ]
-  },
-  {
-    category: 'Pieczywo',
-    items: [
-      { id: 7, name: 'Chleb żytni', quantity: 1, unit: 'szt.' },
-      { id: 8, name: 'Bułki grahamki', quantity: 6, unit: 'szt.' },
-    ]
-  },
-  {
-    category: 'Inne',
-    items: [
-      { id: 9, name: 'Papier toaletowy', quantity: 1, unit: 'opak.' },
-      { id: 10, name: 'Baterie AA', quantity: 4, unit: 'szt.' },
-    ]
-  }
-];
+interface ShoppingListProps {
+  initialData: ShoppingListCategoryGroup[];
+}
 
-export default function ShoppingList() {
+export default function ShoppingList({ initialData }: ShoppingListProps) {
   return (
     <div className="w-full max-w-2xl mx-auto px-4 pt-6 pb-32">
-      {MOCK_DATA.map((group) => (
+      {initialData.length === 0 && (
+        <div className="text-center py-20">
+          <p className="text-zinc-400 dark:text-zinc-500 italic">Twoja lista jest pusta. Dodaj produkty za pomocą wyszukiwarki!</p>
+        </div>
+      )}
+      
+      {initialData.map((group) => (
         <section key={group.category} className="mb-8 last:mb-0">
           {/* Nagłówek kategorii */}
           <div className="flex items-center gap-2 mb-4 sticky top-16 bg-zinc-50/80 dark:bg-black/80 backdrop-blur-sm py-2 z-10">
@@ -59,18 +36,19 @@ export default function ShoppingList() {
               <ListItem 
                 key={item.id}
                 name={item.name}
-                quantity={item.quantity}
-                unit={item.unit}
+                quantity={item.quantity || ''}
               />
             ))}
           </div>
         </section>
       ))}
       
-      {/* Pusta sekcja na końcu dla lepszego wrażenia wizualnego */}
-      <div className="text-center py-10 opacity-20 grayscale">
-         <p className="text-sm font-medium">To już wszystkie produkty!</p>
-      </div>
+      {initialData.length > 0 && (
+        /* Pusta sekcja na końcu dla lepszego wrażenia wizualnego */
+        <div className="text-center py-10 opacity-20 grayscale">
+           <p className="text-sm font-medium">To już wszystkie produkty!</p>
+        </div>
+      )}
     </div>
   );
 }

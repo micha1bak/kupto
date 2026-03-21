@@ -29,16 +29,30 @@ Cel: Przeniesienie logiki z czystego JavaScriptu i Node.js (v1.0) na nowoczesny 
 - [ ] Implementacja wylogowania (usuwanie ciasteczka).
 
 ### Etap 3: Główna Lista Zakupów (Core)
-- [ ] Refaktoryzacja `ShoppingList.tsx`:
-    - Zamiana danych statycznych (`MOCK_DATA`) na dane z bazy.
-    - Grupowanie produktów po kategorii na poziomie bazy lub serwera.
+- [x] Implementacja wczytywania listy z bazy:
+    - [x] Server Action `getShoppingList` (pobieranie produktów zalogowanego użytkownika).
+    - [x] Grupowanie danych po kategorii na serwerze.
+    - [x] Testy jednostkowe dla akcji pobierania.
+    - [x] Podpięcie akcji do `app/page.tsx` i `ShoppingList.tsx`.
 - [ ] Implementacja Server Action `deleteItemFromList`:
     - Usuwanie rekordu z `shopping_list`.
     - Odświeżanie UI za pomocą `revalidatePath`.
 - [ ] Implementacja Server Action `updateItemQuantity`:
     - Dodanie możliwości zmiany ilości bezpośrednio na liście.
 
-### Etap 4: Dodawanie Produktów i Wyszukiwarka
+## 4. Szczegółowy Plan: Wczytywanie listy zakupów (Dzisiaj)
+1. **Warstwa danych (Server Action):**
+   - Plik: `app/actions/shopping-list.ts`.
+   - Funkcja `getShoppingList()`: pobieranie `userId` z sesji, SQL join (`list_item` + `product` + `category`), formatowanie do struktury grupowej.
+2. **Integracja z UI:**
+   - `app/page.tsx`: Zmiana na asynchroniczny Server Component, pobranie danych.
+   - `app/ui/ShoppingList.tsx`: Przyjmowanie danych przez propsy zamiast `MOCK_DATA`.
+3. **Testy:**
+   - Plik: `app/actions/shopping-list.test.ts`.
+   - Scenariusze: poprawne mapowanie, brak sesji, pusta lista.
+4. **Weryfikacja:** `npm test` + manualne sprawdzenie z Dockerem.
+
+## 5. Mapowanie Funkcji v1.0 -> v2.0
 - [ ] Refaktoryzacja `SearchBar.tsx`:
     - Implementacja podpowiedzi (suggestions) pobieranych z tabeli `product`.
     - Dodawanie wybranego produktu do listy (`addItemToList`).
