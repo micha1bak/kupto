@@ -95,7 +95,7 @@ export async function searchProducts(queryText: string): Promise<ProductSuggesti
 /**
  * Dodaje produkt do domyślnej listy użytkownika.
  */
-export async function addProductToList(productId: number) {
+export async function addProductToList(productId: number, quantity: string = '1') {
   const session = await getSession();
   if (!session) throw new Error('Unauthorized');
 
@@ -119,12 +119,15 @@ export async function addProductToList(productId: number) {
       listId = listResult.rows[0].list_id;
     }
 
-    // Dodaj produkt do listy (jeśli już jest, zignoruj conflict)
+    // Dodaj produkt do listy (jeśli już jest, zaktualizuj ilość lub zignoruj conflict)
+    // W v2.0 możemy chcieć sumować ilości lub po prostu nadpisać.
+    // Na razie trzymajmy się ON CONFLICT DO UPDATE jeśli chcemy zmienić ilość istniejącego.
     await query(
       `INSERT INTO list_item (list_id, product_id, quantity) 
-       VALUES ($1, $2, '1') 
-       ON CONFLICT (list_id, product_id) DO NOTHING`,
-      [listId, productId]
+       VALUES ($1, $2, $3) 
+       ON CONFLICT (list_id, product_id) 
+       DO UPDATE SET quantity = EXCLUDED.quantity`,
+      [listId, productId, quantity]
     );
 
     revalidatePath('/');

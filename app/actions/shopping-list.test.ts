@@ -89,7 +89,7 @@ describe('Shopping List Actions', () => {
       await expect(addProductToList(1)).rejects.toThrow('Unauthorized');
     });
 
-    test('Should add product to existing list', async () => {
+    test('Should add product to existing list with default quantity', async () => {
       mockedGetSession.mockResolvedValueOnce({ userId: 1 });
       // Mock list check
       mockedQuery.mockResolvedValueOnce({ rows: [{ list_id: 10 }] });
@@ -98,8 +98,20 @@ describe('Shopping List Actions', () => {
 
       const result = await addProductToList(5);
       expect(result).toEqual({ success: true });
-      expect(mockedQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO list_item'), [10, 5]);
+      expect(mockedQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO list_item'), [10, 5, '1']);
       expect(mockedRevalidatePath).toHaveBeenCalledWith('/');
+    });
+
+    test('Should add product to existing list with custom quantity', async () => {
+      mockedGetSession.mockResolvedValueOnce({ userId: 1 });
+      // Mock list check
+      mockedQuery.mockResolvedValueOnce({ rows: [{ list_id: 10 }] });
+      // Mock insert item
+      mockedQuery.mockResolvedValueOnce({ rows: [] });
+
+      const result = await addProductToList(5, '500g');
+      expect(result).toEqual({ success: true });
+      expect(mockedQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO list_item'), [10, 5, '500g']);
     });
 
     test('Should create list if none exists and add product', async () => {
@@ -113,7 +125,7 @@ describe('Shopping List Actions', () => {
 
       await addProductToList(5);
       expect(mockedQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO list'), [1, 'Moja Lista']);
-      expect(mockedQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO list_item'), [20, 5]);
+      expect(mockedQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO list_item'), [20, 5, '1']);
     });
   });
 });

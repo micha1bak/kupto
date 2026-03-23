@@ -2,7 +2,7 @@ import LoginForm from '@/app/ui/LoginForm';
 
 export default function Page() {
     return (
-        <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black p-4 font-sans">
+        <div className="flex min-h-[calc(100vh-64px)] items-center justify-center p-4">
             <LoginForm />
         </div>
     )

@@ -36,7 +36,7 @@ describe('SearchBar Component', () => {
     });
   });
 
-  test('Should call addProductToList when a suggestion is clicked', async () => {
+  test('Should call addProductToList when a suggestion is clicked and confirmed', async () => {
     mockedSearchProducts.mockResolvedValue([
       { id: 1, name: 'Mleko' },
     ]);
@@ -49,11 +49,41 @@ describe('SearchBar Component', () => {
     const suggestion = await screen.findByText('Mleko');
     await userEvent.click(suggestion);
 
-    expect(mockedAddProductToList).toHaveBeenCalledWith(1);
+    // Should show quantity modal and NOT call action yet
+    expect(screen.getByText(/Ile sztuk: Mleko/i)).toBeInTheDocument();
+    expect(mockedAddProductToList).not.toHaveBeenCalled();
+
+    const addButton = screen.getByRole('button', { name: /Dodaj/i });
+    await userEvent.click(addButton);
+
+    expect(mockedAddProductToList).toHaveBeenCalledWith(1, '1');
     await waitFor(() => expect(input).toHaveValue(''));
   });
 
-  test('Should navigate suggestions with keyboard', async () => {
+  test('Should allow custom quantity and call addProductToList', async () => {
+    mockedSearchProducts.mockResolvedValue([
+      { id: 1, name: 'Mleko' },
+    ]);
+
+    render(<SearchBar />);
+    
+    const input = screen.getByPlaceholderText(/Szukaj lub dodaj produkt/i);
+    await userEvent.type(input, 'ml');
+
+    const suggestion = await screen.findByText('Mleko');
+    await userEvent.click(suggestion);
+
+    const quantityInput = screen.getByPlaceholderText(/Ilość/i);
+    await userEvent.clear(quantityInput);
+    await userEvent.type(quantityInput, '2 litry');
+
+    const addButton = screen.getByRole('button', { name: /Dodaj/i });
+    await userEvent.click(addButton);
+
+    expect(mockedAddProductToList).toHaveBeenCalledWith(1, '2 litry');
+  });
+
+  test('Should navigate suggestions with keyboard and open quantity modal', async () => {
      mockedSearchProducts.mockResolvedValue([
       { id: 1, name: 'Mleko' },
       { id: 2, name: 'Masło' },
@@ -74,7 +104,14 @@ describe('SearchBar Component', () => {
     // Enter to select Masło
     fireEvent.keyDown(input, { key: 'Enter' });
 
-    expect(mockedAddProductToList).toHaveBeenCalledWith(2);
+    // Should show quantity modal for Masło
+    expect(screen.getByText(/Ile sztuk: Masło/i)).toBeInTheDocument();
+    expect(mockedAddProductToList).not.toHaveBeenCalled();
+
+    // Enter again to confirm default quantity
+    fireEvent.keyDown(screen.getByPlaceholderText(/Ilość/i), { key: 'Enter' });
+
+    expect(mockedAddProductToList).toHaveBeenCalledWith(2, '1');
     await waitFor(() => expect(input).toHaveValue(''));
   });
 });
