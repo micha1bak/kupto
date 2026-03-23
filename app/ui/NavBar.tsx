@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link';
 import React from 'react';
 
 export default function NavBar() {
@@ -8,12 +9,12 @@ export default function NavBar() {
       <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-2 flex items-center justify-between">
         
         {/* PROFIL */}
-        <button className="flex flex-col items-center justify-center flex-1 py-1 text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors group">
+        <Link href="/profile" className="flex flex-col items-center justify-center flex-1 py-1 text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors group">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 mb-0.5 group-active:scale-90 transition-transform">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
           </svg>
           <span className="text-[10px] font-bold uppercase tracking-tighter">Profil</span>
-        </button>
+        </Link>
 
         {/* LISTA (Środek) */}
         <button className="flex flex-col items-center justify-center flex-1 -mt-8">

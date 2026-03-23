@@ -1,3 +1,5 @@
+import '@testing-library/jest-dom';
+
 // Obiekt, który będzie współdzielony między testem a kodem aplikacji
 const mockCookieStore = {
   set: jest.fn(),

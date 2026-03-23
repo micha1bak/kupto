@@ -3,7 +3,8 @@
 CREATE TABLE users (
                        user_id SERIAL PRIMARY KEY,
                        login VARCHAR(50) UNIQUE NOT NULL,
-                       password VARCHAR(255) NOT NULL -- Miejsce na zahashowane hasło
+                       password VARCHAR(255) NOT NULL, -- Miejsce na zahashowane hasło
+                       default_list_id INT REFERENCES list(list_id) ON DELETE SET NULL
 );
 
 CREATE TABLE category (

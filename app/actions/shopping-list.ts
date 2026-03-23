@@ -2,6 +2,7 @@
 
 import { query } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { revalidatePath } from 'next/cache';
 
 export type ShoppingListItem = {
   id: number;
@@ -13,6 +14,11 @@ export type ShoppingListItem = {
 export type ShoppingListCategoryGroup = {
   category: string;
   items: ShoppingListItem[];
+};
+
+export type ProductSuggestion = {
+  id: number;
+  name: string;
 };
 
 export async function getShoppingList(): Promise<ShoppingListCategoryGroup[]> {
@@ -62,5 +68,69 @@ export async function getShoppingList(): Promise<ShoppingListCategoryGroup[]> {
   } catch (error) {
     console.error('Błąd podczas pobierania listy zakupów:', error);
     return [];
+  }
+}
+
+/**
+ * Wyszukuje produkty w bazie dla podpowiedzi.
+ */
+export async function searchProducts(queryText: string): Promise<ProductSuggestion[]> {
+  if (!queryText || queryText.length < 1) return [];
+
+  const session = await getSession();
+  if (!session) return [];
+
+  try {
+    const result = await query(
+      `SELECT product_id as id, name FROM product WHERE name ILIKE $1 LIMIT 5`,
+      [`%${queryText}%`]
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('Błąd podczas wyszukiwania produktów:', error);
+    return [];
+  }
+}
+
+/**
+ * Dodaje produkt do domyślnej listy użytkownika.
+ */
+export async function addProductToList(productId: number) {
+  const session = await getSession();
+  if (!session) throw new Error('Unauthorized');
+
+  const { userId } = session;
+
+  try {
+    // Znajdź pierwszą dostępną listę (lub stwórz jeśli brak)
+    const listResult = await query(
+      `SELECT list_id FROM list WHERE owner_id = $1 OR list_id IN (SELECT list_id FROM list_access WHERE user_id = $1) LIMIT 1`,
+      [userId]
+    );
+
+    let listId;
+    if (listResult.rows.length === 0) {
+      const newList = await query(
+        `INSERT INTO list (owner_id, name) VALUES ($1, $2) RETURNING list_id`,
+        [userId, 'Moja Lista']
+      );
+      listId = newList.rows[0].list_id;
+    } else {
+      listId = listResult.rows[0].list_id;
+    }
+
+    // Dodaj produkt do listy (jeśli już jest, zignoruj conflict)
+    await query(
+      `INSERT INTO list_item (list_id, product_id, quantity) 
+       VALUES ($1, $2, '1') 
+       ON CONFLICT (list_id, product_id) DO NOTHING`,
+      [listId, productId]
+    );
+
+    revalidatePath('/');
+    return { success: true };
+  } catch (error) {
+    console.error('Błąd podczas dodawania produktu do listy:', error);
+    throw error;
   }
 }
