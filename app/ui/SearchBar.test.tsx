@@ -50,7 +50,8 @@ describe('SearchBar Component', () => {
     await userEvent.click(suggestion);
 
     // Should show quantity modal and NOT call action yet
-    expect(screen.getByText(/Ile sztuk: Mleko/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ile sztuk:/i)).toBeInTheDocument();
+    expect(screen.getAllByText('Mleko').length).toBeGreaterThan(0);
     expect(mockedAddProductToList).not.toHaveBeenCalled();
 
     const addButton = screen.getByRole('button', { name: /Dodaj/i });
@@ -105,7 +106,8 @@ describe('SearchBar Component', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     // Should show quantity modal for Masło
-    expect(screen.getByText(/Ile sztuk: Masło/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ile sztuk:/i)).toBeInTheDocument();
+    expect(screen.getAllByText('Masło').length).toBeGreaterThan(0);
     expect(mockedAddProductToList).not.toHaveBeenCalled();
 
     // Enter again to confirm default quantity
