@@ -150,7 +150,7 @@ const server = http.createServer(async (req, res) => {
                 return res.end();
             }
 
-            const result = await db.query('SELECT * FROM full_shopping_list');
+            const result = await db.query('SELECT * FROM get_list(1)');
 
             const rows = result.rows;
 
@@ -238,13 +238,13 @@ const server = http.createServer(async (req, res) => {
             const body = await getParsedBodyFromRequest(req);
 
             const query = `
-                        INSERT INTO shopping_list (product_id, added_by_user_id, quantity)
+                        INSERT INTO list_item (list_id, product_id, quantity)
                         VALUES ($1, $2, $3) RETURNING *;
                     `;
 
             const values = [
+                1, //list_id
                 parseInt(body.productId),
-                userId,
                 body.quantity || 1,
             ];
 
@@ -275,7 +275,7 @@ const server = http.createServer(async (req, res) => {
             const body = await getParsedBodyFromRequest(req);
 
             const query = `
-                        INSERT INTO product (product_id, category, name)
+                        INSERT INTO product (product_id, category_id, name)
                         VALUES ($1, $2, $3) RETURNING *;
                     `;
 
@@ -318,8 +318,8 @@ const server = http.createServer(async (req, res) => {
             }
 
             const query = `
-                DELETE FROM shopping_list 
-                WHERE product_id = $1 
+                DELETE FROM list_item
+                WHERE list_id = 1 AND product_id = $1 
                 RETURNING *;
             `;
 
@@ -334,7 +334,37 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end();
         }
-    } else {
+    }
+    else if (cleanUrl === '/api/lists' && req.method === 'GET') {
+        try  {
+            const token = getTokenFromRequest(req);
+            let userId;
+
+            try {
+                const { payload } = await jwtVerify(token, jwtSecret);
+                userId = payload.userId;
+            }
+            catch (err) {
+                res.writeHead(401);
+                return res.end();
+            }
+
+            const result = await db.query(`
+                SELECT la.list_id, l.name 
+                FROM list_access la
+                JOIN list l on l.list_id = la.list_id
+                WHERE user_id = $1;
+            `, [userId] );
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ lists: result.rows }));
+        }
+        catch (err) {
+            res.writeHead(500, {'Content-Type': 'application/json'});
+            res.end();
+        }
+    }
+    else {
         console.log(`[NO FILE!] url: ${req.url}`);
         res.writeHead(404);
         res.end();
