@@ -142,15 +142,18 @@ const server = http.createServer(async (req, res) => {
         try {
 
             const token = getTokenFromRequest(req);
+            let userId;
+
             try {
-                await jwtVerify(token, jwtSecret);
+                const { payload } =  await jwtVerify(token, jwtSecret);
+                userId = payload.userId;
             }
             catch (err) {
                 res.writeHead(401);
                 return res.end();
             }
 
-            const result = await db.query('SELECT * FROM get_list(1)');
+            const result = await db.query('SELECT * FROM get_default_list($1)', [userId]);
 
             const rows = result.rows;
 
@@ -225,6 +228,7 @@ const server = http.createServer(async (req, res) => {
 
             const token = getTokenFromRequest(req);
             let userId;
+            let listId;
 
             try {
                 const { payload } = await jwtVerify(token, jwtSecret);
@@ -235,6 +239,24 @@ const server = http.createServer(async (req, res) => {
                 return res.end();
             }
 
+            try {
+                const result = await db.query(`
+                    SELECT default_list_id
+                    FROM users
+                    WHERE user_id = $1
+                `, [userId])
+
+                listId = result.rows[0].default_list_id;
+                if (!listId) {
+                    res.writeHead(401);
+                    res.end();
+                }
+
+            } catch (err) {
+                res.writeHead(400);
+                res.end();
+            }
+
             const body = await getParsedBodyFromRequest(req);
 
             const query = `
@@ -243,7 +265,7 @@ const server = http.createServer(async (req, res) => {
                     `;
 
             const values = [
-                1, //list_id
+                listId,
                 parseInt(body.productId),
                 body.quantity || 1,
             ];
@@ -301,13 +323,33 @@ const server = http.createServer(async (req, res) => {
         try  {
 
             const token = getTokenFromRequest(req);
+            let userId;
 
             try {
-                await jwtVerify(token, jwtSecret);
+                const {payload} = await jwtVerify(token, jwtSecret);
+                userId = payload.userId;
             }
             catch (err) {
                 res.writeHead(401);
                 return res.end();
+            }
+
+            try {
+                const result = await db.query(`
+                    SELECT default_list_id
+                    FROM users
+                    WHERE user_id = $1
+                `, [userId])
+
+                listId = result.rows[0].default_list_id;
+                if (!listId) {
+                    res.writeHead(401);
+                    res.end();
+                }
+
+            } catch (err) {
+                res.writeHead(400);
+                res.end();
             }
 
             const productIdToDeleteFromList = parseInt(req.url.split('/').pop());
@@ -319,11 +361,11 @@ const server = http.createServer(async (req, res) => {
 
             const query = `
                 DELETE FROM list_item
-                WHERE list_id = 1 AND product_id = $1 
+                WHERE list_id = $1 AND product_id = $2 
                 RETURNING *;
             `;
 
-            const values = [productIdToDeleteFromList];
+            const values = [listId, productIdToDeleteFromList];
 
             const result = await db.query(query, values);
 
@@ -355,6 +397,36 @@ const server = http.createServer(async (req, res) => {
                 JOIN list l on l.list_id = la.list_id
                 WHERE user_id = $1;
             `, [userId] );
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ lists: result.rows }));
+        }
+        catch (err) {
+            res.writeHead(500, {'Content-Type': 'application/json'});
+            res.end();
+        }
+    }
+    else if (cleanUrl === '/api/lists' && req.method === 'POST') {
+        try {
+            const token = getTokenFromRequest(req);
+            let userId;
+
+            try {
+                const { payload } = await jwtVerify(token, jwtSecret);
+                userId = payload.userId;
+            }
+            catch (err) {
+                res.writeHead(401);
+                return res.end();
+            }
+
+            const body = await getParsedBodyFromRequest(req);
+
+            const result = await db.query(`
+                UPDATE users 
+                SET default_list_id = $1
+                WHERE user_id = $2
+            `, [body.list_id, userId]);
 
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ lists: result.rows }));

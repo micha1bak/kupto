@@ -270,7 +270,7 @@ async function fetchCategories() {
     }
 }
 
-async function fetchIdsOfListsWithAccess() {
+async function fetchAvailableLists() {
     try {
         const res = await fetch('/api/lists', {
             method: 'GET',
@@ -397,6 +397,33 @@ addToListButton.addEventListener('click', () => {
     addItemToList(selectedProduct.id);
 })
 
+listSelect.addEventListener('change', async (event) => {
+
+    const selectedListId = event.target.value;
+    if (!selectedListId) return;
+
+    try {
+        const response = await fetch('/api/lists', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            },
+            body: JSON.stringify({
+                list_id: selectedListId
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Błąd zmiany listy');
+        }
+
+        await fetchShoppingList();
+    } catch (error) {
+        console.error(error);
+    }
+});
+
 
 
 /* --- MODAL --- */
@@ -440,7 +467,7 @@ async function initApp() {
         await fetchShoppingList();
         await fetchCategories();
         await fetchProducts();
-        await fetchIdsOfListsWithAccess();
+        await fetchAvailableLists();
     }
     catch (err) {
         console.warn('Wymagane logowanie', err);
