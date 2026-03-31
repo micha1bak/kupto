@@ -1,6 +1,7 @@
 let products = [];
 let categories = [];
 let shoppingList = [];
+let lists = [];
 const input = document.getElementById('input');
 const inputQuant = document.getElementById('inputQuant');
 const addToListButton = document.getElementById('add-button');
@@ -12,6 +13,7 @@ const newProductName = document.getElementById('new-product-name');
 const newProductCategory = document.getElementById('new-product-category');
 const btnCancel = document.getElementById('btn-cancel');
 const btnSaveProduct = document.getElementById('btn-save-product')
+const listSelect = document.getElementById('list-select');
 
 
 
@@ -178,6 +180,15 @@ function renderCategory() {
     })
 }
 
+function renderLists() {
+    lists.lists.forEach(list => {
+        const option = document.createElement('option');
+        option.value = list.list_id;
+        option.textContent = list.name;
+        listSelect.appendChild(option);
+    })
+}
+
 function renderSuggestions() {
     console.log('render suggestions');
     const value = input.value.toLowerCase();
@@ -255,6 +266,25 @@ async function fetchCategories() {
         renderCategory();
     }
     catch (err){
+        console.error(err);
+    }
+}
+
+async function fetchAvailableLists() {
+    try {
+        const res = await fetch('/api/lists', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            }
+        });
+        if (!res.ok) {
+            throw new Error(`Server error: ${res.status}`);
+        }
+        lists = await res.json();
+        renderLists();
+    } catch (err) {
         console.error(err);
     }
 }
@@ -344,7 +374,6 @@ const addNewProductToDB = async (categoryId, name) => {
 }
 
 
-
 // --- EVENTS --- //
 
 // render suggestions
@@ -367,6 +396,33 @@ addToListButton.addEventListener('click', () => {
 
     addItemToList(selectedProduct.id);
 })
+
+listSelect.addEventListener('change', async (event) => {
+
+    const selectedListId = event.target.value;
+    if (!selectedListId) return;
+
+    try {
+        const response = await fetch('/api/lists', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+            },
+            body: JSON.stringify({
+                list_id: selectedListId
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Błąd zmiany listy');
+        }
+
+        await fetchShoppingList();
+    } catch (error) {
+        console.error(error);
+    }
+});
 
 
 
@@ -411,6 +467,7 @@ async function initApp() {
         await fetchShoppingList();
         await fetchCategories();
         await fetchProducts();
+        await fetchAvailableLists();
     }
     catch (err) {
         console.warn('Wymagane logowanie', err);
