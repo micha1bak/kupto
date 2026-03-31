@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model users {
+  user_id                          Int           @id @default(autoincrement())
+  login                            String        @unique @db.VarChar(50)
+  password                         String        @db.VarChar(255)
+  default_list_id                  Int?
+  list_list_owner_idTousers        list[]        @relation("list_owner_idTousers")
+  list_access                      list_access[]
+  template                         template[]
+  list_users_default_list_idTolist list?         @relation("users_default_list_idTolist", fields: [default_list_id], references: [list_id], onUpdate: NoAction, map: "fk_user_default_list")
+}
+
+model category {
+  category_id Int       @id @default(autoincrement())
+  name        String    @unique @db.VarChar(100)
+  product     product[]
+}
+
+model list {
+  list_id                           Int           @id @default(autoincrement())
+  owner_id                          Int
+  name                              String        @db.VarChar(100)
+  users_list_owner_idTousers        users         @relation("list_owner_idTousers", fields: [owner_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_list_owner")
+  list_access                       list_access[]
+  list_item                         list_item[]
+  users_users_default_list_idTolist users[]       @relation("users_default_list_idTolist")
+}
+
+model list_access {
+  list_id Int
+  user_id Int
+  list    list  @relation(fields: [list_id], references: [list_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_access_list")
+  users   users @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_access_user")
+
+  @@id([list_id, user_id])
+}
+
+model list_item {
+  list_id    Int
+  product_id Int
+  quantity   String? @db.VarChar(50)
+  list       list    @relation(fields: [list_id], references: [list_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_item_list")
+  product    product @relation(fields: [product_id], references: [product_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_item_product")
+
+  @@id([list_id, product_id])
+}
+
+model product {
+  product_id    Int             @id @default(autoincrement())
+  category_id   Int
+  name          String          @unique @db.VarChar(100)
+  list_item     list_item[]
+  category      category        @relation(fields: [category_id], references: [category_id], onUpdate: NoAction, map: "fk_category")
+  template_item template_item[]
+}
+
+model template {
+  template_id   Int             @id @default(autoincrement())
+  owner_id      Int
+  name          String          @db.VarChar(100)
+  users         users           @relation(fields: [owner_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_template_owner")
+  template_item template_item[]
+}
+
+model template_item {
+  template_id Int
+  product_id  Int
+  quantity    String?  @db.VarChar(50)
+  product     product  @relation(fields: [product_id], references: [product_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_t_item_product")
+  template    template @relation(fields: [template_id], references: [template_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_t_item_template")
+
+  @@id([template_id, product_id])
+}

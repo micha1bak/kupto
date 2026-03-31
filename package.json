@@ -12,23 +12,31 @@
   },
   "license": "ISC",
   "author": "Michał Bąk",
-  "type": "commonjs",
+  "type": "module",
   "main": "src/backend/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "db_tunnel": "ssh -N DB_kupto_dev",
-    "dev": "nodemon src/backend/server.js",
+    "dev": "tsx watch src/backend/db.ts",
     "start": "node src/backend/server.js"
   },
   "dependencies": {
-    "dotenv": "^17.3.1",
-    "pg": "^8.20.0",
-    "jose": "^6.2.1"
+    "@prisma/adapter-pg": "^7.6.0",
+    "@prisma/client": "^7.6.0",
+    "express": "^5.2.1",
+    "jose": "^6.2.1",
+    "pg": "^8.20.0"
   },
   "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.20.0",
     "concurrently": "^9.2.1",
+    "dotenv": "^17.3.1",
     "jest": "^30.3.0",
     "nodemon": "^3.1.14",
+    "prisma": "^7.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
     "wait-on": "^9.0.4"
   }
 }
