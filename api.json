@@ -12,37 +12,85 @@
   "paths": {
     "/api/register": {
       "post": {
-        "summary": "User registration",
+        "summary": "Rejestracja użytkownika",
+        "description": "Tworzy nowe konto użytkownika i haszuje hasło.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "login": { "type": "string" },
-                  "password": { "type": "string" }
-                },
-                "required": true
+                "$ref": "#/components/schemas/AuthUser"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "User registered successfully",
+            "description": "Użytkownik zarejestrowany pomyślnie.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "token": { "type": "string" }
+                    "message": { "type": "string", "example": "User created successfully." }
                   }
                 }
               }
             }
           },
-          "400": { "description": "Bad request" }
+          "409": { "description": "Login jest już zajęty." },
+          "400": { "description": "Błąd walidacji danych." }
+        }
+      }
+    },
+    "/api/login": {
+      "post": {
+        "summary": "Logowanie użytkownika",
+        "description": "Weryfikuje poświadczenia i ustawia ciasteczko autoryzacyjne HTTP-only (jwt).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthUser"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Zalogowano pomyślnie.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Ciasteczko zawierające token JWT (HttpOnly, Secure, SameSite=Strict).",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "User logged in successfully." }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Błędne poświadczenia." },
+          "400": { "description": "Błąd walidacji danych." }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuthUser": {
+        "type": "object",
+        "required": ["login", "password"],
+        "properties": {
+          "login": { "type": "string", "minLength": 3, "example": "jan_kowalski" },
+          "password": { "type": "string", "minLength": 8, "format": "password", "example": "moje_bezpieczne_haslo" }
         }
       }
     }

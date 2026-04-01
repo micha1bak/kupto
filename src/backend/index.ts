@@ -1,11 +1,15 @@
-import express from 'express'
+import express from 'express';
+import cookieParser from 'cookie-parser';
 import createUser from "./utils/createUser";
+import loginUser from "./utils/loginUser";
 import { validateInput } from "./middleware/validateInput";
-import { RegisterSchema } from "./schemas/auth.schema";
+import { AuthUserSchema } from "./schemas/auth.schema";
 
 const app = express();
 
-app.use(express.json(), express.static('src/frontend'))
+app.use(express.json());
+app.use(express.static('src/frontend'));
+app.use(cookieParser());
 
 app.post('/api/register', validateInput(AuthUserSchema), async (req, res) => {
     try {
@@ -16,6 +20,22 @@ app.post('/api/register', validateInput(AuthUserSchema), async (req, res) => {
         if (error.code === 'P2002') {
             return res.status(409).json({ error: 'Login is already taken.' });
         }
+        console.error(error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+})
+
+app.post('/api/login', validateInput(AuthUserSchema), async (req, res) => {
+    try {
+        const { login, password } = req.body;
+        const jwt = await loginUser({ login, password });
+        res.cookie('jwt', jwt, {
+            httpOnly: true,
+            sameSite: 'strict',
+            maxAge: 30 * 24 * 60 * 60 * 1000
+        });
+        return res.status(200).json({ message: 'User logged in successfully.'});
+    } catch (error: any) {
         console.error(error);
         return res.status(500).json({ error: 'Internal server error.' });
     }
