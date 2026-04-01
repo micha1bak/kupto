@@ -7,7 +7,7 @@ const app = express();
 
 app.use(express.json(), express.static('src/frontend'))
 
-app.post('/api/register', validateInput(RegisterSchema), async (req, res) => {
+app.post('/api/register', validateInput(AuthUserSchema), async (req, res) => {
     try {
         const { login, password } = req.body;
         await createUser({ login, password });
