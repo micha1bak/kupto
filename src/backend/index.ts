@@ -1,16 +1,15 @@
 import express from 'express'
 import createUser from "./utils/createUser";
+import { validateInput } from "./middleware/validateInput";
+import { RegisterSchema } from "./schemas/auth.schema";
 
 const app = express();
 
 app.use(express.json(), express.static('src/frontend'))
 
-app.post('/api/register', async (req, res) => {
-    const { login, password } = req.body;
-    if (!login || !password) {
-        return res.status(400).send({'error': 'Login and Password expected!'});
-    }
+app.post('/api/register', validateInput(RegisterSchema), async (req, res) => {
     try {
+        const { login, password } = req.body;
         await createUser({ login, password });
         return res.status(201).json({ message: 'User created successfully.' });
     } catch (error: any) {
