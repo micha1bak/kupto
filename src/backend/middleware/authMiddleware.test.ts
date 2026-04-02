@@ -1,5 +1,5 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-import authMiddleware, { AuthRequest } from './authMiddleware';
+import { authMiddleware, AuthRequest } from './authMiddleware';
 import { Response, NextFunction } from 'express';
 import { jwtVerify } from 'jose';
 
