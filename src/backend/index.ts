@@ -10,12 +10,14 @@ import getProducts from "./utils/getProducts";
 import getCategories from "./utils/getCategories";
 import createProduct from "./utils/createProduct";
 import getAvailableLists from "./utils/getAvailableLists";
+import setDefaultList from "./utils/setDefaultList";
 import { validateInput } from "./middleware/validateInput";
 import { authMiddleware, AuthRequest } from "./middleware/authMiddleware";
 import { AuthUserSchema } from "./schemas/auth.schema";
 import { CreateListSchema} from "./schemas/list.schema";
 import { AddItemSchema } from "./schemas/item.schema";
 import { CreateProductSchema } from "./schemas/product.schema";
+import { SetDefaultListSchema } from "./schemas/user.schema";
 
 const app = express();
 
@@ -159,6 +161,23 @@ app.get('/api/lists', async (req: AuthRequest, res) => {
         }
         const lists = await getAvailableLists(req.user.userId);
         return res.status(200).json(lists);
+    } catch (error: any) {
+        console.error(error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+app.put('/api/users/default-list', validateInput(SetDefaultListSchema), async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({error: "User does not exist."});
+        }
+        const { listId } = req.body;
+        const result = await setDefaultList({
+            userId: req.user.userId,
+            listId
+        });
+        return res.status(200).json({ message: "Default list updated successfully" });
     } catch (error: any) {
         console.error(error);
         return res.status(500).json({ error: 'Internal server error.' });

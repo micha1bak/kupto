@@ -358,6 +358,45 @@
           "500": { "description": "Wewnętrzny błąd serwera." }
         }
       }
+    },
+    "/api/users/default-list": {
+      "put": {
+        "summary": "Zmiana domyślnej listy",
+        "description": "Ustawia wybraną listę jako domyślną dla zalogowanego użytkownika. Wymaga uprawnień do danej listy.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["listId"],
+                "properties": {
+                  "listId": { "type": "integer", "example": 10 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Domyślna lista została zmieniona.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Default list updated successfully" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji." },
+          "403": { "description": "Brak dostępu do wskazanej listy." },
+          "400": { "description": "Błędne dane wejściowe." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
     }
   },
   "components": {
