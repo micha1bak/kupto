@@ -11,6 +11,7 @@ import getCategories from "./utils/getCategories";
 import createProduct from "./utils/createProduct";
 import getAvailableLists from "./utils/getAvailableLists";
 import setDefaultList from "./utils/setDefaultList";
+import getUserProfile from "./utils/getUserProfile";
 import { validateInput } from "./middleware/validateInput";
 import { authMiddleware, AuthRequest } from "./middleware/authMiddleware";
 import { AuthUserSchema } from "./schemas/auth.schema";
@@ -51,11 +52,27 @@ app.post('/api/login', validateInput(AuthUserSchema), async (req, res) => {
         return res.status(200).json({ message: 'User logged in successfully.'});
     } catch (error: any) {
         console.error(error);
-        return res.status(500).json({ error: 'Internal server error.' });
+        return res.status(401).json({ error: 'Invalid login or password' });
     }
 });
 
+app.post('/api/logout', (req, res) => {
+    res.clearCookie('jwt');
+    return res.status(200).json({ message: 'Logged out successfully.' });
+});
+
 app.use(authMiddleware);
+
+app.get('/api/users/me', async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) return res.status(401).json({error: "Not authenticated"});
+        const profile = await getUserProfile(req.user.userId);
+        return res.status(200).json(profile);
+    } catch (error: any) {
+        console.error(error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+});
 
 app.post('/api/list', validateInput(CreateListSchema), async (req: AuthRequest, res) => {
     try {

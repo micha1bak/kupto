@@ -82,6 +82,38 @@
         }
       }
     },
+    "/api/logout": {
+      "post": {
+        "summary": "Wylogowanie",
+        "description": "Czyści ciasteczko autoryzacyjne 'jwt'.",
+        "responses": {
+          "200": { "description": "Wylogowano pomyślnie." }
+        }
+      }
+    },
+    "/api/users/me": {
+      "get": {
+        "summary": "Pobranie profilu aktualnego użytkownika",
+        "description": "Zwraca dane zalogowanego użytkownika (login, domyślna lista).",
+        "responses": {
+          "200": {
+            "description": "Profil użytkownika.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "login": { "type": "string", "example": "jan_kowalski" },
+                    "default_list_id": { "type": "integer", "example": 10, "nullable": true }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji." }
+        }
+      }
+    },
     "/api/list": {
       "get": {
         "summary": "Pobranie listy zakupów",
