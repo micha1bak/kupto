@@ -2,18 +2,18 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import createUser from "./utils/createUser";
 import loginUser from "./utils/loginUser";
+import getList from "./utils/getList";
+import createList from "./utils/createList";
 import { validateInput } from "./middleware/validateInput";
 import { authMiddleware, AuthRequest } from "./middleware/authMiddleware";
 import { AuthUserSchema } from "./schemas/auth.schema";
 import { CreateListSchema} from "./schemas/list.schema";
-import createList from "./utils/createList";
 
 const app = express();
 
 app.use(express.json());
 app.use(express.static('src/frontend'));
 app.use(cookieParser());
-app.use(authMiddleware);
 
 app.post('/api/register', validateInput(AuthUserSchema), async (req, res) => {
     try {
@@ -45,6 +45,8 @@ app.post('/api/login', validateInput(AuthUserSchema), async (req, res) => {
     }
 });
 
+app.use(authMiddleware);
+
 app.post('/api/list', validateInput(CreateListSchema), async (req: AuthRequest, res) => {
     try {
         if (!req.user) {
@@ -58,6 +60,19 @@ app.post('/api/list', validateInput(CreateListSchema), async (req: AuthRequest, 
         console.error(error);
         res.status(500).json({ error: 'Internal server error.' });
     }
+});
+
+app.get('/api/list', async (req: AuthRequest, res)=> {
+   try {
+       if (!req.user) {
+           return res.status(401).json({error: "User does not exist."});
+       }
+       const list = await getList(req.user.userId);
+       return res.status(200).json({list});
+   } catch (error: any) {
+       console.error(error);
+       res.status(500).json({ error: 'Internal server error.' });
+   }
 });
 
 app.listen(3000, () => {

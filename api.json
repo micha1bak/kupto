@@ -83,6 +83,41 @@
       }
     },
     "/api/list": {
+      "get": {
+        "summary": "Pobranie listy zakupów",
+        "description": "Zwraca produkty z domyślnej listy użytkownika pogrupowane według kategorii. Wymaga ciasteczka 'jwt'.",
+        "responses": {
+          "200": {
+            "description": "Lista produktów pogrupowana tematycznie.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "category": { "type": "string", "example": "Nabiał" },
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": { "type": "integer", "example": 101 },
+                            "name": { "type": "string", "example": "Mleko" },
+                            "quantity": { "type": "string", "example": "2 szt", "nullable": true }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji lub wygasła sesja." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      },
       "post": {
         "summary": "Utworzenie nowej listy",
         "description": "Tworzy nową listę zakupów dla zalogowanego użytkownika. Wymaga ciasteczka autoryzacyjnego 'jwt'.",
