@@ -9,7 +9,7 @@ export interface AuthRequest extends Request {
 
 const jwtSecret = new TextEncoder().encode(process.env.JWT_SECRET);
 
-export default async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+export async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
     const jwt = req.cookies.jwt;
     if (!jwt) return res.status(401).json({error: "Invalid token"});
     try {

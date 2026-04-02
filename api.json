@@ -81,6 +81,51 @@
           "400": { "description": "Błąd walidacji danych." }
         }
       }
+    },
+    "/api/list": {
+      "post": {
+        "summary": "Utworzenie nowej listy",
+        "description": "Tworzy nową listę zakupów dla zalogowanego użytkownika. Wymaga ciasteczka autoryzacyjnego 'jwt'.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "example": "Lista na weekend"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Lista została utworzona.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list_id": { "type": "integer", "example": 10 },
+                    "owner_id": { "type": "integer", "example": 1 },
+                    "name": { "type": "string", "example": "Lista na weekend" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji lub nieprawidłowy token." },
+          "400": { "description": "Błędne dane wejściowe (np. pusta nazwa)." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
     }
   },
   "components": {
