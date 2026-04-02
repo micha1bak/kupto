@@ -8,11 +8,13 @@ import addItemToList from "./utils/addItemToList";
 import deleteItemFromList from "./utils/deleteItemFromList";
 import getProducts from "./utils/getProducts";
 import getCategories from "./utils/getCategories";
+import createProduct from "./utils/createProduct";
 import { validateInput } from "./middleware/validateInput";
 import { authMiddleware, AuthRequest } from "./middleware/authMiddleware";
 import { AuthUserSchema } from "./schemas/auth.schema";
 import { CreateListSchema} from "./schemas/list.schema";
 import { AddItemSchema } from "./schemas/item.schema";
+import { CreateProductSchema } from "./schemas/product.schema";
 
 const app = express();
 
@@ -46,7 +48,7 @@ app.post('/api/login', validateInput(AuthUserSchema), async (req, res) => {
         return res.status(200).json({ message: 'User logged in successfully.'});
     } catch (error: any) {
         console.error(error);
-        return res.status(401).json({ error: 'Invalid login or password' });
+        return res.status(500).json({ error: 'Internal server error.' });
     }
 });
 
@@ -122,6 +124,17 @@ app.get('/api/products', async (req: AuthRequest, res) => {
     try {
         const products = await getProducts();
         return res.status(200).json(products);
+    } catch (error: any) {
+        console.error(error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+app.post('/api/products', validateInput(CreateProductSchema), async (req: AuthRequest, res) => {
+    try {
+        const { categoryId, name } = req.body;
+        const product = await createProduct({ categoryId, name });
+        return res.status(201).json(product);
     } catch (error: any) {
         console.error(error);
         return res.status(500).json({ error: 'Internal server error.' });

@@ -264,6 +264,45 @@
           "401": { "description": "Brak autoryzacji." },
           "500": { "description": "Wewnętrzny błąd serwera." }
         }
+      },
+      "post": {
+        "summary": "Dodanie nowego produktu do katalogu",
+        "description": "Tworzy nowy produkt w bazie danych. Nazwa zostanie automatycznie sformatowana (np. 'mleko' -> 'Mleko').",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["categoryId", "name"],
+                "properties": {
+                  "categoryId": { "type": "integer", "example": 10 },
+                  "name": { "type": "string", "example": "Mleko UHT" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Produkt został utworzony.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product_id": { "type": "integer" },
+                    "category_id": { "type": "integer" },
+                    "name": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Błędne dane wejściowe." },
+          "401": { "description": "Brak autoryzacji." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
       }
     },
     "/api/categories": {
