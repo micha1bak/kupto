@@ -173,12 +173,15 @@ app.put('/api/users/default-list', validateInput(SetDefaultListSchema), async (r
             return res.status(401).json({error: "User does not exist."});
         }
         const { listId } = req.body;
-        const result = await setDefaultList({
+        await setDefaultList({
             userId: req.user.userId,
             listId
         });
         return res.status(200).json({ message: "Default list updated successfully" });
     } catch (error: any) {
+        if (error.code === 'P2025') {
+            return res.status(403).json({ error: "Access denied or list not found" });
+        }
         console.error(error);
         return res.status(500).json({ error: 'Internal server error.' });
     }

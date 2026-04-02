@@ -9,7 +9,12 @@ export default async function createList(list: CreateList) {
     return prisma.list.create({
         data: {
             owner_id: list.ownerId,
-            name: list.name
+            name: list.name,
+            list_access: {
+                create: {
+                    user_id: list.ownerId
+                }
+            }
         }
     });
 }
