@@ -6,6 +6,7 @@ import getList from "./utils/getList";
 import createList from "./utils/createList";
 import addItemToList from "./utils/addItemToList";
 import deleteItemFromList from "./utils/deleteItemFromList";
+import getProducts from "./utils/getProducts";
 import { validateInput } from "./middleware/validateInput";
 import { authMiddleware, AuthRequest } from "./middleware/authMiddleware";
 import { AuthUserSchema } from "./schemas/auth.schema";
@@ -89,7 +90,7 @@ app.post('/api/list/item', validateInput(AddItemSchema), async (req: AuthRequest
             productId,
             quantity
         });
-        return res.status(201).json({message: 'Item added to the list'});
+        return res.status(201).json(result);
     } catch (error: any) {
         console.error(error);
         return res.status(500).json({ error: 'Internal server error.' });
@@ -101,7 +102,7 @@ app.delete('/api/list/item/:productId', async (req: AuthRequest, res) => {
         if (!req.user) {
             return res.status(401).json({error: "User does not exist."});
         }
-        const productId = parseInt(req.params.productId as string);
+        const productId = parseInt(req.params.productId);
         if (isNaN(productId)) {
             return res.status(400).json({ error: "Invalid product ID" });
         }
@@ -110,6 +111,16 @@ app.delete('/api/list/item/:productId', async (req: AuthRequest, res) => {
             productId
         });
         return res.status(200).json(result);
+    } catch (error: any) {
+        console.error(error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+app.get('/api/products', async (req: AuthRequest, res) => {
+    try {
+        const products = await getProducts();
+        return res.status(200).json(products);
     } catch (error: any) {
         console.error(error);
         return res.status(500).json({ error: 'Internal server error.' });

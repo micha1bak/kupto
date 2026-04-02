@@ -236,6 +236,35 @@
           "500": { "description": "Wewnętrzny błąd serwera." }
         }
       }
+    },
+    "/api/products": {
+      "get": {
+        "summary": "Pobranie katalogu produktów",
+        "description": "Zwraca listę wszystkich produktów dostępnych w systemie wraz z ich kategoriami.",
+        "responses": {
+          "200": {
+            "description": "Lista produktów.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "integer", "example": 1 },
+                      "name": { "type": "string", "example": "Chleb" },
+                      "category": { "type": "string", "example": "Pieczywo" },
+                      "categoryId": { "type": "integer", "example": 10 }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
     }
   },
   "components": {
