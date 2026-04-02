@@ -5,6 +5,7 @@ import loginUser from "./utils/loginUser";
 import getList from "./utils/getList";
 import createList from "./utils/createList";
 import addItemToList from "./utils/addItemToList";
+import deleteItemFromList from "./utils/deleteItemFromList";
 import { validateInput } from "./middleware/validateInput";
 import { authMiddleware, AuthRequest } from "./middleware/authMiddleware";
 import { AuthUserSchema } from "./schemas/auth.schema";
@@ -88,7 +89,27 @@ app.post('/api/list/item', validateInput(AddItemSchema), async (req: AuthRequest
             productId,
             quantity
         });
-        return res.status(201).send();
+        return res.status(201).json({message: 'Item added to the list'});
+    } catch (error: any) {
+        console.error(error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+app.delete('/api/list/item/:productId', async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({error: "User does not exist."});
+        }
+        const productId = parseInt(req.params.productId as string);
+        if (isNaN(productId)) {
+            return res.status(400).json({ error: "Invalid product ID" });
+        }
+        const result = await deleteItemFromList({
+            userId: req.user.userId,
+            productId
+        });
+        return res.status(200).json(result);
     } catch (error: any) {
         console.error(error);
         return res.status(500).json({ error: 'Internal server error.' });

@@ -202,6 +202,40 @@
           "500": { "description": "Wewnętrzny błąd serwera." }
         }
       }
+    },
+    "/api/list/item/{productId}": {
+      "delete": {
+        "summary": "Usunięcie produktu z listy",
+        "description": "Usuwa produkt z domyślnej listy zalogowanego użytkownika.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "ID produktu do usunięcia",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Produkt został usunięty.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list_id": { "type": "integer" },
+                    "product_id": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Nieprawidłowe ID produktu." },
+          "401": { "description": "Brak autoryzacji." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
     }
   },
   "components": {
