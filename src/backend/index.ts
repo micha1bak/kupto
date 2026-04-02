@@ -9,6 +9,7 @@ import deleteItemFromList from "./utils/deleteItemFromList";
 import getProducts from "./utils/getProducts";
 import getCategories from "./utils/getCategories";
 import createProduct from "./utils/createProduct";
+import getAvailableLists from "./utils/getAvailableLists";
 import { validateInput } from "./middleware/validateInput";
 import { authMiddleware, AuthRequest } from "./middleware/authMiddleware";
 import { AuthUserSchema } from "./schemas/auth.schema";
@@ -145,6 +146,19 @@ app.get('/api/categories', async (req: AuthRequest, res) => {
     try {
         const categories = await getCategories();
         return res.status(200).json(categories);
+    } catch (error: any) {
+        console.error(error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+app.get('/api/lists', async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({error: "User does not exist."});
+        }
+        const lists = await getAvailableLists(req.user.userId);
+        return res.status(200).json(lists);
     } catch (error: any) {
         console.error(error);
         return res.status(500).json({ error: 'Internal server error.' });

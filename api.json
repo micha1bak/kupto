@@ -331,6 +331,33 @@
           "500": { "description": "Wewnętrzny błąd serwera." }
         }
       }
+    },
+    "/api/lists": {
+      "get": {
+        "summary": "Pobranie dostępnych list",
+        "description": "Zwraca listę wszystkich list zakupów, do których zalogowany użytkownik ma dostęp.",
+        "responses": {
+          "200": {
+            "description": "Lista dostępnych list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "list_id": { "type": "integer", "example": 10 },
+                      "name": { "type": "string", "example": "Dom" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
     }
   },
   "components": {
