@@ -4,10 +4,12 @@ import createUser from "./utils/createUser";
 import loginUser from "./utils/loginUser";
 import getList from "./utils/getList";
 import createList from "./utils/createList";
+import addItemToList from "./utils/addItemToList";
 import { validateInput } from "./middleware/validateInput";
 import { authMiddleware, AuthRequest } from "./middleware/authMiddleware";
 import { AuthUserSchema } from "./schemas/auth.schema";
 import { CreateListSchema} from "./schemas/list.schema";
+import { AddItemSchema } from "./schemas/item.schema";
 
 const app = express();
 
@@ -41,7 +43,7 @@ app.post('/api/login', validateInput(AuthUserSchema), async (req, res) => {
         return res.status(200).json({ message: 'User logged in successfully.'});
     } catch (error: any) {
         console.error(error);
-        return res.status(500).json({ error: 'Internal server error.' });
+        return res.status(401).json({ error: 'Invalid login or password' });
     }
 });
 
@@ -54,11 +56,11 @@ app.post('/api/list', validateInput(CreateListSchema), async (req: AuthRequest, 
         }
         const ownerId = req.user.userId;
         const { name } = req.body;
-        await createList({ ownerId, name });
-        return res.status(200).json({message: 'List created successfully.'});
+        const newList = await createList({ ownerId, name });
+        return res.status(201).json(newList);
     } catch (error: any) {
         console.error(error);
-        res.status(500).json({ error: 'Internal server error.' });
+        return res.status(500).json({ error: 'Internal server error.' });
     }
 });
 
@@ -68,11 +70,29 @@ app.get('/api/list', async (req: AuthRequest, res)=> {
            return res.status(401).json({error: "User does not exist."});
        }
        const list = await getList(req.user.userId);
-       return res.status(200).json({list});
+       return res.status(200).json(list);
    } catch (error: any) {
        console.error(error);
-       res.status(500).json({ error: 'Internal server error.' });
+       return res.status(500).json({ error: 'Internal server error.' });
    }
+});
+
+app.post('/api/list/item', validateInput(AddItemSchema), async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({error: "User does not exist."});
+        }
+        const { productId, quantity } = req.body;
+        const result = await addItemToList({
+            userId: req.user.userId,
+            productId,
+            quantity
+        });
+        return res.status(201).send();
+    } catch (error: any) {
+        console.error(error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
 });
 
 app.listen(3000, () => {

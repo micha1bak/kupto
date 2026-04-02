@@ -161,6 +161,47 @@
           "500": { "description": "Wewnętrzny błąd serwera." }
         }
       }
+    },
+    "/api/list/item": {
+      "post": {
+        "summary": "Dodanie produktu do listy",
+        "description": "Dodaje nowy produkt do domyślnej listy użytkownika lub aktualizuje jego ilość, jeśli już istnieje.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["productId", "quantity"],
+                "properties": {
+                  "productId": { "type": "integer", "example": 101 },
+                  "quantity": { "type": "string", "example": "2 szt" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Produkt dodany/zaktualizowany.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list_id": { "type": "integer" },
+                    "product_id": { "type": "integer" },
+                    "quantity": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji." },
+          "400": { "description": "Błędne dane (np. nieistniejący produkt)." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
     }
   },
   "components": {
