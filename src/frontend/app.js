@@ -1,477 +1,402 @@
-let products = [];
-let categories = [];
-let shoppingList = [];
-let lists = [];
-const input = document.getElementById('input');
-const inputQuant = document.getElementById('inputQuant');
-const addToListButton = document.getElementById('add-button');
-const shoppingListUl = document.getElementById('shopping-ul');
-const suggestionsUl = document.getElementById('suggestions');
-const newProductModal = document.getElementById('new-product-modal');
-const btnOpenModal = document.getElementById('btn-open-modal');
-const newProductName = document.getElementById('new-product-name');
-const newProductCategory = document.getElementById('new-product-category');
-const btnCancel = document.getElementById('btn-cancel');
-const btnSaveProduct = document.getElementById('btn-save-product')
-const listSelect = document.getElementById('list-select');
+/**
+ * Kupto - Modern SPA Frontend
+ */
 
+// --- STATE ---
+const state = {
+    user: null,
+    shoppingList: [],
+    products: [],
+    categories: [],
+    availableLists: [],
+    activeView: 'loading', // loading, auth, main
+    isMenuOpen: false,
+    isModalOpen: false,
+    searchQuery: '',
+    suggestions: []
+};
 
+const appRoot = document.getElementById('app');
 
-/* --- RENDER --- */
-function renderLoginPage() {
+// --- API CLIENT ---
+async function apiFetch(url, options = {}) {
+    const defaultOptions = {
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+    };
 
-    if (document.getElementById('login-container')) {
-        return;
+    const response = await fetch(url, defaultOptions);
+
+    if (response.status === 401 && state.activeView !== 'auth') {
+        state.activeView = 'auth';
+        render();
+        throw new Error('Unauthorized');
     }
 
-    const appElementsToHide = [
-        document.querySelector('.search-container'),
-        document.getElementById('shopping-ul'),
-        document.getElementById('btn-open-modal')
-    ];
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || `HTTP error ${response.status}`);
+    }
 
-    appElementsToHide.forEach(el => {
-        if (el) el.style.display = 'none';
-    });
+    return response.status === 204 ? null : response.json();
+}
 
-    const loginContainer = document.createElement('div');
-    loginContainer.id = 'login-container';
-    loginContainer.className = 'login-container';
-
-    const form = document.createElement('form');
-    form.id = 'login-form';
-    form.className = 'login-form';
-
-    const title = document.createElement('h2');
-    title.textContent = 'Zaloguj się';
-    title.className = 'login-title';
-
-    const emailGroup = document.createElement('div');
-    emailGroup.className = 'input-group';
-    const emailLabel = document.createElement('label');
-    emailLabel.htmlFor = 'login-email';
-    emailLabel.textContent = 'Email';
-    const emailInput = document.createElement('input');
-    emailInput.id = 'login-email';
-    emailInput.required = true;
-    emailInput.placeholder = 'Wprowadź adres email';
-    emailGroup.appendChild(emailLabel);
-    emailGroup.appendChild(emailInput);
-
-    const passwordGroup = document.createElement('div');
-    passwordGroup.className = 'input-group';
-    const passwordLabel = document.createElement('label');
-    passwordLabel.htmlFor = 'login-password';
-    passwordLabel.textContent = 'Hasło';
-    const passwordInput = document.createElement('input');
-    passwordInput.type = 'password';
-    passwordInput.id = 'login-password';
-    passwordInput.required = true;
-    passwordInput.placeholder = 'Wprowadź hasło';
-    passwordGroup.appendChild(passwordLabel);
-    passwordGroup.appendChild(passwordInput);
-
-    const errorMsg = document.createElement('p');
-    errorMsg.id = 'login-error';
-    errorMsg.className = 'login-error hidden';
-    errorMsg.textContent = 'Nieprawidłowy email lub hasło.';
-
-    const submitBtn = document.createElement('button');
-    submitBtn.type = 'submit';
-    submitBtn.className = 'btn-login';
-    submitBtn.textContent = 'Zaloguj';
-
-    form.appendChild(title);
-    form.appendChild(emailGroup);
-    form.appendChild(passwordGroup);
-    form.appendChild(errorMsg);
-    form.appendChild(submitBtn);
-    loginContainer.appendChild(form);
-
-    document.body.appendChild(loginContainer);
-
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        const email = emailInput.value;
-        const password = passwordInput.value;
-
+// --- ACTIONS ---
+const actions = {
+    async init() {
         try {
-
-            const response = await fetch('api/login', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    login: email,
-                    password: password
-                })
-            })
-
-            if (!response.ok) {
-                throw new Error(`Server error: ${response.status}`);
-            }
-
-            const data = await response.json();
-            localStorage.setItem('jwt_token', data.token);
-
-            await fetchShoppingList();
-            await fetchProducts();
-            await fetchCategories();
-
-            errorMsg.classList.add('hidden');
-            document.body.removeChild(loginContainer);
-
-            appElementsToHide.forEach(el => {
-                if (el) el.style.display = '';
-            });
+            state.user = await apiFetch('/api/users/me');
+            await Promise.all([
+                actions.fetchShoppingList(),
+                actions.fetchProducts(),
+                actions.fetchCategories(),
+                actions.fetchAvailableLists()
+            ]);
+            state.activeView = 'main';
+        } catch (err) {
+            state.activeView = 'auth';
         }
-        catch (error) {
-            errorMsg.classList.remove('hidden');
-            console.error('[ERROR] logowanie:', error);
-        }
-    });
-}
+        render();
+    },
 
-function renderShoppingList() {
-    shoppingListUl.innerHTML = '';
-    shoppingList.forEach(category => {
-        const h4 = document.createElement('h4');
-        h4.className = 'category-header';
-        h4.textContent = category.category;
-        shoppingListUl.appendChild(h4);
-
-        let i = 0;
-        category.items.forEach(product => {
-            const name = document.createElement('span');
-            const quantity = document.createElement('span');
-            const X = document.createElement('span');
-            const div = document.createElement('div');
-
-            name.className = 'item-name';
-            quantity.className = 'quantity';
-            X.className = 'rm-button';
-            if (i % 2 === 0){
-                div.className = 'prod-container green-list-row';
-                i = 1;
-            } else {
-                div.className = 'prod-container';
-                i = 0;
-            }
-
-            name.textContent = product.name;
-            quantity.textContent = product.quantity;
-            X.textContent = '🗑️';
-            div.appendChild(name);
-            div.appendChild(quantity);
-            div.appendChild(X);
-            shoppingListUl.appendChild(div);
-
-            X.addEventListener("click", () => deleteItemFromList(product.id));
-        });
-    });
-}
-
-function renderCategory() {
-    categories.forEach(category => {
-        const option = document.createElement('option');
-        option.value = category.name;
-        option.textContent = category.name;
-        newProductCategory.appendChild(option);
-    })
-}
-
-function renderLists() {
-    lists.lists.forEach(list => {
-        const option = document.createElement('option');
-        option.value = list.list_id;
-        option.textContent = list.name;
-        listSelect.appendChild(option);
-    })
-}
-
-function renderSuggestions() {
-    console.log('render suggestions');
-    const value = input.value.toLowerCase();
-    suggestionsUl.innerHTML = '';
-    if (value.length < 1) {
-        return;
-    }
-
-    const matches = products.filter(item =>
-        item.name.toLowerCase().includes(value)
-    ).slice(0, 5);
-
-    matches.forEach(item => {
-        const li = document.createElement('li');
-        li.textContent = item.name;
-        li.dataset.id = item.id;
-        suggestionsUl.appendChild(li);
-        li.addEventListener("click", () => {
-            input.value = item.name;
-            suggestionsUl.innerHTML = ''
-        });
-    })
-}
-
-
-
-/* --- FETCH --- */
-async function fetchShoppingList() {
-    try {
-        const response = await fetch('/api/list', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-            }
-        });
-        if (!response.ok) {
-            throw new Error('list');
-        }
-        shoppingList = await response.json();
-        renderShoppingList();
-    } catch (error) {
-        console.error(error);
-        renderLoginPage();
-    }
-}
-
-async function fetchProducts() {
-    try {
-        const response = await fetch('/api/products', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-            }
-        });
-        products = await response.json();
-    }
-    catch (err){
-        console.error(err);
-    }
-}
-
-async function fetchCategories() {
-    try {
-        const response = await fetch('/api/categories', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-            }
-        });
-        categories = await response.json();
-
-        renderCategory();
-    }
-    catch (err){
-        console.error(err);
-    }
-}
-
-async function fetchAvailableLists() {
-    try {
-        const res = await fetch('/api/lists', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-            }
-        });
-        if (!res.ok) {
-            throw new Error(`Server error: ${res.status}`);
-        }
-        lists = await res.json();
-        renderLists();
-    } catch (err) {
-        console.error(err);
-    }
-}
-
-
-
-/* --- ACTIONS --- */
-const addItemToList = async (productId) => {
-    try {
-        const response = await fetch('/api/list', {
+    async login(login, password) {
+        await apiFetch('/api/login', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-            },
-            body: JSON.stringify({
-                productId: productId,
-                quantity: getQuantity()
-            })
+            body: JSON.stringify({ login, password })
         });
+        await actions.init();
+    },
 
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-        }
+    async register(login, password) {
+        await apiFetch('/api/register', {
+            method: 'POST',
+            body: JSON.stringify({ login, password })
+        });
+        await actions.login(login, password);
+    },
 
-        await fetchShoppingList();
+    async logout() {
+        await apiFetch('/api/logout', { method: 'POST' });
+        state.user = null;
+        state.activeView = 'auth';
+        render();
+    },
 
-        input.value = '';
-        inputQuant. value = '';
-        suggestionsUl.innerHTML = '';
-    }
-    catch (error) {
-        console.error('[ERROR] add item to list', error);
+    async fetchShoppingList() {
+        state.shoppingList = await apiFetch('/api/list');
+    },
+
+    async fetchProducts() {
+        state.products = await apiFetch('/api/products');
+    },
+
+    async fetchCategories() {
+        state.categories = await apiFetch('/api/categories');
+    },
+
+    async fetchAvailableLists() {
+        state.availableLists = await apiFetch('/api/lists');
+    },
+
+    async addItem(productId, quantity) {
+        await apiFetch('/api/list/item', {
+            method: 'POST',
+            body: JSON.stringify({ productId, quantity })
+        });
+        await actions.fetchShoppingList();
+        state.searchQuery = '';
+        state.suggestions = [];
+        render();
+    },
+
+    async deleteItem(productId) {
+        await apiFetch(`/api/list/item/${productId}`, { method: 'DELETE' });
+        await actions.fetchShoppingList();
+        render();
+    },
+
+    async changeDefaultList(listId) {
+        await apiFetch('/api/users/default-list', {
+            method: 'PUT',
+            body: JSON.stringify({ listId })
+        });
+        state.isMenuOpen = false;
+        await actions.fetchShoppingList();
+        state.user.default_list_id = listId;
+        render();
+    },
+
+    async addNewProduct(categoryId, name) {
+        await apiFetch('/api/products', {
+            method: 'POST',
+            body: JSON.stringify({ categoryId, name })
+        });
+        await actions.fetchProducts();
+        state.isModalOpen = false;
+        render();
     }
 };
 
-const deleteItemFromList = async (productId) => {
-    try {
-        const response = await fetch(`/api/list/${productId}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-            },
-            body: JSON.stringify({
-                productId: productId
-            })
-        });
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-        }
-        await fetchShoppingList();
-    } catch (error) {
-            console.error(error);
-    }
-}
+// --- UI COMPONENTS ---
+const components = {
+    Header: () => `
+        <header class="main-header">
+            <button class="menu-toggle" id="menu-toggle">☰</button>
+            <h1 class="logo">Kupto</h1>
+            <div class="header-spacer"></div>
+        </header>
+    `,
 
-function getQuantity() {
-    return document.getElementById('inputQuant').value;
-}
+    Menu: () => `
+        <div class="side-menu ${state.isMenuOpen ? 'open' : ''}">
+            <div class="menu-content">
+                <button class="menu-close" id="menu-close">×</button>
+                <div class="user-profile">
+                    <div class="avatar">${state.user?.login[0].toUpperCase()}</div>
+                    <span class="username">${state.user?.login}</span>
+                </div>
+                
+                <nav class="menu-nav">
+                    <h3>Twoje Listy</h3>
+                    <ul>
+                        ${state.availableLists.map(list => `
+                            <li class="${state.user?.default_list_id === list.list_id ? 'active' : ''}" 
+                                onclick="actions.changeDefaultList(${list.list_id})">
+                                ${list.name}
+                            </li>
+                        `).join('')}
+                    </ul>
+                    <hr>
+                    <button class="btn-logout" id="logout-btn">Wyloguj się</button>
+                </nav>
+            </div>
+            <div class="menu-overlay" id="menu-overlay"></div>
+        </div>
+    `,
 
-function getFormatedProductName(s) {
-    if (!s) return '';
-    return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-}
+    AuthView: () => `
+        <div class="auth-container">
+            <form class="auth-form" id="auth-form">
+                <h2>${state.authMode === 'register' ? 'Stwórz konto' : 'Zaloguj się'}</h2>
+                <div class="input-group">
+                    <label>Login</label>
+                    <input type="text" id="auth-login" required minlength="3">
+                </div>
+                <div class="input-group">
+                    <label>Hasło</label>
+                    <input type="password" id="auth-password" required minlength="8">
+                </div>
+                <div id="auth-error" class="error-msg hidden"></div>
+                <button type="submit" class="btn-primary">
+                    ${state.authMode === 'register' ? 'Zarejestruj' : 'Zaloguj'}
+                </button>
+                <p class="auth-switch">
+                    ${state.authMode === 'register' ? 'Masz już konto?' : 'Nie masz konta?'}
+                    <a href="#" id="switch-auth-mode">
+                        ${state.authMode === 'register' ? 'Zaloguj się' : 'Zarejestruj się'}
+                    </a>
+                </p>
+            </form>
+        </div>
+    `,
 
-const addNewProductToDB = async (categoryId, name) => {
-    try {
-        const res = await fetch('/api/products', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-            },
-            body: JSON.stringify({
-                categoryId: categoryId,
-                name: name
-            })
-        });
-        if (!res.ok) {
-            throw new Error(`Server error: ${res.status}`);
-        }
-        await fetchProducts();
-    } catch (err) {
-        console.error(err);
-    }
-}
+    MainView: () => `
+        <div class="app-container">
+            ${components.Header()}
+            ${components.Menu()}
+            
+            <main class="content">
+                <div class="search-section">
+                    <div class="search-bar">
+                        <input type="text" id="product-search" placeholder="Szukaj produktu..." value="${state.searchQuery}">
+                        <input type="text" id="product-qty" placeholder="Ile?" class="qty-input">
+                        <button id="btn-add-item" class="btn-add">Dodaj</button>
+                    </div>
+                    <ul class="suggestions ${state.suggestions.length ? '' : 'hidden'}">
+                        ${state.suggestions.map(p => `
+                            <li data-id="${p.id}">${p.name}</li>
+                        `).join('')}
+                    </ul>
+                </div>
 
+                <div class="list-section">
+                    ${state.shoppingList.length === 0 ? '<p class="empty-msg">Twoja lista jest pusta</p>' : ''}
+                    ${state.shoppingList.map(cat => `
+                        <div class="category-group">
+                            <h3>${cat.category}</h3>
+                            <ul>
+                                ${cat.items.map(item => `
+                                    <li class="list-item">
+                                        <span class="item-name">${item.name}</span>
+                                        <span class="item-qty">${item.quantity || ''}</span>
+                                        <button class="btn-rm" onclick="actions.deleteItem(${item.id})">🗑️</button>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    `).join('')}
+                </div>
+            </main>
 
-// --- EVENTS --- //
+            <button class="fab" id="btn-open-modal">+</button>
 
-// render suggestions
-input.addEventListener('input', () => {
-    renderSuggestions()
-});
+            ${state.isModalOpen ? components.NewProductModal() : ''}
+        </div>
+    `,
 
-addToListButton.addEventListener('click', () => {
-    let selectedProduct;
-    for (let i = 0; i < products.length; i++) {
-        if (input.value === products[i].name) {
-            selectedProduct = products[i];
-            break;
-        }
-    }
-    if (!selectedProduct){
-        alert('Nieznana nazwa produktu. Dodaj nowy produkt do bazy.');
+    NewProductModal: () => `
+        <div class="modal-overlay">
+            <div class="modal">
+                <h3>Dodaj nowy produkt</h3>
+                <div class="input-group">
+                    <label>Nazwa produktu</label>
+                    <input type="text" id="new-prod-name">
+                </div>
+                <div class="input-group">
+                    <label>Kategoria</label>
+                    <select id="new-prod-cat">
+                        ${state.categories.map(c => `<option value="${c.category_id}">${c.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-text" id="modal-cancel">Anuluj</button>
+                    <button class="btn-primary" id="modal-save">Zapisz</button>
+                </div>
+            </div>
+        </div>
+    `
+};
+
+// --- RENDERING ENGINE ---
+function render() {
+    if (state.activeView === 'loading') {
+        appRoot.innerHTML = '<div class="loading-screen">Ładowanie aplikacji...</div>';
         return;
     }
 
-    addItemToList(selectedProduct.id);
-})
-
-listSelect.addEventListener('change', async (event) => {
-
-    const selectedListId = event.target.value;
-    if (!selectedListId) return;
-
-    try {
-        const response = await fetch('/api/lists', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-            },
-            body: JSON.stringify({
-                list_id: selectedListId
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Błąd zmiany listy');
-        }
-
-        await fetchShoppingList();
-    } catch (error) {
-        console.error(error);
-    }
-});
-
-
-
-/* --- MODAL --- */
-btnOpenModal.addEventListener('click', () => {
-    newProductModal.className = 'modal' // remove class 'hidden'
-})
-
-btnCancel.addEventListener('click', () => {
-    newProductModal.className = 'modal hidden' // add class 'hidden'
-})
-
-btnSaveProduct.addEventListener('click', () => {
-    const categoryName = newProductCategory.value;
-    const name = newProductName.value;
-    let categoryId = 0;
-    categories.forEach(category => {
-        if (category.name === categoryName){
-            categoryId = category.category_id;
-        }
-    })
-    if (categoryId === 0) {
-        alert('Zła kategoria.');
-        newProductModal.className = 'modal hidden' // add class 'hidden'
+    if (state.activeView === 'auth') {
+        appRoot.innerHTML = components.AuthView();
+        setupAuthListeners();
         return;
     }
 
-    addNewProductToDB(categoryId, name);
-    newProductModal.className = 'modal hidden' // add class 'hidden'
-
-})
-
-async function initApp() {
-    const token = localStorage.getItem('jwt_token');
-
-    if (!token) {
-        renderLoginPage();
-        return;
-    }
-
-    try {
-        await fetchShoppingList();
-        await fetchCategories();
-        await fetchProducts();
-        await fetchAvailableLists();
-    }
-    catch (err) {
-        console.warn('Wymagane logowanie', err);
-    }
+    appRoot.innerHTML = components.MainView();
+    setupMainListeners();
 }
 
-initApp();
+// --- EVENT LISTENERS ---
+function setupAuthListeners() {
+    const form = document.getElementById('auth-form');
+    const switchBtn = document.getElementById('switch-auth-mode');
+
+    form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const login = document.getElementById('auth-login').value;
+        const password = document.getElementById('auth-password').value;
+        const errorEl = document.getElementById('auth-error');
+
+        try {
+            if (state.authMode === 'register') {
+                await actions.register(login, password);
+            } else {
+                await actions.login(login, password);
+            }
+        } catch (err) {
+            errorEl.textContent = err.message;
+            errorEl.classList.remove('hidden');
+        }
+    });
+
+    switchBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        state.authMode = state.authMode === 'register' ? 'login' : 'register';
+        render();
+    });
+}
+
+function setupMainListeners() {
+    // Menu
+    document.getElementById('menu-toggle')?.addEventListener('click', () => {
+        state.isMenuOpen = true;
+        render();
+    });
+    document.getElementById('menu-close')?.addEventListener('click', () => {
+        state.isMenuOpen = false;
+        render();
+    });
+    document.getElementById('menu-overlay')?.addEventListener('click', () => {
+        state.isMenuOpen = false;
+        render();
+    });
+    document.getElementById('logout-btn')?.addEventListener('click', () => actions.logout());
+
+    // Search & Suggestions
+    const searchInput = document.getElementById('product-search');
+    searchInput?.addEventListener('input', (e) => {
+        state.searchQuery = e.target.value;
+        const val = state.searchQuery.toLowerCase();
+        if (val.length > 0) {
+            state.suggestions = state.products
+                .filter(p => p.name.toLowerCase().includes(val))
+                .slice(0, 5);
+        } else {
+            state.suggestions = [];
+        }
+        renderSuggestionsOnly(); // Optymalizacja: renderujemy tylko listę sugestii
+    });
+
+    document.querySelector('.suggestions')?.addEventListener('click', (e) => {
+        const li = e.target.closest('li');
+        if (li) {
+            searchInput.value = li.textContent;
+            state.searchQuery = li.textContent;
+            state.selectedProductId = parseInt(li.dataset.id);
+            state.suggestions = [];
+            render();
+        }
+    });
+
+    document.getElementById('btn-add-item')?.addEventListener('click', () => {
+        const qty = document.getElementById('product-qty').value;
+        const productName = searchInput.value;
+        const product = state.products.find(p => p.name === productName);
+        
+        if (product) {
+            actions.addItem(product.id, qty || '1');
+        } else {
+            alert('Wybierz produkt z listy lub dodaj nowy przyciskiem +');
+        }
+    });
+
+    // Modal
+    document.getElementById('btn-open-modal')?.addEventListener('click', () => {
+        state.isModalOpen = true;
+        render();
+    });
+    document.getElementById('modal-cancel')?.addEventListener('click', () => {
+        state.isModalOpen = false;
+        render();
+    });
+    document.getElementById('modal-save')?.addEventListener('click', () => {
+        const name = document.getElementById('new-prod-name').value;
+        const catId = parseInt(document.getElementById('new-prod-cat').value);
+        actions.addNewProduct(catId, name);
+    });
+}
+
+function renderSuggestionsOnly() {
+    const sugUl = document.querySelector('.suggestions');
+    if (!sugUl) return;
+    if (state.suggestions.length === 0) {
+        sugUl.classList.add('hidden');
+        return;
+    }
+    sugUl.innerHTML = state.suggestions.map(p => `<li data-id="${p.id}">${p.name}</li>`).join('');
+    sugUl.classList.remove('hidden');
+}
+
+// Global expose for onclick handlers (temporary simplicity)
+window.actions = actions;
+
+// --- START APP ---
+actions.init();
