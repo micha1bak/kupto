@@ -12,6 +12,7 @@ const state = {
     activeView: 'loading', // loading, auth, main
     isMenuOpen: false,
     isModalOpen: false,
+    isListModalOpen: false,
     searchQuery: '',
     suggestions: []
 };
@@ -134,6 +135,16 @@ const actions = {
         await actions.fetchProducts();
         state.isModalOpen = false;
         render();
+    },
+
+    async createList(name) {
+        await apiFetch('/api/list', {
+            method: 'POST',
+            body: JSON.stringify({ name })
+        });
+        await actions.fetchAvailableLists();
+        state.isListModalOpen = false;
+        render();
     }
 };
 
@@ -157,7 +168,10 @@ const components = {
                 </div>
                 
                 <nav class="menu-nav">
-                    <h3>Twoje Listy</h3>
+                    <div class="menu-nav-header">
+                        <h3>Twoje Listy</h3>
+                        <button class="btn-add-list" id="btn-add-list">+</button>
+                    </div>
                     <ul>
                         ${state.availableLists.map(list => `
                             <li class="${state.user?.default_list_id === list.list_id ? 'active' : ''}" 
@@ -241,6 +255,7 @@ const components = {
             <button class="fab" id="btn-open-modal">+</button>
 
             ${state.isModalOpen ? components.NewProductModal() : ''}
+            ${state.isListModalOpen ? components.NewListModal() : ''}
         </div>
     `,
 
@@ -261,6 +276,22 @@ const components = {
                 <div class="modal-actions">
                     <button class="btn-text" id="modal-cancel">Anuluj</button>
                     <button class="btn-primary" id="modal-save">Zapisz</button>
+                </div>
+            </div>
+        </div>
+    `,
+
+    NewListModal: () => `
+        <div class="modal-overlay">
+            <div class="modal">
+                <h3>Utwórz nową listę</h3>
+                <div class="input-group">
+                    <label>Nazwa listy</label>
+                    <input type="text" id="new-list-name" placeholder="np. Zakupy domowe">
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-text" id="list-modal-cancel">Anuluj</button>
+                    <button class="btn-primary" id="list-modal-save">Utwórz</button>
                 </div>
             </div>
         </div>
@@ -381,6 +412,24 @@ function setupMainListeners() {
         const name = document.getElementById('new-prod-name').value;
         const catId = parseInt(document.getElementById('new-prod-cat').value);
         actions.addNewProduct(catId, name);
+    });
+
+    // List Modal
+    document.getElementById('btn-add-list')?.addEventListener('click', () => {
+        state.isListModalOpen = true;
+        render();
+    });
+    document.getElementById('list-modal-cancel')?.addEventListener('click', () => {
+        state.isListModalOpen = false;
+        render();
+    });
+    document.getElementById('list-modal-save')?.addEventListener('click', () => {
+        const name = document.getElementById('new-list-name').value;
+        if (name) {
+            actions.createList(name);
+        } else {
+            alert('Podaj nazwę listy');
+        }
     });
 }
 
