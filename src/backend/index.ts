@@ -74,7 +74,7 @@ app.get('/api/users/me', async (req: AuthRequest, res) => {
     }
 });
 
-app.post('/api/list', validateInput(CreateListSchema), async (req: AuthRequest, res) => {
+app.post('/api/lists', validateInput(CreateListSchema), async (req: AuthRequest, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({error: "User does not exist."});

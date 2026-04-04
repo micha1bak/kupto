@@ -138,7 +138,7 @@ const actions = {
     },
 
     async createList(name) {
-        await apiFetch('/api/list', {
+        await apiFetch('/api/lists', {
             method: 'POST',
             body: JSON.stringify({ name })
         });
