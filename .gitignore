@@ -3,4 +3,4 @@
 .idea
 node_modules
 /generated/prisma
-TODO.md
+*.md

@@ -7,6 +7,7 @@ export default async function getAvailableLists(userId: number) {
             list: {
                 select: {
                     list_id: true,
+                    owner_id: true,
                     name: true
                 }
             }
@@ -15,6 +16,7 @@ export default async function getAvailableLists(userId: number) {
 
     return access.map(a => ({
         list_id: a.list.list_id,
+        can_manage_access: a.list.owner_id === userId,
         name: a.list.name
     }));
 }
