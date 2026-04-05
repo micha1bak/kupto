@@ -13,6 +13,8 @@ const state = {
     isMenuOpen: false,
     isModalOpen: false,
     isListModalOpen: false,
+    isAccessModalOpen: false,
+    currentListAccess: null,
     searchQuery: '',
     suggestions: []
 };
@@ -145,6 +147,41 @@ const actions = {
         await actions.fetchAvailableLists();
         state.isListModalOpen = false;
         render();
+    },
+
+    async fetchListAccess(listId) {
+        try {
+            const data = await apiFetch(`/api/lists/${listId}/access`);
+            state.currentListAccess = { ...data, listId };
+            state.isAccessModalOpen = true;
+            render();
+        } catch (err) {
+            alert('Błąd podczas pobierania uprawnień: ' + err.message);
+        }
+    },
+
+    async addListAccess(listId, login) {
+        try {
+            await apiFetch(`/api/lists/${listId}/access`, {
+                method: 'POST',
+                body: JSON.stringify({ login })
+            });
+            await actions.fetchListAccess(listId);
+        } catch (err) {
+            alert('Błąd: ' + err.message);
+        }
+    },
+
+    async removeListAccess(listId, userId) {
+        if (!confirm('Czy na pewno chcesz odebrać dostęp temu użytkownikowi?')) return;
+        try {
+            await apiFetch(`/api/lists/${listId}/access/${userId}`, {
+                method: 'DELETE'
+            });
+            await actions.fetchListAccess(listId);
+        } catch (err) {
+            alert('Błąd: ' + err.message);
+        }
     }
 };
 
@@ -174,9 +211,9 @@ const components = {
                     </div>
                     <ul>
                         ${state.availableLists.map(list => `
-                            <li class="${state.user?.default_list_id === list.list_id ? 'active' : ''}" 
-                                onclick="actions.changeDefaultList(${list.list_id})">
-                                ${list.name}
+                            <li class="menu-list-item ${state.user?.default_list_id === list.list_id ? 'active' : ''}">
+                                <span class="list-name" onclick="actions.changeDefaultList(${list.list_id})">${list.name}</span>
+                                <button class="btn-list-settings" onclick="actions.fetchListAccess(${list.list_id})">⋮</button>
                             </li>
                         `).join('')}
                     </ul>
@@ -256,6 +293,7 @@ const components = {
 
             ${state.isModalOpen ? components.NewProductModal() : ''}
             ${state.isListModalOpen ? components.NewListModal() : ''}
+            ${state.isAccessModalOpen ? components.ListAccessModal() : ''}
         </div>
     `,
 
@@ -295,7 +333,54 @@ const components = {
                 </div>
             </div>
         </div>
-    `
+    `,
+
+    ListAccessModal: () => {
+        const { owner, shared_with, is_owner, listId } = state.currentListAccess;
+        return `
+            <div class="modal-overlay">
+                <div class="modal">
+                    <h3>Dostęp do listy</h3>
+                    
+                    <div class="access-section">
+                        <h4>Właściciel</h4>
+                        <div class="access-user-item">
+                            <span>${owner.login}</span>
+                            <span class="badge">Właściciel</span>
+                        </div>
+                    </div>
+
+                    <div class="access-section">
+                        <h4>Użytkownicy z dostępem</h4>
+                        ${shared_with.length === 0 ? '<p class="empty-msg">Brak innych użytkowników</p>' : `
+                            <ul class="access-list">
+                                ${shared_with.map(u => `
+                                    <li class="access-user-item">
+                                        <span>${u.login}</span>
+                                        ${is_owner ? `<button class="btn-rm-small" onclick="actions.removeListAccess(${listId}, ${u.user_id})">🗑️</button>` : ''}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        `}
+                    </div>
+
+                    ${is_owner ? `
+                        <div class="access-section">
+                            <h4>Dodaj użytkownika</h4>
+                            <div class="add-access-group">
+                                <input type="text" id="new-access-login" placeholder="Wpisz login...">
+                                <button class="btn-primary-small" id="btn-add-access">Dodaj</button>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <div class="modal-actions">
+                        <button class="btn-primary" id="access-modal-close">Zamknij</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 };
 
 // --- RENDERING ENGINE ---
@@ -431,7 +516,22 @@ function setupMainListeners() {
             alert('Podaj nazwę listy');
         }
     });
+
+    // Access Modal
+    document.getElementById('access-modal-close')?.addEventListener('click', () => {
+        state.isAccessModalOpen = false;
+        render();
+    });
+    document.getElementById('btn-add-access')?.addEventListener('click', () => {
+        const login = document.getElementById('new-access-login').value;
+        if (login) {
+            actions.addListAccess(state.currentListAccess.listId, login);
+        } else {
+            alert('Wpisz login użytkownika');
+        }
+    });
 }
+
 
 function renderSuggestionsOnly() {
     const sugUl = document.querySelector('.suggestions');
