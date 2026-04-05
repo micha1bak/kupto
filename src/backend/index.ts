@@ -10,12 +10,15 @@ import getProducts from "./utils/getProducts";
 import getCategories from "./utils/getCategories";
 import createProduct from "./utils/createProduct";
 import getAvailableLists from "./utils/getAvailableLists";
+import getListAccess from "./utils/getListAccess";
+import addListAccess from "./utils/addListAccess";
+import removeListAccess from "./utils/removeListAccess";
 import setDefaultList from "./utils/setDefaultList";
 import getUserProfile from "./utils/getUserProfile";
 import { validateInput } from "./middleware/validateInput";
 import { authMiddleware, AuthRequest } from "./middleware/authMiddleware";
 import { AuthUserSchema } from "./schemas/auth.schema";
-import { CreateListSchema} from "./schemas/list.schema";
+import { CreateListSchema, AddListAccessSchema} from "./schemas/list.schema";
 import { AddItemSchema } from "./schemas/item.schema";
 import { CreateProductSchema } from "./schemas/product.schema";
 import { SetDefaultListSchema } from "./schemas/user.schema";
@@ -179,6 +182,80 @@ app.get('/api/lists', async (req: AuthRequest, res) => {
         const lists = await getAvailableLists(req.user.userId);
         return res.status(200).json(lists);
     } catch (error: any) {
+        console.error(error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+app.get('/api/lists/:id/access', async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: "User does not exist." });
+        }
+        const listId = parseInt(req.params.id);
+        if (isNaN(listId)) {
+            return res.status(400).json({ error: "Invalid list ID" });
+        }
+        const accessDetails = await getListAccess(listId, req.user.userId);
+        return res.status(200).json(accessDetails);
+    } catch (error: any) {
+        if (error.message === 'List not found') {
+            return res.status(404).json({ error: error.message });
+        }
+        if (error.message === 'Access denied') {
+            return res.status(403).json({ error: error.message });
+        }
+        console.error(error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+app.post('/api/lists/:id/access', validateInput(AddListAccessSchema), async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: "User does not exist." });
+        }
+        const listId = parseInt(req.params.id);
+        if (isNaN(listId)) {
+            return res.status(400).json({ error: "Invalid list ID" });
+        }
+        const { login } = req.body;
+        const result = await addListAccess(listId, login, req.user.userId);
+        return res.status(201).json(result);
+    } catch (error: any) {
+        if (error.message === 'List not found' || error.message === 'User not found') {
+            return res.status(404).json({ error: error.message });
+        }
+        if (error.message === 'Only the owner can manage access') {
+            return res.status(403).json({ error: error.message });
+        }
+        if (error.message === 'User is already the owner of this list' || error.message === 'User already has access to this list') {
+            return res.status(409).json({ error: error.message });
+        }
+        console.error(error);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+app.delete('/api/lists/:id/access/:userId', async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: "User does not exist." });
+        }
+        const listId = parseInt(req.params.id);
+        const targetUserId = parseInt(req.params.userId);
+        if (isNaN(listId) || isNaN(targetUserId)) {
+            return res.status(400).json({ error: "Invalid list ID or user ID" });
+        }
+        const result = await removeListAccess(listId, targetUserId, req.user.userId);
+        return res.status(200).json(result);
+    } catch (error: any) {
+        if (error.message === 'List not found' || error.message === 'User does not have access to this list') {
+            return res.status(404).json({ error: error.message });
+        }
+        if (error.message === 'Only the owner can manage access' || error.message === 'Cannot remove access from the owner') {
+            return res.status(403).json({ error: error.message });
+        }
         console.error(error);
         return res.status(500).json({ error: 'Internal server error.' });
     }

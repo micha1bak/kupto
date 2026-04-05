@@ -429,6 +429,140 @@
           "500": { "description": "Wewnętrzny błąd serwera." }
         }
       }
+    },
+    "/api/lists/{id}/access": {
+      "get": {
+        "summary": "Pobranie uprawnień do listy",
+        "description": "Zwraca szczegółowe informacje o tym, kto ma dostęp do listy (właściciel i zaproszeni użytkownicy).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID listy",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Szczegóły dostępu do listy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "owner": {
+                      "type": "object",
+                      "properties": {
+                        "user_id": { "type": "integer" },
+                        "login": { "type": "string" }
+                      }
+                    },
+                    "shared_with": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "user_id": { "type": "integer" },
+                          "login": { "type": "string" }
+                        }
+                      }
+                    },
+                    "is_owner": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "Brak dostępu do listy." },
+          "404": { "description": "Lista nie istnieje." }
+        }
+      },
+      "post": {
+        "summary": "Dodanie dostępu do listy",
+        "description": "Udostępnia listę wybranemu użytkownikowi (po loginie). Tylko dla właściciela.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID listy",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["login"],
+                "properties": {
+                  "login": { "type": "string", "example": "nowy_uzytkownik" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Dostęp został przyznany.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user_id": { "type": "integer" },
+                    "login": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "Tylko właściciel może zarządzać dostępem." },
+          "404": { "description": "Lista lub użytkownik nie istnieje." },
+          "409": { "description": "Użytkownik ma już dostęp lub jest właścicielem." }
+        }
+      }
+    },
+    "/api/lists/{id}/access/{userId}": {
+      "delete": {
+        "summary": "Usunięcie dostępu do listy",
+        "description": "Odbiera uprawnienia wybranemu użytkownikowi. Tylko dla właściciela.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID listy",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "ID użytkownika, któremu odbieramy dostęp",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dostęp został odebrany.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "Nie można usunąć właściciela lub brak uprawnień." },
+          "404": { "description": "Lista lub powiązanie nie istnieje." }
+        }
+      }
     }
   },
   "components": {
