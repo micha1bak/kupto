@@ -18,7 +18,7 @@ describe('getListAccess utility', () => {
         jest.clearAllMocks();
     });
 
-    it('should return list access details if requester is owner', async () => {
+    it('should return list access details if requester is owner and filter owner from shared_with', async () => {
         const mockList = {
             list_id: mockListId,
             owner_id: mockRequesterId,
@@ -28,6 +28,14 @@ describe('getListAccess utility', () => {
             },
             list_access: [
                 {
+                    user_id: mockRequesterId,
+                    users: {
+                        user_id: mockRequesterId,
+                        login: 'owner_user'
+                    }
+                },
+                {
+                    user_id: 2,
                     users: {
                         user_id: 2,
                         login: 'shared_user'

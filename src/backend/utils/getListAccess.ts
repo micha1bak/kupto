@@ -39,10 +39,12 @@ export default async function getListAccess(listId: number, requesterId: number)
             user_id: list.users_list_owner_idTousers.user_id,
             login: list.users_list_owner_idTousers.login
         },
-        shared_with: list.list_access.map(access => ({
-            user_id: access.users.user_id,
-            login: access.users.login
-        })),
+        shared_with: list.list_access
+            .filter(access => access.user_id !== list.owner_id)
+            .map(access => ({
+                user_id: access.users.user_id,
+                login: access.users.login
+            })),
         is_owner: isOwner
     };
 }
