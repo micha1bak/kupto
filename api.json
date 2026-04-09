@@ -1,15 +1,580 @@
 {
-    "openapi": "3.1.0",
-    "info": {
-        "title": "Title",
-        "description": "Title",
-        "version": "1.0.0"
-    },
-    "servers": [
-        {
-            "url": "https"
-        }
-    ],
-    "paths": {
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Kupto",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000"
     }
+  ],
+  "paths": {
+    "/api/register": {
+      "post": {
+        "summary": "Rejestracja użytkownika",
+        "description": "Tworzy nowe konto użytkownika i haszuje hasło.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthUser"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Użytkownik zarejestrowany pomyślnie.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "User created successfully." }
+                  }
+                }
+              }
+            }
+          },
+          "409": { "description": "Login jest już zajęty." },
+          "400": { "description": "Błąd walidacji danych." }
+        }
+      }
+    },
+    "/api/login": {
+      "post": {
+        "summary": "Logowanie użytkownika",
+        "description": "Weryfikuje poświadczenia i ustawia ciasteczko autoryzacyjne HTTP-only (jwt).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthUser"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Zalogowano pomyślnie.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Ciasteczko zawierające token JWT (HttpOnly, Secure, SameSite=Strict).",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "User logged in successfully." }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Błędne poświadczenia." },
+          "400": { "description": "Błąd walidacji danych." }
+        }
+      }
+    },
+    "/api/logout": {
+      "post": {
+        "summary": "Wylogowanie",
+        "description": "Czyści ciasteczko autoryzacyjne 'jwt'.",
+        "responses": {
+          "200": { "description": "Wylogowano pomyślnie." }
+        }
+      }
+    },
+    "/api/users/me": {
+      "get": {
+        "summary": "Pobranie profilu aktualnego użytkownika",
+        "description": "Zwraca dane zalogowanego użytkownika (login, domyślna lista).",
+        "responses": {
+          "200": {
+            "description": "Profil użytkownika.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "login": { "type": "string", "example": "jan_kowalski" },
+                    "default_list_id": { "type": "integer", "example": 10, "nullable": true }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji." }
+        }
+      }
+    },
+    "/api/list": {
+      "get": {
+        "summary": "Pobranie listy zakupów",
+        "description": "Zwraca produkty z domyślnej listy użytkownika pogrupowane według kategorii. Wymaga ciasteczka 'jwt'.",
+        "responses": {
+          "200": {
+            "description": "Lista produktów pogrupowana tematycznie.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "category": { "type": "string", "example": "Nabiał" },
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": { "type": "integer", "example": 101 },
+                            "name": { "type": "string", "example": "Mleko" },
+                            "quantity": { "type": "string", "example": "2 szt", "nullable": true }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji lub wygasła sesja." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
+    },
+    "/api/list/item": {
+      "post": {
+        "summary": "Dodanie produktu do listy",
+        "description": "Dodaje nowy produkt do domyślnej listy użytkownika lub aktualizuje jego ilość, jeśli już istnieje.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["productId", "quantity"],
+                "properties": {
+                  "productId": { "type": "integer", "example": 101 },
+                  "quantity": { "type": "string", "example": "2 szt" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Produkt dodany/zaktualizowany.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list_id": { "type": "integer" },
+                    "product_id": { "type": "integer" },
+                    "quantity": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji." },
+          "400": { "description": "Błędne dane (np. nieistniejący produkt)." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
+    },
+    "/api/list/item/{productId}": {
+      "delete": {
+        "summary": "Usunięcie produktu z listy",
+        "description": "Usuwa produkt z domyślnej listy zalogowanego użytkownika.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "ID produktu do usunięcia",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Produkt został usunięty.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list_id": { "type": "integer" },
+                    "product_id": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Nieprawidłowe ID produktu." },
+          "401": { "description": "Brak autoryzacji." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
+    },
+    "/api/products": {
+      "get": {
+        "summary": "Pobranie katalogu produktów",
+        "description": "Zwraca listę wszystkich produktów dostępnych w systemie wraz z ich kategoriami.",
+        "responses": {
+          "200": {
+            "description": "Lista produktów.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "integer", "example": 1 },
+                      "name": { "type": "string", "example": "Chleb" },
+                      "category": { "type": "string", "example": "Pieczywo" },
+                      "categoryId": { "type": "integer", "example": 10 }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      },
+      "post": {
+        "summary": "Dodanie nowego produktu do katalogu",
+        "description": "Tworzy nowy produkt w bazie danych. Nazwa zostanie automatycznie sformatowana (np. 'mleko' -> 'Mleko').",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["categoryId", "name"],
+                "properties": {
+                  "categoryId": { "type": "integer", "example": 10 },
+                  "name": { "type": "string", "example": "Mleko UHT" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Produkt został utworzony.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product_id": { "type": "integer" },
+                    "category_id": { "type": "integer" },
+                    "name": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Błędne dane wejściowe." },
+          "401": { "description": "Brak autoryzacji." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
+    },
+    "/api/categories": {
+      "get": {
+        "summary": "Pobranie katalogu kategorii",
+        "description": "Zwraca listę wszystkich dostępnych kategorii produktów.",
+        "responses": {
+          "200": {
+            "description": "Lista kategorii.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "category_id": { "type": "integer", "example": 1 },
+                      "name": { "type": "string", "example": "Nabiał" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
+    },
+    "/api/lists": {
+      "get": {
+        "summary": "Pobranie dostępnych list",
+        "description": "Zwraca listę wszystkich list zakupów, do których zalogowany użytkownik ma dostęp.",
+        "responses": {
+          "200": {
+            "description": "Lista dostępnych list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "list_id": { "type": "integer", "example": 10 },
+                      "name": { "type": "string", "example": "Dom" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      },
+      "post": {
+        "summary": "Utworzenie nowej listy",
+        "description": "Tworzy nową listę zakupów dla zalogowanego użytkownika. Wymaga ciasteczka autoryzacyjnego 'jwt'.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "example": "Lista na weekend"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Lista została utworzona.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list_id": { "type": "integer", "example": 10 },
+                    "owner_id": { "type": "integer", "example": 1 },
+                    "name": { "type": "string", "example": "Lista na weekend" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji lub nieprawidłowy token." },
+          "400": { "description": "Błędne dane wejściowe (np. pusta nazwa)." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
+    },
+    "/api/users/default-list": {
+      "put": {
+        "summary": "Zmiana domyślnej listy",
+        "description": "Ustawia wybraną listę jako domyślną dla zalogowanego użytkownika. Wymaga uprawnień do danej listy.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["listId"],
+                "properties": {
+                  "listId": { "type": "integer", "example": 10 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Domyślna lista została zmieniona.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Default list updated successfully" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Brak autoryzacji." },
+          "403": { "description": "Brak dostępu do wskazanej listy." },
+          "400": { "description": "Błędne dane wejściowe." },
+          "500": { "description": "Wewnętrzny błąd serwera." }
+        }
+      }
+    },
+    "/api/lists/{id}/access": {
+      "get": {
+        "summary": "Pobranie uprawnień do listy",
+        "description": "Zwraca szczegółowe informacje o tym, kto ma dostęp do listy (właściciel i zaproszeni użytkownicy).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID listy",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Szczegóły dostępu do listy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "owner": {
+                      "type": "object",
+                      "properties": {
+                        "user_id": { "type": "integer" },
+                        "login": { "type": "string" }
+                      }
+                    },
+                    "shared_with": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "user_id": { "type": "integer" },
+                          "login": { "type": "string" }
+                        }
+                      }
+                    },
+                    "is_owner": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "Brak dostępu do listy." },
+          "404": { "description": "Lista nie istnieje." }
+        }
+      },
+      "post": {
+        "summary": "Dodanie dostępu do listy",
+        "description": "Udostępnia listę wybranemu użytkownikowi (po loginie). Tylko dla właściciela.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID listy",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["login"],
+                "properties": {
+                  "login": { "type": "string", "example": "nowy_uzytkownik" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Dostęp został przyznany.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user_id": { "type": "integer" },
+                    "login": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "Tylko właściciel może zarządzać dostępem." },
+          "404": { "description": "Lista lub użytkownik nie istnieje." },
+          "409": { "description": "Użytkownik ma już dostęp lub jest właścicielem." }
+        }
+      }
+    },
+    "/api/lists/{id}/access/{userId}": {
+      "delete": {
+        "summary": "Usunięcie dostępu do listy",
+        "description": "Odbiera uprawnienia wybranemu użytkownikowi. Tylko dla właściciela.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID listy",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "ID użytkownika, któremu odbieramy dostęp",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dostęp został odebrany.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "Nie można usunąć właściciela lub brak uprawnień." },
+          "404": { "description": "Lista lub powiązanie nie istnieje." }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuthUser": {
+        "type": "object",
+        "required": ["login", "password"],
+        "properties": {
+          "login": { "type": "string", "minLength": 3, "example": "jan_kowalski" },
+          "password": { "type": "string", "minLength": 8, "format": "password", "example": "moje_bezpieczne_haslo" }
+        }
+      }
+    }
+  }
 }
