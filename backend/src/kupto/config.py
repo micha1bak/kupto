@@ -1,13 +1,16 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # hide_input_in_errors: błąd walidacji przy starcie nie może wypisać sekretów do logów.
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
 
     database_url: str = "postgresql+asyncpg://kupto:kupto@localhost:5432/kupto"
-    jwt_secret: str = "dev-secret-change-me"
+    # Wymagany i długi: pusty sekret wywracałby logowanie (500), słaby ułatwiałby fałszowanie sesji.
+    jwt_secret: str = Field(min_length=32)
     jwt_ttl_days: int = 30
     cookie_secure: bool = True
 

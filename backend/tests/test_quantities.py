@@ -30,5 +30,15 @@ def test_different_units_are_kept_separately_in_order():
     assert result == [Quantity(Decimal(2), Unit.PCS), Quantity(Decimal(1), Unit.KG)]
 
 
+def test_round_amounts_are_not_in_exponent_notation():
+    result = aggregate_quantities([(Decimal("10.000"), Unit.PCS), (Decimal("100.000"), Unit.G)])
+
+    assert [str(q.amount) for q in result] == ["10", "100"]
+
+
+def test_fractional_amounts_lose_trailing_zeros():
+    assert str(aggregate_quantities([(Decimal("0.500"), Unit.KG)])[0].amount) == "0.5"
+
+
 def test_needs_without_amount_are_skipped():
     assert aggregate_quantities([(None, None), (None, Unit.L)]) == []

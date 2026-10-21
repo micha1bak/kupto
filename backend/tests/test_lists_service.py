@@ -220,3 +220,37 @@ async def test_removed_member_needs_stay_on_list(session, home):
 
     (need,) = (await items_by_name(session, household))["mleko"].needs
     assert need.user.login == "ola"
+
+
+async def test_insert_if_absent_returns_existing_item_instead_of_failing(session, home):
+    household, ala, *_ = home
+    await service.add_needs(session, household, ala, [NeedInput("mleko", category=Category.DAIRY)])
+    list_id = (await service.get_list(session, household)).id
+
+    item, created = await service._insert_item_if_absent(
+        session, list_id, "Mleko", "mleko", Category.OTHER
+    )
+
+    assert created is False
+    assert (item.name, item.category) == ("mleko", Category.DAIRY)
+
+
+async def test_concurrent_add_of_new_product_is_merged(session, home, monkeypatch):
+    """Symulacja wyścigu: przy odczycie produktu jeszcze nie było, przy zapisie już jest."""
+    household, ala, ola, *_ = home
+    await service.add_needs(session, household, ala, [NeedInput("mleko", category=Category.DAIRY)])
+    real_find = service._find_item
+    calls = 0
+
+    async def find_with_stale_first_read(*args):
+        nonlocal calls
+        calls += 1
+        return None if calls == 1 else await real_find(*args)
+
+    monkeypatch.setattr(service, "_find_item", find_with_stale_first_read)
+
+    added = await service.add_needs(session, household, ola, [NeedInput("Mleko")])
+
+    assert added[0].merged is True
+    (item,) = (await service.get_list(session, household)).items
+    assert [n.user.login for n in item.needs] == ["ala", "ola"]

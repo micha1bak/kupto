@@ -13,7 +13,8 @@ from tests.conftest import *  # noqa: F403  (wspólne fixtures: baza, aplikacja,
 @pytest.fixture
 def llm_client():
     # Zmienne środowiskowe albo backend/.env (OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL).
-    config = Settings()
+    # JWT_SECRET nie jest tu używany (aplikację tworzy fixture `settings`), ale jest wymagany.
+    config = Settings(jwt_secret="x" * 32)
     if not config.openai_api_key:
         pytest.skip("Ewaluacje wymagają OPENAI_API_KEY")
     return OpenAIResponsesClient(

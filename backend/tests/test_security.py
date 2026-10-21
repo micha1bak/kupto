@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
+from pydantic import ValidationError
 
 from kupto.auth.security import (
     create_session_token,
@@ -13,6 +14,12 @@ from kupto.config import Settings
 from kupto.errors import Unauthorized
 
 SETTINGS = Settings(jwt_secret="unit-test-secret-that-is-long-enough")
+
+
+@pytest.mark.parametrize("secret", ["", "za-krotki-sekret"])
+def test_empty_or_short_jwt_secret_is_rejected_at_startup(secret):
+    with pytest.raises(ValidationError, match="jwt_secret"):
+        Settings(jwt_secret=secret)
 
 
 def test_password_is_hashed_and_verifiable():

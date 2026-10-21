@@ -38,6 +38,28 @@ async def test_user_without_household_gets_409(login_as):
 
     assert response.status_code == 409
     assert "gospodarstwo" in response.json()["detail"]
+    assert response.json()["code"] == "no_household"
+
+
+async def test_removed_member_gets_no_household_code_on_list_and_chat(household_with):
+    ala, ola = await household_with("ala", "ola")
+    ola_id = (await ola.get("/api/users/me")).json()["id"]
+    await ala.delete(f"/api/households/me/members/{ola_id}")
+
+    list_response = await ola.get("/api/list")
+    chat_response = await ola.post("/api/chat/messages", json={"content": "hej"})
+
+    assert list_response.json()["code"] == chat_response.json()["code"] == "no_household"
+
+
+async def test_other_conflicts_have_no_code(login_as):
+    ala = await login_as("ala")
+    await ala.post("/api/households", json={"name": "Dom"})
+
+    response = await ala.post("/api/households", json={"name": "Drugi"})
+
+    assert response.status_code == 409
+    assert "code" not in response.json()
 
 
 async def test_add_member_and_list_members(household_with):

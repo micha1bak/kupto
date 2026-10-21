@@ -15,8 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kupto.errors import DomainError
 from kupto.lists import service
-from kupto.lists.quantities import aggregate_quantities
-from kupto.lists.schemas import NeedCreate, NeedUpdate
+from kupto.lists.schemas import NeedCreate, NeedUpdate, list_out
 from kupto.lists.service import NeedInput
 from kupto.models import Category, ChatPendingAction, Household, Unit, User
 
@@ -154,34 +153,36 @@ async def execute_tool(ctx: ToolContext, name: str, arguments: str) -> ToolResul
 
 
 async def list_snapshot(ctx: ToolContext) -> dict[str, Any]:
-    shopping_list = await service.get_list(ctx.session, ctx.household)
-    items = sorted(shopping_list.items, key=lambda i: (list(Category).index(i.category), i.name))
+    """Lista w zwięzłej postaci dla modelu — pochodna tej samej serializacji co REST API."""
+    shopping_list = list_out(await service.get_list(ctx.session, ctx.household))
     return {
         "items": [
             {
                 "item_id": item.id,
                 "name": item.name,
                 "category": item.category.value,
-                "quantities": [
-                    f"{q.amount} {q.unit.value if q.unit else ''}".strip()
-                    for q in aggregate_quantities((n.amount, n.unit) for n in item.needs)
-                ],
-                "bought": item.bought_at is not None,
+                "quantities": [_format_quantity(q.amount, q.unit) for q in item.quantities],
+                "bought": item.bought,
                 "needs": [
                     {
                         "need_id": n.id,
-                        "requested_by": n.user.login if n.user else None,
+                        "requested_by": n.login,
                         "mine": n.user_id == ctx.user.id,
-                        "amount": float(n.amount) if n.amount is not None else None,
+                        "amount": n.amount,
                         "unit": n.unit.value if n.unit else None,
                         "note": n.note,
                     }
                     for n in item.needs
                 ],
             }
-            for item in items
+            for group in shopping_list.groups
+            for item in group.items
         ]
     }
+
+
+def _format_quantity(amount: float, unit: Unit | None) -> str:
+    return f"{amount:g} {unit.value}" if unit else f"{amount:g}"
 
 
 async def _get_list(ctx: ToolContext) -> dict[str, Any]:

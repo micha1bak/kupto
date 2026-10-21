@@ -66,6 +66,27 @@ async def test_add_needs_then_get_list(home):
     assert item["needs"][0]["mine"] is False
 
 
+async def test_snapshot_formats_round_amounts_plainly(home):
+    await call(
+        home["ala"], "add_needs", items=[need("jajka", 10, "szt"), need("drożdże", 100, "g")]
+    )
+
+    items = {i["name"]: i for i in (await call(home["ala"], "get_list")).output["items"]}
+
+    assert items["jajka"]["quantities"] == ["10 szt"]
+    assert items["drożdże"]["quantities"] == ["100 g"]
+
+
+async def test_mark_bought_with_unknown_id_changes_nothing(home):
+    await call(home["ala"], "add_needs", items=[need("mleko")])
+    item_id = (await call(home["ala"], "get_list")).output["items"][0]["item_id"]
+
+    result = await call(home["ala"], "mark_bought", item_ids=[item_id, 999999])
+
+    assert "error" in result.output
+    assert (await call(home["ala"], "get_list")).output["items"][0]["bought"] is False
+
+
 async def test_merge_is_reported(home):
     await call(home["ala"], "add_needs", items=[need("mleko")])
 

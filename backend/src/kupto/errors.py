@@ -7,9 +7,10 @@ class DomainError(Exception):
 
     status_code = 400
 
-    def __init__(self, message: str):
+    def __init__(self, message: str, code: str | None = None):
         super().__init__(message)
         self.message = message
+        self.code = code  # stabilny identyfikator dla klienta, niezależny od treści komunikatu
 
 
 class NotFound(DomainError):
@@ -34,9 +35,8 @@ def register_error_handlers(app: FastAPI) -> None:
         headers = (
             {"Retry-After": str(exc.retry_after)} if isinstance(exc, TooManyRequests) else None
         )
-        return JSONResponse(
-            status_code=exc.status_code, content={"detail": exc.message}, headers=headers
-        )
+        content = {"detail": exc.message} | ({"code": exc.code} if exc.code else {})
+        return JSONResponse(status_code=exc.status_code, content=content, headers=headers)
 
 
 class TooManyRequests(DomainError):

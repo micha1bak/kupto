@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatView } from "./ChatView";
 import { jsonResponse, mockFetch, renderWithProviders } from "../test/utils";
@@ -21,9 +21,20 @@ async function sendMessage(text: string) {
   await userEvent.click(screen.getByRole("button", { name: "Wyślij" }));
 }
 
+const greeting = { id: 1, role: "assistant", content: "Witaj!", created_at: "" };
+
+/** Historia jak na serwerze: przed wysłaniem tylko powitanie, potem także nowa wymiana. */
+function historyRoute(after: object[]) {
+  let calls = 0;
+  return () => jsonResponse(calls++ === 0 ? [greeting] : [greeting, ...after]);
+}
+
 test("shows history and streams assistant reply incrementally", async () => {
   const fetch = mockFetch({
-    "GET /api/chat/messages": [{ id: 1, role: "assistant", content: "Witaj!", created_at: "" }],
+    "GET /api/chat/messages": historyRoute([
+      { id: 2, role: "user", content: "kup chleb", created_at: "" },
+      { id: 3, role: "assistant", content: "Dodałem chleb.", created_at: "" },
+    ]),
     "GET /api/list": { id: 1, groups: [] },
     "POST /api/chat/messages": () =>
       sseResponse([
@@ -43,6 +54,30 @@ test("shows history and streams assistant reply incrementally", async () => {
   expect(invalidate).toHaveBeenCalledWith({ queryKey: ["list"] });
   const post = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
   expect(JSON.parse(post[1]!.body as string)).toEqual({ content: "kup chleb" });
+});
+
+test("exchange is shown once after history refresh and after returning to the tab", async () => {
+  const fetch = mockFetch({
+    "GET /api/chat/messages": historyRoute([
+      { id: 2, role: "user", content: "kup mleko", created_at: "" },
+      { id: 3, role: "assistant", content: "Dodałem mleko.", created_at: "" },
+    ]),
+    "GET /api/list": { id: 1, groups: [] },
+    "POST /api/chat/messages": () =>
+      sseResponse(['event: delta\ndata: {"text": "Dodałem mleko."}\n\nevent: done\ndata: {}\n\n']),
+  });
+  renderWithProviders(<ChatView />);
+  await screen.findByText("Witaj!");
+
+  await sendMessage("kup mleko");
+  await vi.waitFor(() =>
+    expect(fetch.mock.calls.filter(([url, init]) => url === "/api/chat/messages" && !init?.method)).toHaveLength(2),
+  );
+  fireEvent.focus(window);
+  window.dispatchEvent(new Event("visibilitychange"));
+
+  await vi.waitFor(() => expect(screen.getAllByText("Dodałem mleko.")).toHaveLength(1));
+  expect(screen.getAllByText("kup mleko")).toHaveLength(1);
 });
 
 test("shows rate limit message", async () => {

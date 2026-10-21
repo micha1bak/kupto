@@ -18,4 +18,4 @@ RUN useradd --system --uid 10001 kupto
 USER kupto
 
 EXPOSE 8000
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn kupto.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn --factory kupto.main:create_app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]

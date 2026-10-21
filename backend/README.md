@@ -20,7 +20,7 @@ COOKIE_SECURE=false
 OPENAI_API_KEY=sk-...
 ENV
 uv run alembic upgrade head
-uv run uvicorn kupto.main:app --reload    # http://localhost:8000, dokumentacja: /api/docs
+uv run uvicorn --factory kupto.main:create_app --reload    # http://localhost:8000, dokumentacja: /api/docs
 ```
 
 ## Konfiguracja
@@ -28,7 +28,7 @@ uv run uvicorn kupto.main:app --reload    # http://localhost:8000, dokumentacja:
 | Zmienna | Domyślnie | Opis |
 |---|---|---|
 | `DATABASE_URL` | `postgresql+asyncpg://kupto:kupto@localhost:5432/kupto` | połączenie z bazą |
-| `JWT_SECRET` | — (wymagane w produkcji) | sekret podpisu sesji |
+| `JWT_SECRET` | — (wymagane, min. 32 znaki) | sekret podpisu sesji; bez niego aplikacja nie wystartuje |
 | `COOKIE_SECURE` | `true` | ciasteczko sesji tylko przez HTTPS |
 | `OPENAI_API_KEY` | — | klucz dostawcy modelu |
 | `OPENAI_BASE_URL` | — (OpenAI) | adres dostawcy zgodnego z Responses API, np. `https://api.groq.com/openai/v1` |

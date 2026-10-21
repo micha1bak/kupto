@@ -9,6 +9,8 @@ from kupto.db import get_session
 from kupto.errors import Conflict, Unauthorized
 from kupto.models import Household, User
 
+NO_HOUSEHOLD = "no_household"
+
 
 def get_app_settings(request: Request) -> Settings:
     return request.app.state.settings
@@ -37,7 +39,9 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 async def get_current_household(user: CurrentUser, session: SessionDep) -> Household:
     # Przynależność sprawdzana w bazie przy każdym żądaniu, nie w tokenie (design: ryzyka JWT).
     if user.household_id is None:
-        raise Conflict("Najpierw utwórz gospodarstwo lub dołącz do istniejącego.")
+        raise Conflict(
+            "Najpierw utwórz gospodarstwo lub dołącz do istniejącego.", code=NO_HOUSEHOLD
+        )
     household = await session.get(Household, user.household_id)
     assert household is not None
     return household

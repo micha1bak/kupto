@@ -26,4 +26,10 @@ def aggregate_quantities(needs: Iterable[tuple[Decimal | None, Unit | None]]) ->
     for amount, unit in needs:
         if amount is not None:
             totals[unit] = totals.get(unit, Decimal(0)) + amount
-    return [Quantity(amount=amount.normalize(), unit=unit) for unit, amount in totals.items()]
+    return [Quantity(amount=_plain(amount), unit=unit) for unit, amount in totals.items()]
+
+
+def _plain(amount: Decimal) -> Decimal:
+    """Usuwa zbędne zera bez notacji wykładniczej: 10.000 → 10 (nie 1E+1), 0.500 → 0.5."""
+    normalized = amount.normalize()
+    return normalized.quantize(Decimal(1)) if normalized == normalized.to_integral() else normalized

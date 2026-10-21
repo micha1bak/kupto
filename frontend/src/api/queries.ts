@@ -25,5 +25,12 @@ export const useShoppingList = () =>
     refetchInterval: LIST_POLL_MS,
   });
 
+// Historię odświeżamy tylko jawnie po każdej wymianie (ChatView), nie np. przy powrocie do karty —
+// inaczej wiadomości z bieżącej wymiany pojawiałyby się podwójnie (lokalnie i z serwera).
 export const useChatHistory = () =>
-  useQuery({ queryKey: keys.chat, queryFn: () => api<ChatMessage[]>("/api/chat/messages") });
+  useQuery({
+    queryKey: keys.chat,
+    queryFn: () => api<ChatMessage[]>("/api/chat/messages"),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });

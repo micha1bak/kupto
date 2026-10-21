@@ -53,7 +53,7 @@ export function ChatView() {
     setDraft("");
     setSending(true);
     setLocal((l) => [
-      ...l,
+      ...l.filter((b) => b.role !== "error"),
       { key: `u${id}`, role: "user", content },
       { key: replyKey, role: "assistant", content: "" },
     ]);
@@ -73,6 +73,13 @@ export function ChatView() {
       setLocal((l) => l.filter((b) => b.role !== "assistant" || b.content !== ""));
       setSending(false);
       queryClient.invalidateQueries({ queryKey: keys.list });
+      try {
+        // Zapisana historia zawiera już tę wymianę — lokalne dymki zastępujemy wersją z serwera.
+        await queryClient.refetchQueries({ queryKey: keys.chat }, { throwOnError: true });
+        setLocal((l) => l.filter((b) => b.role === "error"));
+      } catch {
+        // bez odświeżonej historii zostawiamy lokalne dymki, by nic nie zniknęło
+      }
     }
   }
 

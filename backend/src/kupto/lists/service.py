@@ -65,25 +65,16 @@ async def add_needs(
     added: list[AddedNeed] = []
     for need_input in inputs:
         normalized = normalize_name(need_input.name)
-        item = await session.scalar(
-            select(ListItem).where(
-                ListItem.list_id == list_id, ListItem.normalized_name == normalized
-            )
-        )
-        merged = item is not None
         if need_input.category is not None:
             await _remember_category(session, household, normalized, need_input.category)
+        item = await _find_item(session, list_id, normalized)
+        created = False
         if item is None:
             category = need_input.category or await _known_category(session, household, normalized)
-            item = ListItem(
-                list_id=list_id,
-                name=clean_name(need_input.name),
-                normalized_name=normalized,
-                category=category,
+            item, created = await _insert_item_if_absent(
+                session, list_id, clean_name(need_input.name), normalized, category
             )
-            session.add(item)
-            await session.flush()
-        else:
+        if not created:
             if item.category == Category.OTHER and need_input.category is not None:
                 item.category = need_input.category
             # Nowe zapotrzebowanie na kupiony już produkt oznacza, że znów trzeba go kupić.
@@ -98,7 +89,7 @@ async def add_needs(
                 note=need_input.note,
             )
         )
-        added.append(AddedNeed(item_name=item.name, category=item.category, merged=merged))
+        added.append(AddedNeed(item_name=item.name, category=item.category, merged=not created))
     await session.commit()
     return added
 
@@ -145,7 +136,15 @@ async def set_bought(
     item_ids: Sequence[int],
     bought: bool,
 ) -> list[str]:
-    items = [await _get_item(session, household, item_id) for item_id in item_ids]
+    found = await session.scalars(
+        select(ListItem)
+        .join(ShoppingList)
+        .where(ListItem.id.in_(item_ids), ShoppingList.household_id == household.id)
+    )
+    by_id = {item.id: item for item in found}
+    if len(by_id) != len(set(item_ids)):
+        raise NotFound("Nie ma takiej pozycji na liście.")
+    items = [by_id[item_id] for item_id in dict.fromkeys(item_ids)]
     now = utcnow()
     for item in items:
         item.bought_at = now if bought else None
@@ -161,6 +160,39 @@ async def finish_shopping(session: AsyncSession, household: Household) -> int:
     )
     await session.commit()
     return result.rowcount
+
+
+async def _find_item(session: AsyncSession, list_id: int, normalized: str) -> ListItem | None:
+    return await session.scalar(
+        select(ListItem)
+        .where(ListItem.list_id == list_id, ListItem.normalized_name == normalized)
+        .execution_options(populate_existing=True)
+    )
+
+
+async def _insert_item_if_absent(
+    session: AsyncSession, list_id: int, name: str, normalized: str, category: Category
+) -> tuple[ListItem, bool]:
+    """Wstawia pozycję albo — gdy ktoś równolegle dodał ten sam produkt — zwraca istniejącą.
+
+    ON CONFLICT DO NOTHING zamiast zwykłego INSERT: dwa jednoczesne zgłoszenia nowego produktu
+    mają się scalić, a nie skończyć błędem unikalności.
+    """
+    inserted_id = await session.scalar(
+        insert(ListItem)
+        .values(
+            list_id=list_id,
+            name=name,
+            normalized_name=normalized,
+            category=category,
+            created_at=utcnow(),
+        )
+        .on_conflict_do_nothing(index_elements=["list_id", "normalized_name"])
+        .returning(ListItem.id)
+    )
+    item = await _find_item(session, list_id, normalized)
+    assert item is not None
+    return item, inserted_id is not None
 
 
 async def _list_id(session: AsyncSession, household: Household) -> int:

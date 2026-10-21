@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
-import { ApiError, post, setUnauthorizedHandler } from "./api/client";
-import { useProfile } from "./api/queries";
+import { ApiError, post, setNoHouseholdHandler, setUnauthorizedHandler } from "./api/client";
+import { keys, useProfile } from "./api/queries";
 import { AuthForm } from "./auth/AuthForm";
 import { HouseholdPage, HouseholdSetup } from "./household/HouseholdPage";
 import { MainPage } from "./layout/MainPage";
@@ -46,6 +46,14 @@ function Routing() {
     setUnauthorizedHandler(() => {
       client.clear();
       navigate("/login");
+    });
+    // Usunięty z gospodarstwa (lub gospodarstwo zniknęło): odśwież profil, by pokazać ekran
+    // tworzenia/dołączania zamiast nieaktualnej listy z cache.
+    setNoHouseholdHandler(() => {
+      client.removeQueries({ queryKey: keys.list });
+      client.removeQueries({ queryKey: keys.chat });
+      client.removeQueries({ queryKey: keys.household });
+      client.invalidateQueries({ queryKey: keys.profile });
     });
   }, [navigate, client]);
 

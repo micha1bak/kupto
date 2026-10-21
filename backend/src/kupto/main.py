@@ -29,6 +29,3 @@ def create_app(settings: Settings | None = None, llm_client: LLMClient | None = 
         return {"status": "ok"}
 
     return app
-
-
-app = create_app()

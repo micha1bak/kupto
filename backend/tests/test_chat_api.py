@@ -127,6 +127,23 @@ async def test_tool_rounds_are_limited(household_with, fake_llm, settings):
     assert events[-2:] == [("delta", {"text": "Koniec"}), ("done", {})]
 
 
+async def test_text_from_tool_round_is_kept_and_separated(household_with, fake_llm):
+    (ala,) = await household_with("ala")
+    fake_llm.rounds += [
+        [TextDelta("Dodaję mleko."), add_needs_call(("mleko", None, None, "Nabiał"))],
+        [TextDelta("Gotowe.")],
+    ]
+
+    _, events = await send(ala, "kup mleko")
+
+    texts = [data["text"] for name, data in events if name == "delta"]
+    assert "".join(texts) == "Dodaję mleko.\n\nGotowe."
+    second_input = fake_llm.calls[1]["input"]
+    assert {"role": "assistant", "content": "Dodaję mleko."} in second_input
+    history = (await ala.get("/api/chat/messages")).json()
+    assert history[-1]["content"] == "Dodaję mleko.\n\nGotowe."
+
+
 async def test_model_error_keeps_changes_made_before_it(household_with, fake_llm):
     (ala,) = await household_with("ala")
     fake_llm.rounds += [[add_needs_call(("chleb", None, None, "Pieczywo"))], LLMUnavailable("boom")]
