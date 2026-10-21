@@ -1,7 +1,21 @@
 .env
 .venv
 .idea
-node_modules
-/generated/prisma
-*.md
 build
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Markdown jest domyślnie ignorowany; wyjątki dla dokumentacji projektu i OpenSpec
+*.md
+!README.md
+!backend/**/*.md
+!frontend/**/*.md
+!openspec/**/*.md
+!.claude/skills/openspec-*/*.md
+!.claude/commands/opsx/*.md

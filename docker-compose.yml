@@ -1,29 +1,46 @@
 services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-      - "[::]:3000:3000"
-    env_file:
-      - .env
-    environment:
-      - JWT_SECRET=${JWT_SECRET}
-      - DATABASE_URL=postgresql://#{DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?schema=public
-    depends_on:
-      - db
-    restart: always
   db:
     image: postgres:18.1
-    ports:
-      - "5432:5432"
-      - "[::]:5432:5432"
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+    # Baza nie jest wystawiona publicznie — dostęp deweloperski przez tunel SSH na 127.0.0.1.
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
-      - db_prod:/var/lib/postgresql
+      - db_v2:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      CHAT_RATE_LIMIT_PER_HOUR: ${CHAT_RATE_LIMIT_PER_HOUR:-30}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+
+  web:
+    build: ./frontend
+    ports:
+      # Bez adresu Docker nasłuchuje na IPv4 i IPv6; osobny wpis "[::]:3000:80" dubluje port.
+      - "3000:80"
+    depends_on:
+      - backend
     restart: always
 
 volumes:
-  db_prod:
+  # Nowy wolumen: stary `db_prod` (aplikacja TypeScript) zostaje nietknięty na potrzeby rollbacku.
+  db_v2:
