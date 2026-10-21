@@ -19,7 +19,7 @@ Stan obecny, który wpływa na podejście:
 - Jeden backend w Pythonie, który egzekwuje autoryzację i reguły listy niezależnie od tego, czy zmianę zleca LLM, czy UI.
 - LLM jako warstwa interpretacji: model tylko wybiera i parametryzuje operacje (narzędzia), a stan listy zmienia wyłącznie kod domenowy.
 - Deterministyczne testy bez połączenia z OpenAI oraz osobny, ręcznie uruchamiany zestaw ewaluacji z prawdziwym modelem.
-- Wdrożenie na tym samym VPS tym samym mechanizmem (`docker compose up -d --build`).
+- Obrazy gotowe do wdrożenia; samo wdrożenie (docelowo AWS) jest poza zakresem tej zmiany — workflow na VPS zostaje usunięty.
 
 **Non-Goals:**
 
@@ -123,11 +123,16 @@ SPA w `frontend/`: React Router (logowanie/rejestracja, gospodarstwo, główny w
 
 ## Migration Plan
 
-1. Przed wdrożeniem na VPS: `pg_dump` starej bazy do pliku poza repozytorium.
-2. Dodać do `.env` na VPS `OPENAI_API_KEY`, `OPENAI_MODEL` i nowe zmienne z `.env.example`.
-3. Merge do `main` → workflow wykonuje `git pull` i `docker compose up -d --build`; backend przy starcie tworzy schemat migracjami Alembic na nowym wolumenie `db_v2`.
-4. Smoke test: rejestracja, utworzenie gospodarstwa, wiadomość w czacie, odhaczenie pozycji.
-5. Rollback: `git revert` merge'a (lub checkout poprzedniego commita na VPS) i `docker compose up -d --build` — stara konfiguracja używa nietkniętego wolumenu `db_prod`. Zbędny stary wolumen usuwamy ręcznie po okresie stabilizacji.
+Pierwotny plan zakładał wdrożenie na dotychczasowy VPS przez GitHub Actions. Po decyzji o
+przeniesieniu produkcji do AWS workflow `deploy.yml` został usunięty, a wdrożenie będzie osobną
+zmianą. Z tej zmiany obowiązuje:
+
+1. Dane starej aplikacji nie są migrowane; przed wyłączeniem VPS należy wykonać `pg_dump` bazy
+   z wolumenu `db_prod`, jeśli mają zostać zachowane.
+2. Nowe środowisko potrzebuje zmiennych z `.env.example` (w tym wymaganego `JWT_SECRET`),
+   HTTPS z `COOKIE_SECURE=true` oraz dostosowania adresu backendu w `frontend/nginx.conf`, jeśli
+   nie działa w Docker Compose.
+3. Backend przy starcie tworzy schemat migracjami Alembic.
 
 ## Open Questions
 

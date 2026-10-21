@@ -62,5 +62,5 @@
 
 ## Workflow follow-up
 
-- Przed merge do `main` wykonać `pg_dump` produkcyjnej bazy i dodać nowe zmienne do `.env` na VPS (design: Migration Plan, kroki 1–2).
+- Workflow wdrożenia na VPS usunięty (docelowo AWS) — wdrożenie zaplanować jako osobną zmianę OpenSpec; przed wyłączeniem VPS wykonać `pg_dump` starej bazy, jeśli dane mają zostać zachowane.
 - Po wdrożeniu i smoke teście na produkcji zarchiwizować change: `/opsx:archive`.

@@ -52,25 +52,20 @@ Opisane w `.env.example`:
 
 ## Wdrożenie
 
-Push do `main` uruchamia `.github/workflows/deploy.yml`: SSH na VPS → `git pull` →
-`docker compose up -d --build` w `/root/kupto`.
+Automatyczne wdrażanie na VPS (GitHub Actions) zostało usunięte — docelową produkcją będzie AWS,
+a konfiguracja wdrożenia jest jeszcze do przygotowania. Merge do `main` niczego nie wdraża.
 
-**Pierwsze wdrożenie wersji 2 (Python)** — schemat bazy jest nowy, dane starej aplikacji nie są
-migrowane:
+Co trzeba zapewnić w docelowym środowisku:
 
-1. Na VPS zrób kopię starej bazy, póki działa stary kontener:
-   `docker compose exec db pg_dump -U "$DB_USER" "$DB_NAME" > ~/kupto-v1-$(date +%F).sql`
-2. Uzupełnij `/root/kupto/.env` o nowe zmienne z `.env.example` (`OPENAI_API_KEY`,
-   `OPENAI_MODEL`, `COOKIE_SECURE`, `CHAT_RATE_LIMIT_PER_HOUR`). `DB_HOST` i `DB_PORT` nie są
-   już potrzebne.
-3. Zmerguj zmiany do `main`. Nowa baza powstaje na wolumenie `db_v2`; stary wolumen `db_prod`
-   zostaje nietknięty.
-4. Smoke test: rejestracja, utworzenie gospodarstwa, wiadomość w czacie, odhaczenie pozycji.
+- obrazy `backend/` i `frontend/` (Dockerfile w katalogach) oraz PostgreSQL 18;
+- zmienne środowiskowe z `.env.example` dla backendu; `JWT_SECRET` (min. 32 znaki) jest
+  wymagany — bez niego backend nie wystartuje;
+- HTTPS przed aplikacją i `COOKIE_SECURE=true`;
+- backend przy starcie sam wykonuje migracje (`alembic upgrade head`);
+- `frontend/nginx.conf` przekazuje `/api` do hosta `backend:8000` przez resolver DNS Dockera
+  (`127.0.0.11`) — poza Docker Compose (np. ECS, load balancer) adres backendu i resolver trzeba
+  dostosować.
 
-**Rollback:** `git revert` merge'a (albo checkout poprzedniego commita na VPS) i
-`docker compose up -d --build` — poprzednia konfiguracja używa wolumenu `db_prod` ze starymi
-danymi. Stary wolumen usuń ręcznie (`docker volume rm kupto_db_prod`) dopiero po okresie
-stabilizacji.
-
-Baza nie jest już wystawiona publicznie (port 5432 tylko na `127.0.0.1`). Dostęp z komputera
-deweloperskiego: `ssh -N -L 5432:127.0.0.1:5432 <vps>`.
+**Dane starej aplikacji (TypeScript)** zostają na VPS w wolumenie `db_prod` i nie są migrowane
+do nowego schematu. Jeśli są potrzebne, zrób kopię przed wyłączeniem VPS:
+`docker compose exec db pg_dump -U "$DB_USER" "$DB_NAME" > kupto-v1-$(date +%F).sql`.

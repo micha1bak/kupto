@@ -15,7 +15,7 @@ Obecne Kupto to klasyczny CRUD (Express + TypeScript + Prisma): użytkownik musi
 - Scalanie zapotrzebowań wielu domowników: deduplikacja, sumowanie ilości, automatyczna kategoryzacja, informacja kto czego potrzebuje.
 - Lista dostępna także bezpośrednio w UI (odhaczanie kupionych, usuwanie, zakończenie zakupów) bez pośrednictwa LLM.
 - Limity użycia LLM (długość wiadomości, liczba wiadomości na użytkownika) chroniące przed kosztami i nadużyciami.
-- Nowa konfiguracja Docker/docker-compose i aktualizacja workflow deploy na VPS (nowy sekret `OPENAI_API_KEY`).
+- Nowa konfiguracja Docker/docker-compose. Workflow wdrożenia na VPS zostaje usunięty — docelową produkcją będzie AWS (wdrożenie poza zakresem tej zmiany).
 
 ## Capabilities
 
@@ -37,4 +37,4 @@ Obecne Kupto to klasyczny CRUD (Express + TypeScript + Prisma): użytkownik musi
 - **Baza danych**: PostgreSQL pozostaje, ale ze świeżym schematem zarządzanym migracjami Pythona; stare dane zostają tylko w kopii zapasowej.
 - **Zależności**: Python (framework webowy, ORM, OpenAI SDK), osobny toolchain frontendu; usunięcie zależności Node backendu.
 - **Usługi zewnętrzne**: OpenAI API — koszty zależne od użycia, wymagany klucz API, dane z rozmów trafiają do OpenAI.
-- **Infrastruktura**: nowe Dockerfile dla backendu i frontendu, zaktualizowany `docker-compose.yml`, `.env.example` i `.github/workflows/deploy.yml`.
+- **Infrastruktura**: nowe Dockerfile dla backendu i frontendu, zaktualizowany `docker-compose.yml` i `.env.example`; usunięty `.github/workflows/deploy.yml`.
