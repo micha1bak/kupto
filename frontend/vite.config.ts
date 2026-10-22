@@ -1,9 +1,10 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { serviceWorkerPlugin } from "./src/pwa/swPlugin.ts";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), serviceWorkerPlugin()],
   server: {
     proxy: {
       "/api": "http://localhost:8000",
