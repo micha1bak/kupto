@@ -141,3 +141,84 @@ Powłoka na serwerze: `aws ssm start-session --profile kupto --target <instance_
 - `systemctl list-timers 'kupto-*'`, `journalctl -u kupto-backup -n 20` — zrzuty bazy,
 - `docker compose -p kupto ps` / `docker compose -p kupto logs backend` — stan aplikacji,
 - `docker compose -p kupto logs caddy` — wydawanie i odnawianie certyfikatu.
+
+## Logi i koszty (#23)
+
+### Logi backendu
+
+Backend pisze na stdout jeden obiekt JSON na linię (`ts`, `level`, `logger`, `message`
+i pola zdarzenia, np. `event`, `user_id`, `household_id`; błędy z `exc_info`). Trafiają tam
+loggery `kupto.*` i uvicorn (`event: http_request` z metodą, ścieżką i kodem odpowiedzi). Do
+logów nie trafiają treści wiadomości czatu, hasła, ciasteczka ani klucze.
+
+Kontener `backend` loguje do journald (tag `kupto-backend`), a nie do plików json-file jak
+pozostałe — logi przeżywają odtworzenie kontenera przy wdrożeniu. Czytanie:
+
+```bash
+docker compose -p kupto logs --since 1h backend               # jak dotąd
+journalctl -t kupto-backend --since today -o cat | grep '"level": "ERROR"'
+```
+
+Retencję wyznacza journald (domyślnie do 10% dysku); `journalctl --disk-usage`,
+w razie potrzeby `journalctl --vacuum-time=60d`.
+
+Poziom logów: opcjonalny parametr SSM `/kupto/LOG_LEVEL` (`DEBUG`, `INFO` — domyślnie,
+`WARNING`, `ERROR`; wielkimi literami), działa od najbliższego ticku timera.
+
+### Zużycie tokenów LLM
+
+Po każdej turze czatu backend loguje zdarzenie `llm_usage` — bez treści rozmowy:
+
+```json
+{"ts": "2026-10-22T12:24:18.302+00:00", "level": "INFO", "logger": "kupto.chat.router", "message": "Zużycie modelu: 4831 wej. / 72 wyj. tokenów", "event": "llm_usage", "outcome": "ok", "model": "openai/gpt-oss-120b", "user_id": 1, "household_id": 1, "input_tokens": 4831, "output_tokens": 72, "cached_tokens": 1024, "reasoning_tokens": 24, "model_calls": 2, "tool_rounds": 1, "tool_calls": ["add_needs"], "duration_ms": 1282}
+```
+
+Tokeny są sumą wszystkich wywołań modelu w turze (`model_calls`; `tool_rounds` — rundy
+z narzędziami). `outcome`: `ok`, `llm_unavailable` (błąd dostawcy), `error` (błąd aplikacji),
+`cancelled` (klient zamknął strumień). Zero tokenów przy `ok` oznacza, że dostawca nie
+zwrócił zużycia.
+
+Podsumowanie dzienne (UTC) i na użytkownika z szacunkowym kosztem — na serwerze jako root:
+
+```bash
+/opt/kupto/repo/deploy/kupto-usage.sh                         # ostatnie 7 dni
+/opt/kupto/repo/deploy/kupto-usage.sh 2026-10-01 2026-11-01   # --since / --until journalctl
+docker compose -p kupto logs --no-log-prefix backend | /opt/kupto/repo/deploy/kupto-usage.sh -
+```
+
+```text
+Dziennie (UTC)
+dzień                  tury  błędy     wejście     z cache     wyjście  koszt USD
+2026-10-20                3      0       13331        2048         631     0.0022
+2026-10-21                4      1       18379        5120         399     0.0026
+razem                     7      1       31710        7168        1030     0.0048
+...
+```
+
+Koszt liczony wg cennika Groq dla `openai/gpt-oss-120b` (0,15 USD / 1 mln tokenów wejścia,
+0,075 z cache, 0,60 wyjścia — październik 2026); inne ceny przez zmienne `PRICE_INPUT`,
+`PRICE_CACHED`, `PRICE_OUTPUT`. Rozliczenie u dostawcy jest wiążące — skrypt służy do
+wychwycenia, kto i kiedy zużywa najwięcej.
+
+### Limit wydatków u dostawcy LLM (Groq)
+
+Twardy limit ustawia się w konsoli Groq
+([dokumentacja](https://console.groq.com/docs/spend-limits)): **Settings → Billing →
+Limits** — miesięczny limit w USD i progi powiadomień e-mail (np. 50%, 75%, 90%; adresy
+w **Settings → Billing → Manage**). Wymaga planu płatnego (Developer) i roli właściciela
+organizacji. Na planie darmowym nie ma ani opłat, ani limitów wydatków — ograniczeniem są
+tylko limity zapytań.
+
+- Po osiągnięciu limitu Groq odrzuca nowe zapytania z każdego klucza organizacji (HTTP 400,
+  `blocked_api_access`) — czat pokaże „Asystent jest chwilowo niedostępny”, a w logach
+  pojawi się `llm_unavailable`. Lista działa dalej.
+- Limit odnawia się 1. dnia miesiąca; limitów dziennych i tygodniowych nie ma.
+- Zużycie jest liczone z opóźnieniem 10–15 minut, więc limit może zostać lekko przekroczony.
+- Dla tej skali wystarczy kilka USD miesięcznie; aplikacja dodatkowo ogranicza liczbę
+  wiadomości (`CHAT_RATE_LIMIT_PER_HOUR`).
+
+### Budżet i alarmy AWS
+
+Miesięczny budżet AWS Budgets i alarmy CloudWatch (serwer nie przechodzi kontroli stanu,
+płatne kredyty CPU) są w `infra/budgets.tf` — konfiguracja i adres powiadomień:
+[infra/README.md](../infra/README.md#budżet-i-alarmy-23).

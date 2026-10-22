@@ -36,10 +36,16 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       OPENAI_MODEL: ${OPENAI_MODEL}
       CHAT_RATE_LIMIT_PER_HOUR: ${CHAT_RATE_LIMIT_PER_HOUR:-30}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       db:
         condition: service_healthy
-    logging: *logging
+    # Logi JSON w journald (#23): przeżywają odtworzenie kontenera przy wdrożeniu, więc
+    # kupto-usage.sh liczy z nich dzienne zużycie tokenów. `docker compose logs` działa dalej.
+    logging:
+      driver: journald
+      options:
+        tag: kupto-backend
     restart: always
 
   web:

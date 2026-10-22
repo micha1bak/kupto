@@ -39,3 +39,20 @@ variable "volume_backup_retention_days" {
   type        = number
   default     = 28
 }
+
+variable "budget_email" {
+  description = "Adres powiadomień budżetu i alarmów. Bez wartości domyślnej i poza repo: TF_VAR_budget_email lub -var (zob. README)."
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.budget_email))
+    error_message = "budget_email musi być adresem e-mail."
+  }
+}
+
+variable "monthly_budget_usd" {
+  description = "Miesięczny budżet kosztów AWS w USD (powiadomienia: 80% prognozy, 100% faktycznych)."
+  type        = number
+  default     = 15
+}
