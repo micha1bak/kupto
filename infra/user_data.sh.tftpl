@@ -1,0 +1,29 @@
+#!/bin/bash
+# Pierwszy start serwera: Docker, wtyczka Compose i swap. Aplikację (compose, Caddy,
+# automatyczne pobieranie obrazów) dokładają kolejne zadania: #19–#21.
+set -euo pipefail
+
+dnf install -y docker
+systemctl enable --now docker
+
+plugin_dir=/usr/local/lib/docker/cli-plugins
+base_url=https://github.com/docker/compose/releases/download/${compose_version}
+mkdir -p "$plugin_dir"
+cd "$plugin_dir"
+curl -fsSLO "$base_url/docker-compose-linux-aarch64"
+curl -fsSLO "$base_url/docker-compose-linux-aarch64.sha256"
+sha256sum -c docker-compose-linux-aarch64.sha256
+mv docker-compose-linux-aarch64 docker-compose
+rm docker-compose-linux-aarch64.sha256
+chmod 0755 docker-compose
+
+# 1 GiB RAM to mało dla Postgresa, backendu i nginx razem — swap jako zapas.
+if [ ! -f /swapfile ]; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+mkdir -p /opt/kupto

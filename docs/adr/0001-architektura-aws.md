@@ -121,11 +121,13 @@ z obecnym Docker Compose.**
   (repo jest publiczne, więc pobieranie nie wymaga poświadczeń i nie kosztuje).
 - **Sekrety:** SSM Parameter Store (SecureString, warstwa standard — bez opłat); przy
   starcie usługi skrypt na instancji generuje z nich `.env` dla Compose.
-- **Wdrożenie (#21):** GitHub Actions przez OIDC (bez kluczy AWS w sekretach) przyjmuje rolę
-  z uprawnieniem tylko do `ssm:SendCommand` na tę instancję; komenda wykonuje
-  `docker compose pull && docker compose up -d` i sprawdza `/api/health`. Dostawca OIDC
-  i rola powstają w IAM projektu; ich dostępność w projektach sprawdzamy w #18 — gdyby
-  zasady projektu je blokowały, wracamy do tej decyzji przed #21.
+- **Wdrożenie (#21): serwer sam pobiera nowe obrazy.** GitHub Actions nie loguje się do AWS:
+  zasady projektu (SCP) wprost blokują dostawcę OIDC w IAM (`iam:CreateOpenIDConnectProvider`
+  — sprawdzone w #18), a długożyjący klucz IAM w sekretach GitHub odrzuciliśmy. CI publikuje
+  obrazy w GHCR z tagiem `main`; na serwerze timer systemd co kilka minut wykonuje
+  `docker compose pull` i, jeśli pojawił się nowy obraz, `docker compose up -d` oraz sprawdza
+  `/api/health`. Koszt: opóźnienie wdrożenia o kilka minut i wynik widoczny w logach serwera
+  (`journalctl`), a nie w GitHub Actions.
 - **Backupy (#22):** codzienny `pg_dump` do S3 (retencja przez lifecycle policy) z roli
   instancji + cotygodniowe kopie wolumenu EBS przez **AWS Backup** (plan backupu wybierający
   wolumen po tagu). Data Lifecycle Manager nie jest dostępny w projektach.
@@ -150,11 +152,12 @@ z obecnym Docker Compose.**
   - region narzucony przez projekt; zmiana regionu oznaczałaby przejście na tryb
     zaawansowany.
 - **Wymagania dla kolejnych zadań:**
-  - **#18:** zacząć od potwierdzenia regionu projektu i sprawdzenia, czy w IAM projektu można
-    utworzyć dostawcę OIDC dla GitHub Actions oraz rolę instancji;
+  - **#18 (zrobione):** region projektu potwierdzony (`eu-north-1`); SCP pozwala na EC2, S3,
+    SSM, IAM (role i profile instancji), AWS Backup i Budgets w `eu-north-1`, ale blokuje
+    dostawcę OIDC w IAM;
   - **#21:** CI musi budować obrazy dla `linux/arm64` (dziś buduje tylko natywną
-    architekturę runnera); wdrożenie w osobnym workflow lub grupie `concurrency` bez
-    `cancel-in-progress`;
+    architekturę runnera) i publikować je w GHCR po merge do `main` — w osobnym workflow lub
+    grupie `concurrency` bez `cancel-in-progress`; na serwerze timer pobierający obrazy;
   - **#19:** subdomena i rekord A u obecnego dostawcy DNS — do zrobienia przez właściciela;
   - **#22:** kopie wolumenu przez AWS Backup zamiast Data Lifecycle Manager;
   - **#23:** AWS Budgets z alertem (np. $15/mies.) — przy okazji jedno z zadań dających
