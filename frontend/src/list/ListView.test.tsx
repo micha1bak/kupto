@@ -53,6 +53,7 @@ const list: ShoppingList = {
       ],
     },
   ],
+  shoppers: [],
 };
 
 test("renders items grouped by category with quantities and requesters", async () => {
@@ -229,4 +230,58 @@ test("a failed pin restores the previous order", async () => {
   expect(await screen.findByText("Błąd zapisu.")).toBeInTheDocument();
   expect(groupNames()).toEqual(["Nabiał", "Chemia i higiena"]);
   rect.mockRestore();
+});
+
+const shopper = (user_id: number, login: string) => ({
+  user_id,
+  login,
+  since: "2026-10-22T12:05:00Z",
+  expires_at: "2026-10-22T15:05:00Z",
+});
+
+test("going shopping sends the status and shows it from the response", async () => {
+  const fetch = mockFetch({
+    "GET /api/list": list,
+    "POST /api/list/shopping": { ...list, shoppers: [shopper(1, "ala")] },
+  });
+  renderWithProviders(<ListView userId={1} />);
+
+  await userEvent.click(await screen.findByRole("button", { name: "Idę na zakupy" }));
+
+  const banner = await screen.findByRole("list", { name: "Kto robi zakupy" });
+  expect(banner).toHaveTextContent(/Robisz zakupy od \d{2}:\d{2}/);
+  expect(fetch).toHaveBeenLastCalledWith("/api/list/shopping", expect.objectContaining({ method: "POST" }));
+  expect(screen.queryByRole("button", { name: "Idę na zakupy" })).not.toBeInTheDocument();
+});
+
+test("household members see who is shopping", async () => {
+  mockFetch({ "GET /api/list": { ...list, shoppers: [shopper(2, "ania")] } });
+  renderWithProviders(<ListView userId={1} />);
+
+  const banner = await screen.findByRole("list", { name: "Kto robi zakupy" });
+  expect(banner).toHaveTextContent(/ania robi zakupy od \d{2}:\d{2}/);
+  // Cudzy status nie zmienia mojego przycisku.
+  expect(screen.getByRole("button", { name: "Idę na zakupy" })).toBeInTheDocument();
+});
+
+test("finishing my shopping status removes it", async () => {
+  const fetch = mockFetch({
+    "GET /api/list": { ...list, shoppers: [shopper(1, "ala"), shopper(2, "ania")] },
+    "DELETE /api/list/shopping": { ...list, shoppers: [shopper(2, "ania")] },
+  });
+  renderWithProviders(<ListView userId={1} />);
+
+  await userEvent.click(await screen.findByRole("button", { name: "Kończę" }));
+
+  await screen.findByRole("button", { name: "Idę na zakupy" });
+  expect(screen.getByRole("list", { name: "Kto robi zakupy" })).not.toHaveTextContent("Robisz zakupy");
+  expect(fetch).toHaveBeenLastCalledWith("/api/list/shopping", expect.objectContaining({ method: "DELETE" }));
+});
+
+test("without shoppers there is no shopping banner", async () => {
+  mockFetch({ "GET /api/list": { id: 1, groups: [] } });
+  renderWithProviders(<ListView userId={1} />);
+
+  await screen.findByRole("button", { name: "Idę na zakupy" });
+  expect(screen.queryByRole("list", { name: "Kto robi zakupy" })).not.toBeInTheDocument();
 });

@@ -23,11 +23,12 @@ import {
   type CategoryGroup,
   type Item,
   type NeedCreate,
+  type Shopper,
   type ShoppingList,
   type Unit,
 } from "../api/types";
 import { dropCategory, reorderGroups, type CategoryDrop } from "./categoryOrder";
-import { formatQuantities, formatQuantity } from "./format";
+import { formatQuantities, formatQuantity, formatTime } from "./format";
 import styles from "./ListView.module.css";
 
 function setItemBought(list: ShoppingList, itemId: number, bought: boolean): ShoppingList {
@@ -254,6 +255,20 @@ function GroupSection({ group, userId }: { group: CategoryGroup; userId: number 
   );
 }
 
+/** Kto z gospodarstwa robi teraz zakupy — „Robisz zakupy od 14:05”, „ania robi zakupy od 13:50”. */
+function ShoppersBanner({ shoppers, userId }: { shoppers: Shopper[]; userId: number }) {
+  if (shoppers.length === 0) return null;
+  return (
+    <ul className={styles.shoppers} aria-label="Kto robi zakupy">
+      {shoppers.map((s) => (
+        <li key={s.user_id}>
+          🛒 {s.user_id === userId ? "Robisz zakupy" : `${s.login} robi zakupy`} od {formatTime(s.since)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function useCategoryPin() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -274,6 +289,8 @@ function useCategoryPin() {
 export function ListView({ userId }: { userId: number }) {
   const list = useShoppingList();
   const finish = useListMutation(() => post<ShoppingList>("/api/list/finish"));
+  const startShopping = useListMutation(() => post<ShoppingList>("/api/list/shopping"));
+  const stopShopping = useListMutation(() => del<ShoppingList>("/api/list/shopping"));
   const resetOrder = useListMutation(() => del<ShoppingList>("/api/list/category-order"));
   const pin = useCategoryPin();
   const sensors = useSensors(
@@ -285,6 +302,9 @@ export function ListView({ userId }: { userId: number }) {
   const order = groups.map((g) => g.category);
   const anyBought = groups.some((g) => g.items.some((i) => i.bought));
   const anyPinned = groups.some((g) => g.pinned);
+  const shoppers = list.data?.shoppers ?? [];
+  const imShopping = shoppers.some((s) => s.user_id === userId);
+  const shoppingError = startShopping.error ?? stopShopping.error;
 
   function confirmFinish() {
     if (window.confirm("Zakończyć zakupy? Kupione pozycje zostaną przeniesione do historii.")) {
@@ -308,6 +328,24 @@ export function ListView({ userId }: { userId: number }) {
       <div className={styles.toolbar}>
         <h2>Lista</h2>
         <div className={styles.actions}>
+          {imShopping ? (
+            <button
+              onClick={() => stopShopping.mutate(undefined)}
+              disabled={stopShopping.isPending}
+              title="Przestań pokazywać domownikom, że robisz zakupy (kupione zostają na liście)"
+            >
+              Kończę
+            </button>
+          ) : (
+            <button
+              className="primary"
+              onClick={() => startShopping.mutate(undefined)}
+              disabled={startShopping.isPending || !list.data}
+              title="Pokaż domownikom, że robisz zakupy (status wygasa sam po 3 godzinach)"
+            >
+              Idę na zakupy
+            </button>
+          )}
           {anyPinned && (
             <button
               onClick={confirmResetOrder}
@@ -324,6 +362,12 @@ export function ListView({ userId }: { userId: number }) {
           )}
         </div>
       </div>
+      <ShoppersBanner shoppers={shoppers} userId={userId} />
+      {shoppingError && (
+        <p className="error">
+          {shoppingError instanceof ApiError ? shoppingError.message : "Nie udało się zmienić statusu zakupów."}
+        </p>
+      )}
       {list.isLoading && <p className="muted">Ładowanie…</p>}
       {list.data && groups.length === 0 && (
         <p className={`muted ${styles.empty}`}>

@@ -38,6 +38,7 @@ test("reorderGroups applies the new order and marks the moved category as pinned
   const list: ShoppingList = {
     id: 1,
     groups: order.map((category) => ({ category, pinned: category === "Nabiał", items: [] })),
+    shoppers: [],
   };
 
   const next = reorderGroups(list, ["Chemia i higiena", "Pieczywo", "Nabiał"], "Chemia i higiena");
