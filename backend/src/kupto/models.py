@@ -282,6 +282,24 @@ class PushSubscription(Base):
     updated_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
+class NotificationPreference(Base):
+    """Wybór użytkownika: czy chce dostawać powiadomienia danego typu (na wszystkich urządzeniach).
+
+    Wiersz istnieje tylko po zmianie przez użytkownika; brak wiersza = wartość domyślna typu
+    (`kupto.push.preferences.DEFAULT_ENABLED`). `type` to tekst (wartość `NotificationType`),
+    a nie enum bazy — nowy typ powiadomienia nie wymaga migracji.
+    """
+
+    __tablename__ = "notification_preferences"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    type: Mapped[str] = mapped_column(String(40), primary_key=True)
+    enabled: Mapped[bool]
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
 class ChatPendingAction(Base):
     __tablename__ = "chat_pending_actions"
 

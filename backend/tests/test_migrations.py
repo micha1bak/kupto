@@ -263,3 +263,43 @@ async def test_product_pins_migration_keeps_existing_data(empty_database):
 
     await migrate(empty_database, "up", "head")
     assert await table_exists(empty_database, "user_product_pins")
+
+
+async def test_notification_preferences_migration_keeps_existing_data(empty_database):
+    await migrate(empty_database, "up", "0006")
+    await execute(
+        empty_database,
+        *SEED_STATEMENTS,
+        "INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at, "
+        "updated_at) VALUES (1, 'https://fcm.googleapis.com/a', 'k', 'a', now(), now())",
+        "INSERT INTO user_product_pins (user_id, normalized_name, category, after_name, "
+        "at_end, position) VALUES (1, 'ser', 'Nabiał', NULL, false, 0)",
+    )
+    tables = (*EXISTING_TABLES, *HISTORY_TABLES, "push_subscriptions", "user_product_pins")
+    before = await snapshot(empty_database, tables)
+
+    await migrate(empty_database, "up", "0007")
+
+    assert await snapshot(empty_database, tables) == before
+    assert await snapshot(empty_database, ("notification_preferences",)) == {
+        "notification_preferences": []
+    }
+    # Typ to tekst bez enuma bazy (nowy typ, np. #40, bez migracji); jeden wybór na typ.
+    insert = "INSERT INTO notification_preferences (user_id, type, enabled, updated_at) VALUES "
+    await execute(
+        empty_database,
+        insert + "(1, 'shopping_started', false, now()), (1, 'usual_reminder', true, now()), "
+        "(2, 'shopping_started', true, now())",
+    )
+    with pytest.raises(IntegrityError):
+        await execute(empty_database, insert + "(1, 'shopping_started', true, now())")
+    with pytest.raises(IntegrityError):
+        await execute(empty_database, insert + "(99, 'items_added', true, now())")
+
+    await migrate(empty_database, "down", "0006")
+
+    assert not await table_exists(empty_database, "notification_preferences")
+    assert await snapshot(empty_database, tables) == before
+
+    await migrate(empty_database, "up", "head")
+    assert await table_exists(empty_database, "notification_preferences")
