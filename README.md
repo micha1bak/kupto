@@ -60,24 +60,15 @@ i po pushu do `main`; nowy push do tego samego PR anuluje poprzedni przebieg. Jo
 - **Frontend** — `npm ci`, sprawdzenie typów (`tsc -b`), Vitest, `vite build`;
 - **Docker (backend)**, **Docker (frontend)** — budowa obu obrazów bez publikowania.
 
-CI niczego nie wdraża ani nie publikuje.
+Sam `ci.yml` niczego nie wdraża ani nie publikuje — publikację obrazów opisuje sekcja „Wdrożenie”.
 
 ## Wdrożenie
 
-Automatyczne wdrażanie na VPS (GitHub Actions) zostało usunięte — docelową produkcją będzie AWS,
-a konfiguracja wdrożenia jest jeszcze do przygotowania. Merge do `main` niczego nie wdraża.
+Produkcja działa na AWS wg [ADR 0001](docs/adr/0001-architektura-aws.md): jedna instancja EC2
+(arm64) w projekcie `kupto` (`eu-north-1`) z Docker Compose.
 
-Co trzeba zapewnić w docelowym środowisku:
-
-- obrazy `backend/` i `frontend/` (Dockerfile w katalogach) oraz PostgreSQL 18;
-- zmienne środowiskowe z `.env.example` dla backendu; `JWT_SECRET` (min. 32 znaki) jest
-  wymagany — bez niego backend nie wystartuje;
-- HTTPS przed aplikacją i `COOKIE_SECURE=true`;
-- backend przy starcie sam wykonuje migracje (`alembic upgrade head`);
-- `frontend/nginx.conf` przekazuje `/api` do hosta `backend:8000` przez resolver DNS Dockera
-  (`127.0.0.11`) — poza Docker Compose (np. ECS, load balancer) adres backendu i resolver trzeba
-  dostosować.
-
-**Dane starej aplikacji (TypeScript)** zostają na VPS w wolumenie `db_prod` i nie są migrowane
-do nowego schematu. Jeśli są potrzebne, zrób kopię przed wyłączeniem VPS:
-`docker compose exec db pg_dump -U "$DB_USER" "$DB_NAME" > kupto-v1-$(date +%F).sql`.
+- `infra/` — infrastruktura w Terraformie (instancja, adres IP, rola, bucket kopii);
+  szczegóły w [`infra/README.md`](infra/README.md).
+- `deploy/` — wdrożenie: po merge do `main` workflow **Publikacja obrazów** publikuje obrazy
+  `linux/arm64` w GHCR, a serwer co 5 minut sam je pobiera i odtwarza zmienione kontenery;
+  sekrety w SSM Parameter Store. Szczegóły w [`deploy/README.md`](deploy/README.md).
