@@ -14,6 +14,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    css: { modules: { classNameStrategy: "non-scoped" } },
+    // Arkusze importowane z ?raw (testy reguł CSS, np. viewport.test.ts) mają zwracać treść, nie pusty stub.
+    css: { include: /\?raw$/, modules: { classNameStrategy: "non-scoped" } },
   },
 });
