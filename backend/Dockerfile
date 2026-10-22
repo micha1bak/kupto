@@ -18,4 +18,6 @@ RUN useradd --system --uid 10001 kupto
 USER kupto
 
 EXPOSE 8000
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn --factory kupto.main:create_app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]
+# Strumienie SSE (lista na żywo) nie kończą się same, więc przy zatrzymaniu uvicorn czeka na nie
+# najwyżej 8 s — przed SIGKILL Dockera po 10 s — i domyka aplikację (zamknięcie LISTEN).
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn --factory kupto.main:create_app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*' --timeout-graceful-shutdown 8"]

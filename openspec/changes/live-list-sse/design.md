@@ -77,12 +77,17 @@ Filtrowanie po `household` odbywa się w brokerze, więc subskrybent nigdy nie w
 
 `/api/` w `frontend/nginx.conf` ma już `proxy_buffering off`, `proxy_cache off`, HTTP/1.1 i `proxy_read_timeout 300s`; Caddy ma `flush_interval -1`. Heartbeat 20 s utrzymuje połączenie w tych limitach, więc osobna lokacja dla `/api/list/events` nie jest potrzebna. Service worker PWA nie może przechwytywać `/api/*` (zwłaszcza strumienia).
 
+### D9. Zatrzymanie backendu z otwartymi strumieniami
+
+Uvicorn przy zatrzymaniu czeka, aż otwarte żądania się skończą, a strumień zmian listy nie kończy się sam — bez limitu każdy restart czekałby na SIGKILL Dockera (10 s) i pomijał zamknięcie aplikacji. Obraz backendu uruchamia uvicorn z `--timeout-graceful-shutdown 8`: po 8 s pozostałe strumienie są przerywane (klienci łączą się ponownie z nową instancją i pobierają listę), a lifespan zamyka połączenie `LISTEN`. Aplikacja nie dostaje od uvicorn sygnału początku zatrzymania, więc nie może zamknąć strumieni wcześniej; przerwanie zostawia w logu ślad `CancelledError`.
+
 ## Risks / Trade-offs
 
 - [Każdy otwarty klient trzyma długie połączenie HTTP przez Caddy i nginx] → skala to kilka gospodarstw; karta w tle zamyka strumień; domyślne limity połączeń nginx (`worker_connections 1024`) wystarczają z zapasem.
 - [Utrata sygnału, gdy połączenie `LISTEN` padnie między commitem a dostarczeniem] → broker zamyka strumienie przy utracie połączenia; klienci po ponownym połączeniu pobierają listę; dodatkowo polling 30 s, gdy strumień nie działa.
 - [Wyścig: zmiana między pobraniem listy a otwarciem strumienia] → po `ready` klient pobiera listę, jeśli wcześniej był już połączony; przy pierwszym połączeniu lista jest pobierana równolegle przez zwykłe zapytanie, a ewentualna zmiana w tej szczelinie (milisekundy) pokryje kolejny sygnał lub powrót do karty.
 - [Zmiana listy poza serwisem (np. ręczny SQL, przyszły kod)] → nie wygeneruje sygnału; konwencja „zmiany tylko przez serwis” jest już zapisana w docstringu modułu.
+- [Wdrożenie przerywa strumienie i ewentualną trwającą odpowiedź czatu po 8 s] → wcześniej Docker zabijał proces po 10 s, więc to bez pogorszenia; klienci SSE wznawiają połączenie automatycznie.
 - [Usunięcie gospodarstwa kaskadowo przy wyjściu ostatniego członka] → zdarzenie `left` zamyka jego strumień; innych subskrybentów nie ma.
 
 ## Migration Plan

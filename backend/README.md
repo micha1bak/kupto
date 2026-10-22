@@ -36,6 +36,7 @@ uv run uvicorn --factory kupto.main:create_app --reload    # http://localhost:80
 | `CHAT_RATE_LIMIT_PER_HOUR` | `30` | limit wiadomości na użytkownika |
 | `CHAT_HISTORY_LIMIT` | `20` | ile ostatnich wiadomości trafia do modelu |
 | `CHAT_MAX_TOOL_ROUNDS` | `5` | maks. rund wywołań narzędzi na wiadomość |
+| `LIST_EVENTS_HEARTBEAT_SECONDS` | `20` | co ile strumień zmian listy wysyła podtrzymanie (≤ 30) |
 
 ## Testy
 
@@ -107,5 +108,6 @@ Wnioski po przebiegach:
 | `kupto/auth/` | hasła (argon2), sesje JWT w ciasteczku, endpointy `/api/auth/*`, `/api/users/me` |
 | `kupto/households/` | gospodarstwa i członkowie |
 | `kupto/lists/` | reguły listy (scalanie, kategorie, kupione) i endpointy `/api/list/*` |
+| `kupto/lists/events.py` | lista na żywo: `NOTIFY` po każdej zmianie listy, broker `LISTEN` i strumień SSE `/api/list/events` |
 | `kupto/chat/` | klient LLM, narzędzia, prompt, pętla agenta, endpoint SSE `/api/chat/messages` |
 | `migrations/` | migracje Alembic |
