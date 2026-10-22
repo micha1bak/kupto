@@ -16,6 +16,7 @@ export function MainPage({ profile, onLogout }: { profile: Profile; onLogout: ()
       <header className={styles.header}>
         <h1>Kupto</h1>
         <nav>
+          <Link to="/history">Historia</Link>
           <Link to="/household">{profile.household?.name}</Link>
           <span className="muted">{profile.login}</span>
           <button onClick={onLogout}>Wyloguj</button>

@@ -1,14 +1,23 @@
 import { useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import { useListEvents } from "./listEvents";
-import type { ChatMessage, Household, Profile, ShoppingList } from "./types";
+import type {
+  ChatMessage,
+  Household,
+  ProductHit,
+  Profile,
+  ShoppingList,
+  TripPage,
+} from "./types";
 
 export const keys = {
   profile: ["profile"] as const,
   household: ["household"] as const,
   list: ["list"] as const,
   chat: ["chat"] as const,
+  history: ["history"] as const,
+  historySearch: ["history-search"] as const,
 };
 
 /**
@@ -36,6 +45,25 @@ export function useShoppingList() {
     refetchOnWindowFocus: false,
   });
 }
+
+/** Zakończenia zakupów od najnowszych; kolejne strony doczytywane kursorem `next_cursor`. */
+export const usePurchaseHistory = () =>
+  useInfiniteQuery({
+    queryKey: keys.history,
+    queryFn: ({ pageParam }) =>
+      api<TripPage>(pageParam === null ? "/api/history" : `/api/history?before=${pageParam}`),
+    initialPageParam: null as number | null,
+    getNextPageParam: (last) => last.next_cursor,
+  });
+
+/** Kiedy i kto ostatnio kupił produkty pasujące do frazy; pusta fraza — brak zapytania. */
+export const useProductSearch = (phrase: string) =>
+  useQuery({
+    queryKey: [...keys.historySearch, phrase],
+    queryFn: () =>
+      api<ProductHit[]>(`/api/history/products?q=${encodeURIComponent(phrase)}`),
+    enabled: phrase !== "",
+  });
 
 // Historię odświeżamy tylko jawnie po każdej wymianie (ChatView), nie np. przy powrocie do karty —
 // inaczej wiadomości z bieżącej wymiany pojawiałyby się podwójnie (lokalnie i z serwera).
