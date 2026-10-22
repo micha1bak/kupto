@@ -1,16 +1,32 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ApiError, del, post } from "../api/client";
+import {
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type Announcements,
+  type DragEndEvent,
+  type Modifier,
+} from "@dnd-kit/core";
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { ApiError, del, post, put } from "../api/client";
 import { keys, useShoppingList } from "../api/queries";
 import {
   CATEGORIES,
   UNITS,
   type Category,
+  type CategoryGroup,
   type Item,
   type NeedCreate,
   type ShoppingList,
   type Unit,
 } from "../api/types";
+import { dropCategory, reorderGroups, type CategoryDrop } from "./categoryOrder";
 import { formatQuantities, formatQuantity } from "./format";
 import styles from "./ListView.module.css";
 
@@ -171,11 +187,104 @@ function ItemRow({ item, userId }: { item: Item; userId: number }) {
   );
 }
 
+const categoryPath = (category: Category) => `/api/list/category-order/${encodeURIComponent(category)}`;
+
+/** Przytrzymanie na dotyku (ms), zanim nagłówek da się przeciągnąć — w sklepie nic nie przesunie się przypadkiem. */
+export const TOUCH_HOLD_MS = 400;
+
+// Kategorie przesuwa się tylko w pionie.
+const verticalOnly: Modifier = ({ transform }) => ({ ...transform, x: 0 });
+
+const screenReaderInstructions = {
+  draggable:
+    "Aby przenieść kategorię, naciśnij spację lub Enter, wybierz miejsce strzałkami w górę i w dół, " +
+    "a potem naciśnij spację lub Enter, by ją tam przypiąć. Escape anuluje. Na ekranie dotykowym przytrzymaj nagłówek.",
+};
+
+const announcements: Announcements = {
+  onDragStart: ({ active }) => `Podniesiono kategorię ${active.id}.`,
+  onDragOver: ({ active, over }) =>
+    over ? `Kategoria ${active.id} jest w miejscu kategorii ${over.id}.` : `Kategoria ${active.id} jest poza listą.`,
+  onDragEnd: ({ active, over }) =>
+    over && over.id !== active.id
+      ? `Kategoria ${active.id} przypięta w miejscu kategorii ${over.id}.`
+      : `Kategoria ${active.id} została na swoim miejscu.`,
+  onDragCancel: ({ active }) => `Anulowano przenoszenie kategorii ${active.id}.`,
+};
+
+function GroupSection({ group, userId }: { group: CategoryGroup; userId: number }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+    id: group.category,
+    attributes: { roleDescription: "przesuwalna kategoria" },
+  });
+  const unpin = useListMutation(() => del<ShoppingList>(categoryPath(group.category)));
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={`${styles.group} ${isDragging ? styles.dragging : ""}`}
+    >
+      <h3 className={styles.groupHeader}>
+        <span ref={setActivatorNodeRef} className={styles.handle} {...attributes} {...listeners}>
+          {group.category}
+          {group.pinned && (
+            <span className={styles.pin} role="img" aria-label="przypięta" title="Przypięta">
+              📌
+            </span>
+          )}
+        </span>
+        {group.pinned && (
+          <button
+            className={styles.unpin}
+            onClick={() => unpin.mutate(undefined)}
+            disabled={unpin.isPending}
+            aria-label={`Odepnij kategorię ${group.category}`}
+          >
+            Odepnij
+          </button>
+        )}
+      </h3>
+      <ul className={styles.items} aria-label={group.category}>
+        {group.items.map((item) => (
+          <ItemRow key={item.id} item={item} userId={userId} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function useCategoryPin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ category, after, before }: CategoryDrop) =>
+      put<ShoppingList>(categoryPath(category), { after, before }),
+    // Optymistycznie, jak przy odhaczaniu: grupa zostaje tam, gdzie ją upuszczono.
+    onMutate: async (drop) => {
+      await queryClient.cancelQueries({ queryKey: keys.list });
+      const previous = queryClient.getQueryData<ShoppingList>(keys.list);
+      if (previous) queryClient.setQueryData(keys.list, reorderGroups(previous, drop.order, drop.category));
+      return { previous };
+    },
+    onError: (_e, _v, context) => queryClient.setQueryData(keys.list, context?.previous),
+    onSuccess: (data) => queryClient.setQueryData(keys.list, data),
+  });
+}
+
 export function ListView({ userId }: { userId: number }) {
   const list = useShoppingList();
   const finish = useListMutation(() => post<ShoppingList>("/api/list/finish"));
+  const resetOrder = useListMutation(() => del<ShoppingList>("/api/list/category-order"));
+  const pin = useCategoryPin();
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: TOUCH_HOLD_MS, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   const groups = list.data?.groups ?? [];
+  const order = groups.map((g) => g.category);
   const anyBought = groups.some((g) => g.items.some((i) => i.bought));
+  const anyPinned = groups.some((g) => g.pinned);
 
   function confirmFinish() {
     if (window.confirm("Zakończyć zakupy? Kupione pozycje zostaną usunięte z listy.")) {
@@ -183,15 +292,37 @@ export function ListView({ userId }: { userId: number }) {
     }
   }
 
+  function confirmResetOrder() {
+    if (window.confirm("Przywrócić automatyczną kolejność kategorii? Wszystkie przypięcia zostaną usunięte.")) {
+      resetOrder.mutate(undefined);
+    }
+  }
+
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    const drop = dropCategory(order, active.id as Category, (over?.id as Category | undefined) ?? null);
+    if (drop) pin.mutate(drop);
+  }
+
   return (
     <section className={styles.view} aria-label="Lista zakupów">
       <div className={styles.toolbar}>
         <h2>Lista</h2>
-        {anyBought && (
-          <button onClick={confirmFinish} disabled={finish.isPending}>
-            Zakończ zakupy
-          </button>
-        )}
+        <div className={styles.actions}>
+          {anyPinned && (
+            <button
+              onClick={confirmResetOrder}
+              disabled={resetOrder.isPending}
+              title="Przywróć automatyczną kolejność kategorii"
+            >
+              Przywróć kolejność
+            </button>
+          )}
+          {anyBought && (
+            <button onClick={confirmFinish} disabled={finish.isPending}>
+              Zakończ zakupy
+            </button>
+          )}
+        </div>
       </div>
       {list.isLoading && <p className="muted">Ładowanie…</p>}
       {list.data && groups.length === 0 && (
@@ -199,16 +330,24 @@ export function ListView({ userId }: { userId: number }) {
           Lista jest pusta. Napisz w czacie, czego potrzebujesz, albo dodaj produkt poniżej.
         </p>
       )}
-      {groups.map((group) => (
-        <div key={group.category} className={styles.group}>
-          <h3>{group.category}</h3>
-          <ul className={styles.items} aria-label={group.category}>
-            {group.items.map((item) => (
-              <ItemRow key={item.id} item={item} userId={userId} />
-            ))}
-          </ul>
-        </div>
-      ))}
+      {pin.error && (
+        <p className="error">
+          {pin.error instanceof ApiError ? pin.error.message : "Nie udało się zapisać kolejności."}
+        </p>
+      )}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={[verticalOnly]}
+        onDragEnd={handleDragEnd}
+        accessibility={{ announcements, screenReaderInstructions }}
+      >
+        <SortableContext items={order} strategy={verticalListSortingStrategy}>
+          {groups.map((group) => (
+            <GroupSection key={group.category} group={group} userId={userId} />
+          ))}
+        </SortableContext>
+      </DndContext>
       <AddItemForm />
     </section>
   );

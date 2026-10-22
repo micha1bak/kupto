@@ -93,7 +93,7 @@ Wymagania: dotyk na Androidzie i iOS Safari z aktywacją po przytrzymaniu, możl
 - Nagłówek ma `touch-action: manipulation` (przewijanie nadal działa) i `user-select: none` / `-webkit-touch-callout: none`, żeby przytrzymanie na iOS nie zaznaczało tekstu ani nie otwierało menu.
 - Przesuwana jest cała grupa (nagłówek z pozycjami), ruch ograniczony do osi pionowej prostym modyfikatorem; przeciągana grupa jest wyróżniona.
 - Po upuszczeniu: optymistycznie przestawione grupy w cache z `pinned: true` dla przeniesionej, potem `PUT`; odpowiedź zastępuje cache, błąd przywraca poprzedni stan (wzorzec jak przy odhaczaniu). Wyliczenie sąsiadów z wyniku upuszczenia to czysta funkcja testowana jednostkowo.
-- Przy przypiętej grupie: znacznik 📌 i przycisk „Odepnij” (poza obszarem uchwytu, żeby Enter/Spacja na przycisku nie zaczynały przeciągania z klawiatury). W pasku narzędzi: „Przywróć automatyczną kolejność”, gdy którakolwiek widoczna grupa jest przypięta.
+- Przy przypiętej grupie: znacznik 📌 i przycisk „Odepnij” (poza obszarem uchwytu, żeby Enter/Spacja na przycisku nie zaczynały przeciągania z klawiatury). W pasku narzędzi: „Przywróć kolejność” (podpowiedź: „Przywróć automatyczną kolejność kategorii”, krótki napis mieści się na wąskim ekranie obok „Zakończ zakupy”), z potwierdzeniem jak przy kończeniu zakupów, gdy którakolwiek widoczna grupa jest przypięta.
 
 ## Risks / Trade-offs
 

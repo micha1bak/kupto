@@ -71,9 +71,23 @@ export interface Item {
   bought_by: string | null;
 }
 
+export interface CategoryGroup {
+  category: Category;
+  /** Czy zalogowany użytkownik przypiął tę kategorię na jej miejscu. */
+  pinned: boolean;
+  items: Item[];
+}
+
 export interface ShoppingList {
   id: number;
-  groups: { category: Category; items: Item[] }[];
+  /** Grupy w kolejności kategorii zalogowanego użytkownika. */
+  groups: CategoryGroup[];
+}
+
+/** Sąsiedzi przeniesionej kategorii; brak sąsiada oznacza początek albo koniec kolejności. */
+export interface CategoryMove {
+  after: Category | null;
+  before: Category | null;
 }
 
 export interface ChatMessage {

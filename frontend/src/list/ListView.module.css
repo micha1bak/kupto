@@ -16,12 +16,64 @@
   margin: 0;
 }
 
-.group h3 {
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.group {
+  background: var(--bg);
+  border-radius: var(--radius);
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
   margin: 0 0 0.4rem;
+}
+
+/* Uchwyt przeciągania: przewijanie palcem nadal działa, a przytrzymanie nie zaznacza tekstu (iOS). */
+.handle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0;
+  cursor: grab;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.pin {
+  font-size: 0.8rem;
+}
+
+.unpin {
+  font-size: 0.75rem;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 0.2rem 0.55rem;
+}
+
+.dragging {
+  position: relative;
+  z-index: 1;
+  opacity: 0.9;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
+}
+
+.dragging .handle {
+  cursor: grabbing;
+  color: var(--accent);
 }
 
 .items {
