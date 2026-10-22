@@ -63,11 +63,13 @@ function fakeEnv({
   return { env, pushManager, notification, current: () => subscription };
 }
 
-const ALL_ON = {
+// Domyślne ustawienia: przypomnienia o zwykłych produktach (#40) wyłączone, reszta włączona.
+const DEFAULTS = {
   types: [
     { type: "shopping_started", enabled: true },
     { type: "items_added", enabled: true },
     { type: "shopping_finished", enabled: true },
+    { type: "usual_reminder", enabled: false },
   ],
 };
 
@@ -76,7 +78,7 @@ function serverWithKey(routes: Record<string, unknown> = {}) {
     "GET /api/push/public-key": { public_key: SERVER_KEY },
     "PUT /api/push/subscriptions": () => jsonResponse(null, 204),
     "DELETE /api/push/subscriptions": () => jsonResponse(null, 204),
-    "GET /api/push/preferences": ALL_ON,
+    "GET /api/push/preferences": DEFAULTS,
     ...routes,
   });
 }
@@ -187,7 +189,7 @@ describe("NotificationSettings", () => {
       "GET /api/push/public-key": { public_key: SERVER_KEY },
       "PUT /api/push/subscriptions": () =>
         jsonResponse({ detail: "Ta przeglądarka używa nieobsługiwanej usługi powiadomień." }, 422),
-      "GET /api/push/preferences": ALL_ON,
+      "GET /api/push/preferences": DEFAULTS,
     });
     const { env } = fakeEnv();
     renderWithProviders(<NotificationSettings env={env} />);
@@ -205,6 +207,7 @@ describe("NotificationSettings — typy powiadomień", () => {
           { type: "shopping_started", enabled: false },
           { type: "items_added", enabled: true },
           { type: "shopping_finished", enabled: true },
+          { type: "usual_reminder", enabled: false },
           { type: "nieznany_typ", enabled: true },
         ],
       },
@@ -216,8 +219,9 @@ describe("NotificationSettings — typy powiadomień", () => {
     expect(started).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: /Dopisano w trakcie/ })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: /Zakupy zakończone/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Zwykłe produkty/ })).not.toBeChecked();
     // Typ nieznany frontendowi (nowszy backend) jest pomijany.
-    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(4);
   });
 
   it("zmiana przełącznika zapisuje ustawienie", async () => {
@@ -225,7 +229,7 @@ describe("NotificationSettings — typy powiadomień", () => {
       "PUT /api/push/preferences/shopping_started": (_url: string, init: RequestInit) => {
         const { enabled } = JSON.parse(init.body as string);
         return jsonResponse({
-          types: [{ type: "shopping_started", enabled }, ...ALL_ON.types.slice(1)],
+          types: [{ type: "shopping_started", enabled }, ...DEFAULTS.types.slice(1)],
         });
       },
     });

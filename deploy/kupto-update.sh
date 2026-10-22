@@ -6,8 +6,12 @@ set -euo pipefail
 
 repo=/opt/kupto/repo
 env_file=/opt/kupto/.env
-units=(kupto-update.service kupto-update.timer kupto-backup.service kupto-backup.timer)
-timers=(kupto-update.timer kupto-backup.timer)
+units=(
+  kupto-update.service kupto-update.timer
+  kupto-backup.service kupto-backup.timer
+  kupto-reminders.service kupto-reminders.timer
+)
+timers=(kupto-update.timer kupto-backup.timer kupto-reminders.timer)
 
 compose() {
   docker compose --project-directory "$repo/deploy" --env-file "$env_file" \

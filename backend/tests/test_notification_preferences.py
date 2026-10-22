@@ -8,11 +8,13 @@ from kupto.config import Settings
 from kupto.push import preferences
 from kupto.push.notification import NotificationType
 
-ALL_ON = {
+# Przypomnienia o zwykłych produktach (#40) są domyślnie wyłączone, pozostałe typy włączone.
+DEFAULTS = {
     "types": [
         {"type": "shopping_started", "enabled": True},
         {"type": "items_added", "enabled": True},
         {"type": "shopping_finished", "enabled": True},
+        {"type": "usual_reminder", "enabled": False},
     ]
 }
 
@@ -52,13 +54,13 @@ async def set_preference(client, notification_type: str, enabled: bool):
 # --- API ---
 
 
-async def test_all_types_enabled_by_default(login_as):
+async def test_defaults(login_as):
     ala = await login_as("ala")
 
     response = await ala.get("/api/push/preferences")
 
     assert response.status_code == 200
-    assert response.json() == ALL_ON
+    assert response.json() == DEFAULTS
 
 
 async def test_disabling_one_type_keeps_others_and_other_users(login_as):
@@ -68,11 +70,11 @@ async def test_disabling_one_type_keeps_others_and_other_users(login_as):
     response = await set_preference(ala, "shopping_started", False)
 
     assert response.status_code == 200
-    expected = {"types": [{"type": "shopping_started", "enabled": False}, *ALL_ON["types"][1:]]}
+    expected = {"types": [{"type": "shopping_started", "enabled": False}, *DEFAULTS["types"][1:]]}
     assert response.json() == expected
     # Ten sam stan przy kolejnym odczycie (np. na innym urządzeniu), u oli bez zmian.
     assert (await ala.get("/api/push/preferences")).json() == expected
-    assert (await ola.get("/api/push/preferences")).json() == ALL_ON
+    assert (await ola.get("/api/push/preferences")).json() == DEFAULTS
 
 
 async def test_setting_is_idempotent_and_reversible(login_as):
@@ -82,7 +84,18 @@ async def test_setting_is_idempotent_and_reversible(login_as):
     await set_preference(ala, "items_added", False)
     response = await set_preference(ala, "items_added", True)
 
-    assert response.json() == ALL_ON
+    assert response.json() == DEFAULTS
+
+
+async def test_reminders_can_be_enabled(login_as):
+    ala = await login_as("ala")
+
+    response = await set_preference(ala, "usual_reminder", True)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "types": [*DEFAULTS["types"][:3], {"type": "usual_reminder", "enabled": True}]
+    }
 
 
 async def test_unknown_type_is_rejected(login_as):
@@ -91,7 +104,7 @@ async def test_unknown_type_is_rejected(login_as):
     response = await set_preference(ala, "spam", False)
 
     assert response.status_code == 422
-    assert (await ala.get("/api/push/preferences")).json() == ALL_ON
+    assert (await ala.get("/api/push/preferences")).json() == DEFAULTS
 
 
 @pytest.mark.parametrize("enabled", ["nie", None])

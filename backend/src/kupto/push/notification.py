@@ -18,6 +18,7 @@ class NotificationType(StrEnum):
     SHOPPING_STARTED = "shopping_started"  # #29 „X idzie na zakupy”
     ITEMS_ADDED = "items_added"  # #30 „Dopisano w trakcie” (tylko do kupujących)
     SHOPPING_FINISHED = "shopping_finished"  # #31 „Zakupy zakończone” z brakami
+    USUAL_REMINDER = "usual_reminder"  # #40 codzienne przypomnienie o zwykłych produktach
 
 
 @dataclass(frozen=True)

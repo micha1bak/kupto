@@ -159,7 +159,11 @@ export interface TripPage {
 }
 
 /** Typ powiadomienia push; backend może znać typy, których ten frontend jeszcze nie zna. */
-export type NotificationType = "shopping_started" | "items_added" | "shopping_finished";
+export type NotificationType =
+  | "shopping_started"
+  | "items_added"
+  | "shopping_finished"
+  | "usual_reminder";
 
 /** Ustawienia typów powiadomień zalogowanego użytkownika (wszystkie jego urządzenia). */
 export interface NotificationPreferences {

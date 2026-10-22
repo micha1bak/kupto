@@ -154,6 +154,36 @@ różnicę w `root_block_device`, a `terraform apply` przywróci tag (zmiana w m
 Alternatywa: AWS Backup → Protected resources → Restore tworzy osobny wolumen ze snapshotu
 (rola `kupto-backup`), który można podpiąć ręcznie.
 
+## Przypomnienia o zwykłych produktach (#40)
+
+`kupto-reminders.timer` codziennie o **17:00 czasu polskiego** (`OnCalendar` ze strefą
+`Europe/Warsaw`, więc zmiana czasu nie przesuwa godziny) uruchamia `kupto-reminders.sh`:
+`docker compose exec -T backend python -m kupto.history.reminders` pod blokadą
+`/run/kupto.lock` (wdrożenie nie odtworzy backendu w trakcie wysyłki). Komenda przechodzi po
+gospodarstwach i wysyła push „Zwykle o tej porze kupujecie” członkom, którzy włączyli typ
+„Zwykłe produkty” (domyślnie wyłączony) i mają urządzenie z powiadomieniami.
+
+Limity pilnuje kod, więc ręczne lub nadrobione uruchomienie niczego nie dubluje: najwyżej
+jedno przypomnienie na gospodarstwo na dobę czasu polskiego, wysyłka tylko między 9:00 a 21:00
+czasu polskiego (`Persistent=true` nadrabia pominięte uruchomienie po starcie serwera, ale nie
+w nocy) i tylko gdy jest produkt, o którym gospodarstwo nie dostało przypomnienia od jego
+ostatniego zakupu (tabela `usual_reminders`). Bez kluczy VAPID komenda nic nie robi.
+
+Timer instaluje i włącza `kupto-update.sh` (tablice `units` i `timers`) — po merge działa
+najpóźniej po dwóch tickach, bez ręcznych kroków.
+
+Sprawdzenie i ręczne uruchomienie (jako root):
+
+```bash
+systemctl list-timers kupto-reminders.timer   # następne uruchomienie: 17:00 CET/CEST
+systemctl start kupto-reminders               # od razu (w oknie 9–21, limity jak zwykle)
+journalctl -u kupto-reminders -n 20           # „Przypomnienia o zwykłych produktach: N z M gospodarstw.”
+```
+
+Wyłączenie: `systemctl disable --now kupto-reminders.timer` działa tylko do najbliższego ticku
+`kupto-update` (włącza timery z tablicy `timers`) — na stałe trzeba usunąć timer z `timers`
+w repo. Użytkownik wyłącza przypomnienia sam, przełącznikiem na stronie gospodarstwa.
+
 ## Diagnostyka
 
 Powłoka na serwerze: `aws ssm start-session --profile kupto --target <instance_id>`.
@@ -161,6 +191,7 @@ Powłoka na serwerze: `aws ssm start-session --profile kupto --target <instance_
 - `systemctl list-timers kupto-update.timer` — kiedy następne sprawdzenie,
 - `journalctl -u kupto-update -n 50` — wynik ostatnich wdrożeń,
 - `systemctl list-timers 'kupto-*'`, `journalctl -u kupto-backup -n 20` — zrzuty bazy,
+- `journalctl -u kupto-reminders -n 20` — przypomnienia o zwykłych produktach,
 - `docker compose -p kupto ps` / `docker compose -p kupto logs backend` — stan aplikacji,
 - `docker compose -p kupto logs caddy` — wydawanie i odnawianie certyfikatu.
 
