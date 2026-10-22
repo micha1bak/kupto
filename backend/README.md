@@ -76,7 +76,7 @@ trwała ok. 1,9 s (120b) i 1,1 s (20b).
 
 **Wybrany model: `openai/gpt-oss-120b` na Groq.** Jako jedyny przeszedł wszystkie scenariusze
 w obu przebiegach. `gpt-oss-20b` jest o połowę tańszy, ale robi realne błędy (zła kategoria,
-zduplikowane zapotrzebowanie, źle zrozumiane potwierdzenie z wyjątkiem). Przy cenie rzędu 0,1 grosza
+zduplikowane zapotrzebowanie, źle zrozumiane potwierdzenie z wyjątkiem). Przy cenie poniżej 0,5 grosza
 za wiadomość ta oszczędność nie uzasadnia gorszej jakości. Qwen nie nadaje się do produkcji (model
 preview, wycieka rozumowanie, pomija narzędzia). Błędy obu tańszych modeli to błędy modelu, nie
 promptu (ten sam prompt na 120b przechodzi w całości), więc prompt został bez zmian. Domyślne
