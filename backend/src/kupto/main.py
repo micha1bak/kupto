@@ -12,10 +12,12 @@ from kupto.errors import register_error_handlers
 from kupto.households.router import router as households_router
 from kupto.lists.events import ListEventBroker
 from kupto.lists.router import router as list_router
+from kupto.logs import configure_logging
 
 
 def create_app(settings: Settings | None = None, llm_client: LLMClient | None = None) -> FastAPI:
     settings = settings or get_settings()
+    configure_logging(settings.log_level)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:

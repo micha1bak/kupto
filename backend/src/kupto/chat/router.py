@@ -1,6 +1,7 @@
 import json
 import logging
 import math
+import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta
 from typing import Annotated, Literal
@@ -11,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kupto.chat.agent import Delta, ListChanged, run_agent
+from kupto.chat.agent import AgentStats, Delta, ListChanged, run_agent
 from kupto.chat.llm import LLMClient, LLMUnavailable, OpenAIResponsesClient
 from kupto.chat.prompt import build_input, build_instructions
 from kupto.chat.tools import ToolContext, clear_pending_action, list_snapshot
@@ -148,6 +149,9 @@ async def _stream_reply(
             await _history(session, user, household), settings.chat_history_limit
         )
         reply: list[str] = []
+        stats = AgentStats()
+        started = time.monotonic()
+        outcome = "cancelled"  # klient zamknął strumień przed końcem odpowiedzi
         try:
             async for event in run_agent(
                 llm,
@@ -155,19 +159,32 @@ async def _stream_reply(
                 instructions=instructions,
                 input=conversation,
                 max_tool_rounds=settings.chat_max_tool_rounds,
+                stats=stats,
             ):
                 if isinstance(event, Delta):
                     reply.append(event.text)
                     yield _sse("delta", {"text": event.text})
                 elif isinstance(event, ListChanged):
                     yield _sse("list_changed", {})
+            outcome = "ok"
         except LLMUnavailable as exc:
-            logger.warning("Model niedostępny: %s", exc)
+            outcome = "llm_unavailable"
+            logger.warning(
+                "Model niedostępny: %s",
+                exc,
+                extra={"user_id": user_id, "household_id": household_id},
+            )
             yield _sse("error", {"message": UNAVAILABLE_MESSAGE})
         except Exception:
-            logger.exception("Nieoczekiwany błąd podczas obsługi wiadomości czatu")
+            outcome = "error"
+            logger.exception(
+                "Nieoczekiwany błąd podczas obsługi wiadomości czatu",
+                extra={"user_id": user_id, "household_id": household_id},
+            )
             await session.rollback()
             yield _sse("error", {"message": UNAVAILABLE_MESSAGE})
+        finally:
+            _log_usage(settings, stats, outcome, time.monotonic() - started, user_id, household_id)
         text = "".join(reply).strip()
         if text:
             session.add(
@@ -177,6 +194,37 @@ async def _stream_reply(
             )
             await session.commit()
         yield _sse("done", {})
+
+
+def _log_usage(
+    settings: Settings,
+    stats: AgentStats,
+    outcome: str,
+    duration: float,
+    user_id: int,
+    household_id: int,
+) -> None:
+    """Zdarzenie `llm_usage` dla podsumowań kosztów (deploy/kupto-usage.sh) — bez treści."""
+    logger.info(
+        "Zużycie modelu: %d wej. / %d wyj. tokenów",
+        stats.input_tokens,
+        stats.output_tokens,
+        extra={
+            "event": "llm_usage",
+            "outcome": outcome,
+            "model": settings.openai_model,
+            "user_id": user_id,
+            "household_id": household_id,
+            "input_tokens": stats.input_tokens,
+            "output_tokens": stats.output_tokens,
+            "cached_tokens": stats.cached_tokens,
+            "reasoning_tokens": stats.reasoning_tokens,
+            "model_calls": stats.model_calls,
+            "tool_rounds": stats.tool_rounds,
+            "tool_calls": stats.tool_calls,
+            "duration_ms": round(duration * 1000),
+        },
+    )
 
 
 def _sse(event: str, data: dict) -> str:

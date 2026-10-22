@@ -1,5 +1,6 @@
 import pytest
 from openai.types.responses import (
+    ResponseCompletedEvent,
     ResponseFunctionToolCall,
     ResponseOutputItemDoneEvent,
     ResponseTextDeltaEvent,
@@ -10,6 +11,7 @@ from kupto.chat.llm import (
     LLMUnavailable,
     TextDelta,
     ToolCall,
+    Usage,
     map_stream_event,
 )
 
@@ -53,6 +55,44 @@ def test_failure_events_raise(event_type):
 
     with pytest.raises(LLMUnavailable):
         map_stream_event(Event())
+
+
+def completed_event(usage):
+    return ResponseCompletedEvent.model_validate(
+        {
+            "type": "response.completed",
+            "sequence_number": 9,
+            "response": {
+                "id": "resp_1",
+                "object": "response",
+                "created_at": 0,
+                "model": "openai/gpt-oss-120b",
+                "output": [],
+                "parallel_tool_calls": True,
+                "tool_choice": "auto",
+                "tools": [],
+                "usage": usage,
+            },
+        }
+    )
+
+
+def test_completed_event_is_mapped_to_usage():
+    event = completed_event(
+        {
+            "input_tokens": 1200,
+            "input_tokens_details": {"cached_tokens": 1024, "cache_write_tokens": 0},
+            "output_tokens": 85,
+            "output_tokens_details": {"reasoning_tokens": 40},
+            "total_tokens": 1285,
+        }
+    )
+
+    assert map_stream_event(event) == Usage(1200, 85, cached_tokens=1024, reasoning_tokens=40)
+
+
+def test_completed_event_without_usage_is_ignored():
+    assert map_stream_event(completed_event(None)) is None
 
 
 def test_other_events_are_ignored():
