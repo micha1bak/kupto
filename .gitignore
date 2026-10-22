@@ -16,6 +16,7 @@ frontend/dist/
 !README.md
 !backend/**/*.md
 !frontend/**/*.md
+!docs/**/*.md
 !openspec/**/*.md
 !.claude/skills/openspec-*/*.md
 !.claude/commands/opsx/*.md
