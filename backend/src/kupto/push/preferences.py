@@ -19,6 +19,8 @@ DEFAULT_ENABLED: dict[NotificationType, bool] = {
     NotificationType.SHOPPING_STARTED: True,
     NotificationType.ITEMS_ADDED: True,
     NotificationType.SHOPPING_FINISHED: True,
+    # Przypomnienia generuje aplikacja, codziennie — włącza się je świadomie (#40, design D4).
+    NotificationType.USUAL_REMINDER: False,
 }
 
 

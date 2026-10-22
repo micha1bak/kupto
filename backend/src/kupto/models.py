@@ -300,6 +300,22 @@ class NotificationPreference(Base):
     updated_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
+class UsualReminder(Base):
+    """Kiedy gospodarstwo dostało ostatnio przypomnienie push o zwykłym produkcie (#40).
+
+    Najnowszy `reminded_at` gospodarstwa to chwila ostatniego przypomnienia (limit dzienny);
+    produkt wraca w przypomnieniu dopiero po kolejnym zakupie (`kupto.history.reminders`).
+    """
+
+    __tablename__ = "usual_reminders"
+
+    household_id: Mapped[int] = mapped_column(
+        ForeignKey("households.id", ondelete="CASCADE"), primary_key=True
+    )
+    normalized_name: Mapped[str] = mapped_column(String(100), primary_key=True)
+    reminded_at: Mapped[datetime]
+
+
 class ChatPendingAction(Base):
     __tablename__ = "chat_pending_actions"
 

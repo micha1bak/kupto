@@ -303,3 +303,35 @@ async def test_notification_preferences_migration_keeps_existing_data(empty_data
 
     await migrate(empty_database, "up", "head")
     assert await table_exists(empty_database, "notification_preferences")
+
+
+async def test_usual_reminders_migration_keeps_existing_data(empty_database):
+    await migrate(empty_database, "up", "0007")
+    await execute(
+        empty_database,
+        *SEED_STATEMENTS,
+        "INSERT INTO notification_preferences (user_id, type, enabled, updated_at) VALUES "
+        "(1, 'usual_reminder', true, now())",
+    )
+    tables = (*EXISTING_TABLES, *HISTORY_TABLES, "notification_preferences")
+    before = await snapshot(empty_database, tables)
+
+    await migrate(empty_database, "up", "0008")
+
+    assert await snapshot(empty_database, tables) == before
+    assert await snapshot(empty_database, ("usual_reminders",)) == {"usual_reminders": []}
+    # Jeden wpis na produkt gospodarstwa, tylko dla istniejących gospodarstw.
+    insert = "INSERT INTO usual_reminders (household_id, normalized_name, reminded_at) VALUES "
+    await execute(empty_database, insert + "(1, 'mleko', now()), (1, 'chleb', now())")
+    with pytest.raises(IntegrityError):
+        await execute(empty_database, insert + "(1, 'mleko', now())")
+    with pytest.raises(IntegrityError):
+        await execute(empty_database, insert + "(99, 'mleko', now())")
+
+    await migrate(empty_database, "down", "0007")
+
+    assert not await table_exists(empty_database, "usual_reminders")
+    assert await snapshot(empty_database, tables) == before
+
+    await migrate(empty_database, "up", "head")
+    assert await table_exists(empty_database, "usual_reminders")
