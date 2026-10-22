@@ -10,6 +10,7 @@
 
 .banner p {
   flex: 1;
+  min-width: 0;
   margin: 0;
 }
 

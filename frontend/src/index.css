@@ -35,9 +35,28 @@
   box-sizing: border-box;
 }
 
+/* iOS nie powiększa samowolnie tekstu po obróceniu telefonu. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Przy viewport-fit=cover treść sięga pod notch i wskaźnik ekranu głównego, więc boczne wcięcia
+   (iPhone w poziomie) bierze body; górne i dolne — nagłówek i dół poszczególnych widoków. */
 body {
   margin: 0;
   background: var(--bg);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Tylko zabezpieczenie (#76): przyczyny poziomego przewijania są naprawione w samych widokach
+   (zawijanie nagłówka, minmax(0, 1fr), overflow-wrap). Gdyby coś znów wystawało poza ekran,
+   iOS nie rozszerzy przez to widoku ani nie pozwoli przewijać go w bok; `clip` w odróżnieniu
+   od `hidden` nie tworzy kontenera przewijania i nie psuje position: sticky. */
+html,
+body {
+  overflow-x: clip;
 }
 
 button,
@@ -56,6 +75,8 @@ textarea {
   border-radius: 8px;
   padding: 0.55rem 0.7rem;
   min-width: 0;
+  /* Poniżej 16 px Safari na iOS powiększa stronę przy fokusie i widok „rozjeżdża się” w bok. */
+  font-size: max(16px, 1em);
 }
 
 button {
