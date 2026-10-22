@@ -17,6 +17,7 @@ from kupto.config import Settings
 from kupto.db import Base
 from kupto.main import create_app
 from kupto.models import PurchasedItem, ShoppingTrip
+from kupto.push.notifier import PushTransport
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
@@ -59,10 +60,20 @@ def llm_client(fake_llm: FakeLLMClient) -> LLMClient:
 
 
 @pytest.fixture
-async def app(settings: Settings, llm_client: LLMClient) -> AsyncIterator[FastAPI]:
-    app = create_app(settings, llm_client=llm_client)
+def push_transport() -> PushTransport | None:
+    """Transport powiadomień push; testy powiadomień podmieniają go na atrapę."""
+    return None
+
+
+@pytest.fixture
+async def app(
+    settings: Settings, llm_client: LLMClient, push_transport: PushTransport | None
+) -> AsyncIterator[FastAPI]:
+    app = create_app(settings, llm_client=llm_client, push_transport=push_transport)
     yield app
-    await app.state.list_events.close()  # ASGITransport nie uruchamia lifespan
+    # ASGITransport nie uruchamia lifespan.
+    await app.state.list_events.close()
+    await app.state.notifier.aclose()
     tables = ", ".join(t.name for t in Base.metadata.sorted_tables)
     async with app.state.sessionmaker() as session:
         await session.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))

@@ -40,6 +40,8 @@ Wszystkie jako `SecureString` w regionie `eu-north-1`, nazwy = zmienne środowis
 | `/kupto/OPENAI_MODEL` | `openai/gpt-oss-120b` |
 | `/kupto/CHAT_RATE_LIMIT_PER_HOUR` | `30` |
 | `/kupto/KUPTO_DOMAIN` | `kupto.bakweb.pl` — rekord A na Elastic IP z `infra/` (DNS w SEOHOST) |
+| `/kupto/VAPID_PUBLIC_KEY`, `/kupto/VAPID_PRIVATE_KEY` | para kluczy Web Push z `uv run python -m kupto.push.keys` (niżej); opcjonalne — bez nich powiadomienia są wyłączone |
+| `/kupto/VAPID_SUBJECT` | `https://kupto.bakweb.pl` (kontakt dla usług push; może być też `mailto:…`) |
 
 Wyjątek: `/kupto/BACKUP_BUCKET` (`String`, nazwa bucketu na zrzuty bazy) tworzy Terraform
 (`infra/storage.tf`) — nie ustawia się go ręcznie.
@@ -52,6 +54,26 @@ read -rsp 'Klucz Groq: ' KEY && echo && aws ssm put-parameter --profile kupto --
 
 Zmiana sekretu działa przy najbliższym ticku timera (odtwarzany jest kontener, którego
 zmienne się zmieniły).
+
+### Klucze powiadomień push (VAPID, #27)
+
+Jednorazowo, z katalogu `backend/` (klucze trafiają do zmiennych powłoki, nie na ekran ani do
+historii). Bez `--overwrite`: nowa para kluczy unieważnia subskrypcje wszystkich urządzeń, więc
+istniejących parametrów nie nadpisujemy przypadkiem.
+
+```bash
+cd backend && eval "$(uv run python -m kupto.push.keys)" \
+  && aws ssm put-parameter --profile kupto --name /kupto/VAPID_PUBLIC_KEY --type SecureString --value "$VAPID_PUBLIC_KEY" \
+  && aws ssm put-parameter --profile kupto --name /kupto/VAPID_PRIVATE_KEY --type SecureString --value "$VAPID_PRIVATE_KEY" \
+  && aws ssm put-parameter --profile kupto --cli-input-json '{"Name": "/kupto/VAPID_SUBJECT", "Type": "SecureString", "Value": "https://kupto.bakweb.pl"}'
+unset VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY
+```
+
+(`--cli-input-json` dla adresu URL: AWS CLI v1 traktuje wartość `https://…` z `--value` jako
+adres do pobrania.) Po najbliższym ticku `docker compose -p kupto logs backend` nie powinien
+zawierać „Powiadomienia push wyłączone”, a w aplikacji (strona gospodarstwa) pojawi się
+przycisk „Włącz powiadomienia”. Błędne lub niepasujące klucze nie zatrzymują backendu — tylko
+wyłączają powiadomienia z błędem w logu.
 
 ## Instalacja na nowym serwerze
 

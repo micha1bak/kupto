@@ -65,7 +65,7 @@ Transport (`PushTransport`) jest wstrzykiwany: domyślny opakowuje `webpush_asyn
 ### D8. Service worker
 
 - `push`: parsuje JSON (niepoprawny → ogólne „Kupto”), `showNotification(title, {body, tag, renotify: !!tag, icon, badge, data: {url, type}})`. Zawsze pokazuje powiadomienie (`userVisibleOnly`).
-- `notificationclick`: zamyka powiadomienie; szuka okien aplikacji (`clients.matchAll({type: "window", includeUncontrolled: true})`); jest okno → `focus()` (i `navigate(url)`, gdy jest na innej ścieżce); brak → `clients.openWindow(url)`. URL ograniczony do tej samej domeny (inaczej `/`).
+- `notificationclick`: zamyka powiadomienie; szuka okien aplikacji (`clients.matchAll({type: "window", includeUncontrolled: true})`); jest okno → `focus()` (preferowane okno już otwarte na adresie z powiadomienia; bez `navigate`, żeby przeładowanie nie przerwało np. pisanej wiadomości w czacie); brak → `clients.openWindow(url)`. URL ograniczony do tej samej domeny (inaczej `/`).
 - Routing `fetch` bez zmian: `/api/*` nadal z pominięciem SW.
 
 ### D9. Frontend: stan i miejsce przycisku

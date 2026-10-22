@@ -13,17 +13,25 @@ from kupto.households.router import router as households_router
 from kupto.lists.events import ListEventBroker
 from kupto.lists.router import router as list_router
 from kupto.logs import configure_logging
+from kupto.push.notifier import Notifier, PushTransport
+from kupto.push.router import router as push_router
 
 
-def create_app(settings: Settings | None = None, llm_client: LLMClient | None = None) -> FastAPI:
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    yield
+    await app.state.list_events.close()
+    # Daje dokończyć zaplanowane wysyłki push i zamyka sesję HTTP do usług push.
+    await app.state.notifier.aclose()
+
+
+def create_app(
+    settings: Settings | None = None,
+    llm_client: LLMClient | None = None,
+    push_transport: PushTransport | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
-
-    @asynccontextmanager
-    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        yield
-        await app.state.list_events.close()
-
     app = FastAPI(
         title="Kupto",
         version="2.0.0",
@@ -36,11 +44,16 @@ def create_app(settings: Settings | None = None, llm_client: LLMClient | None = 
     # Nasłuch LISTEN startuje leniwie przy pierwszym strumieniu zmian listy.
     app.state.list_events = ListEventBroker(settings.database_url)
     app.state.llm_client = llm_client  # None: klient OpenAI tworzony przy pierwszym użyciu
+    # Bez kluczy VAPID powiadomienia są wyłączone; `push_transport` podmieniają testy.
+    app.state.notifier = Notifier.from_settings(
+        settings, app.state.sessionmaker, transport=push_transport
+    )
     register_error_handlers(app)
     app.include_router(auth_router)
     app.include_router(households_router)
     app.include_router(list_router)
     app.include_router(chat_router)
+    app.include_router(push_router)
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:

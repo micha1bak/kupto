@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     # Podtrzymanie strumienia zmian listy (SSE) — poniżej limitów bezczynności proxy (nginx 300 s).
     list_events_heartbeat_seconds: float = Field(default=20.0, gt=0, le=30)
 
+    # Web Push (VAPID). Opcjonalne: bez kompletu poprawnych kluczy powiadomienia są wyłączone,
+    # a reszta aplikacji działa. Generowanie: `uv run python -m kupto.push.keys`.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = ""  # mailto:… albo https://…
+
 
 @lru_cache
 def get_settings() -> Settings:
