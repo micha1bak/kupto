@@ -68,10 +68,10 @@ Filtrowanie po `household` odbywa się w brokerze, więc subskrybent nigdy nie w
 
 ### D7. Frontend: `EventSource` + polling jako fallback
 
-- `EventSource` (ciasteczko sesji idzie samo, bo ten sam origin) zamiast fetch-stream: wbudowane ponowne łączenie po zerwaniu sieci i brak potrzeby własnych nagłówków. Gdy przeglądarka zamyka strumień na dobre (błąd HTTP, np. 503/409), klient sam próbuje ponownie z wykładniczym opóźnieniem (3 s → 60 s).
+- `EventSource` (ciasteczko sesji idzie samo, bo ten sam origin) zamiast fetch-stream: wbudowane ponowne łączenie po zerwaniu sieci i brak potrzeby własnych nagłówków. Gdy przeglądarka zamyka strumień na dobre (błąd HTTP, np. 503/409/401), klient od razu pobiera listę — 409 `no_household` przenosi wtedy do zakładania gospodarstwa, a 401 do logowania, tak jak przy zwykłych zapytaniach — i próbuje ponownie z wykładniczym opóźnieniem (3 s → 60 s).
 - Stan „na żywo” = otrzymano `ready` i nie było błędu. Wtedy `useShoppingList` nie polluje; w przeciwnym razie polluje co 30 s.
 - Każde `ready` po wcześniejszym połączeniu, każde `list_changed` i powrót karty (`visibilitychange`) unieważnia zapytanie listy. Karta w tle zamyka strumień (oszczędza baterię i połączenia), a po powrocie łączy się ponownie.
-- Połączenie jest jedno na aplikację (licznik odwołań), niezależnie od liczby komponentów używających listy.
+- Połączenie żyje tak długo jak komponent korzystający z `useShoppingList` (dziś jeden: `ListView`, zamontowany przez cały czas pracy z aplikacją, także na zakładce czatu) — bez zmian w `ListView.tsx`.
 
 ### D8. nginx i Caddy bez zmian
 

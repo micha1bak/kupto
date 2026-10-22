@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { App } from "./App";
+import { FakeEventSource } from "./test/fakeEventSource";
 import { jsonResponse, mockFetch } from "./test/utils";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -23,16 +24,20 @@ test("member removed from household is moved to setup instead of a stale list", 
         ? jsonResponse({ detail: "Najpierw utwórz gospodarstwo.", code: "no_household" }, 409)
         : jsonResponse({ id: 1, groups: [] }),
   });
+  FakeEventSource.instances = [];
+  vi.stubGlobal("EventSource", FakeEventSource);
   window.history.pushState({}, "", "/");
   render(<App />);
   await screen.findByRole("heading", { name: "Lista" });
+  act(() => FakeEventSource.last.emit("ready"));
 
-  removed = true; // właściciel usuwa olę; kolejny polling listy dostaje 409 no_household
+  // Właściciel usuwa olę: serwer kończy jej strumień zmian, a ponowne połączenie dostaje 409,
+  // więc przeglądarka zamyka strumień na dobre — lista jest pobierana ponownie i dostaje 409.
+  removed = true;
+  act(() => FakeEventSource.last.fail({ closed: true }));
 
-  expect(
-    await screen.findByRole("heading", { name: "Utwórz gospodarstwo" }, { timeout: 8000 }),
-  ).toBeInTheDocument();
-}, 10_000);
+  expect(await screen.findByRole("heading", { name: "Utwórz gospodarstwo" })).toBeInTheDocument();
+});
 
 test("user without household sees setup", async () => {
   mockFetch({ "GET /api/users/me": { id: 1, login: "ala", household: null } });
