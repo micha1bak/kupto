@@ -3,50 +3,62 @@
 Kolejność jest osobna dla każdego użytkownika i zapamiętana per produkt (znormalizowana
 nazwa), więc działa także przy kolejnym dodaniu produktu na listę. Przypięcie to kotwica
 (nieprzypięty produkt, za którym stoi przypięty, albo początek / koniec kategorii) i ranga
-wśród przypięć kategorii — zmiana product-order, design D2–D3.
+wśród przypięć kategorii — zmiana product-order, design D2–D3. Kolejność bazowa jest wyuczona
+z historii odhaczeń użytkownika (`kupto.lists.learned_order`, zmiana learned-order).
 """
 
 from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 from sqlalchemy import delete, insert, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kupto.errors import Conflict, DomainError, NotFound
 from kupto.lists import events
-from kupto.lists.ordering import Anchor, arrange_anchored
+from kupto.lists.learned_order import LearnedOrder, learned_order
+from kupto.lists.ordering import Anchor, arrange_anchored, learned
 from kupto.models import Category, Household, ListItem, ShoppingList, User, UserProductPin
 
 type Pins = Mapping[str, Anchor[str]]
+type Scores = Mapping[str, float]
+
+NO_SCORES: Scores = MappingProxyType({})
 
 
-def product_base_order(category: Category, names: Iterable[str]) -> list[str]:
+def product_base_order(
+    category: Category, names: Iterable[str], scores: Scores = NO_SCORES
+) -> list[str]:
     """Kolejność bazowa produktów kategorii, wokół której układają się przypięcia.
 
-    Dziś alfabetycznie po znormalizowanej nazwie; w #38 — kolejność wyuczona z historii
-    zakupów (dla zbioru `names`, w którym są też produkty chwilowo nieobecne na liście).
+    Kolejność wyuczona (`scores` po znormalizowanej nazwie) na tle alfabetycznej; produkty bez
+    wyniku zostają na swoich alfabetycznych miejscach (dla zbioru `names`, w którym są też
+    produkty chwilowo nieobecne na liście).
     """
-    return sorted(names)
+    return learned(sorted(names), scores)
 
 
-def full_order(category: Category, present: Collection[str], pins: Pins) -> list[str]:
+def full_order(
+    category: Category, present: Collection[str], pins: Pins, scores: Scores = NO_SCORES
+) -> list[str]:
     """Pełna kolejność kategorii: produkty obecne, przypięte i kotwice przypięć (design D2).
 
     Nieobecne produkty wyznaczają tylko względny układ — wywołujący je odfiltrowuje.
     """
     universe = {*present, *pins, *(a.after for a in pins.values() if a.after is not None)}
-    return arrange_anchored(product_base_order(category, universe), pins)
+    return arrange_anchored(product_base_order(category, universe, scores), pins)
 
 
 @dataclass(frozen=True)
 class ProductOrder:
-    """Przypięcia produktów jednego użytkownika, pogrupowane według kategorii."""
+    """Przypięcia produktów jednego użytkownika (według kategorii) i jego kolejność wyuczona."""
 
     pins: Mapping[Category, Pins] = field(default_factory=dict)
+    scores: Scores = field(default_factory=dict)
 
     def arrange(self, category: Category, items: Iterable[ListItem]) -> list[ListItem]:
         by_name = {item.normalized_name: item for item in items}
-        order = full_order(category, by_name.keys(), self.pins.get(category, {}))
+        order = full_order(category, by_name.keys(), self.pins.get(category, {}), self.scores)
         return [by_name[name] for name in order if name in by_name]
 
     def is_pinned(self, item: ListItem) -> bool:
@@ -56,12 +68,17 @@ class ProductOrder:
 BASE = ProductOrder()
 
 
-async def get_order(session: AsyncSession, user: User) -> ProductOrder:
+async def get_order(
+    session: AsyncSession, user: User, learned_from: LearnedOrder | None = None
+) -> ProductOrder:
+    """Kolejność produktów użytkownika; `learned_from` pozwala nie liczyć nauki drugi raz."""
+    if learned_from is None:
+        learned_from = await learned_order(session, user)
     rows = await session.scalars(select(UserProductPin).where(UserProductPin.user_id == user.id))
     pins: dict[Category, dict[str, Anchor[str]]] = {}
     for pin in rows:
         pins.setdefault(pin.category, {})[pin.normalized_name] = _anchor(pin)
-    return ProductOrder(pins)
+    return ProductOrder(pins, learned_from.products)
 
 
 async def pin(
@@ -93,7 +110,8 @@ async def pin(
             ListItem.list_id == item.list_id, ListItem.category == category
         )
     )
-    order = full_order(category, set(present), pins)
+    scores = (await learned_order(session, user)).products
+    order = full_order(category, set(present), pins, scores)
     order.remove(name)
     at_end = False
     if after_id is None:

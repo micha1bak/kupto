@@ -1,7 +1,7 @@
 """Kolejność elementów listy: przypięcia użytkownika mają pierwszeństwo przed kolejnością bazową.
 
-Kolejność bazowa to dziś stała kolejność kategorii albo alfabetyczna kolejność produktów;
-docelowo kolejność wyuczona (#38).
+Kolejność bazowa to kolejność wyuczona z historii odhaczeń (`learned`) na tle stałej kolejności
+kategorii albo alfabetycznej kolejności produktów (zmiana learned-order).
 """
 
 from collections.abc import Hashable, Mapping, Sequence
@@ -21,6 +21,19 @@ def arrange[T: Hashable](base: Sequence[T], pins: Mapping[T, int]) -> list[T]:
         if element in present:
             result.insert(min(position, len(result)), element)
     return result
+
+
+def learned[T: Hashable](base: Sequence[T], scores: Mapping[T, float]) -> list[T]:
+    """Kolejność wyuczona: elementy z wynikiem zamieniają się miejscami według wyniku.
+
+    Elementy z wynikiem zajmują te same miejsca w `base` co dotąd, ułożone między sobą rosnąco
+    po wyniku (remis — kolejność w `base`); pozostałe zostają dokładnie na swoich miejscach.
+    Bez wyników zwraca `base` bez zmian (design D4 zmiany learned-order).
+    """
+    ranked = iter(
+        sorted((element for element in base if element in scores), key=scores.__getitem__)
+    )
+    return [next(ranked) if element in scores else element for element in base]
 
 
 @dataclass(frozen=True)
