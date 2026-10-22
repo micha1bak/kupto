@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,6 +14,8 @@ class Settings(BaseSettings):
     jwt_secret: str = Field(min_length=32)
     jwt_ttl_days: int = 30
     cookie_secure: bool = True
+
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
     openai_api_key: str = ""
     # Dowolny dostawca zgodny z OpenAI Responses API, np. https://api.groq.com/openai/v1

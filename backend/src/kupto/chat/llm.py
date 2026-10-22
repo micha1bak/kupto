@@ -23,7 +23,17 @@ class ToolCall:
     arguments: str  # JSON
 
 
-LLMEvent = TextDelta | ToolCall
+@dataclass(frozen=True)
+class Usage:
+    """Zużycie tokenów jednego wywołania modelu (z końcowego zdarzenia odpowiedzi)."""
+
+    input_tokens: int
+    output_tokens: int
+    cached_tokens: int = 0
+    reasoning_tokens: int = 0
+
+
+LLMEvent = TextDelta | ToolCall | Usage
 
 
 class LLMUnavailable(Exception):
@@ -70,9 +80,25 @@ def map_stream_event(event: Any) -> LLMEvent | None:
             return TextDelta(event.delta)
         case "response.output_item.done" if event.item.type == "function_call":
             return ToolCall(event.item.call_id, event.item.name, event.item.arguments)
+        case "response.completed":
+            return _usage(getattr(event.response, "usage", None))
         case "response.failed" | "response.incomplete" | "error":
             raise LLMUnavailable(f"Odpowiedź modelu przerwana: {event.type}")
     return None
+
+
+def _usage(usage: Any) -> Usage | None:
+    # Dostawca może nie zwrócić zużycia (pole opcjonalne) — wtedy zdarzenie pomijamy.
+    if usage is None:
+        return None
+    input_details = getattr(usage, "input_tokens_details", None)
+    output_details = getattr(usage, "output_tokens_details", None)
+    return Usage(
+        input_tokens=usage.input_tokens or 0,
+        output_tokens=usage.output_tokens or 0,
+        cached_tokens=getattr(input_details, "cached_tokens", None) or 0,
+        reasoning_tokens=getattr(output_details, "reasoning_tokens", None) or 0,
+    )
 
 
 @dataclass

@@ -1,9 +1,10 @@
 import json
+import logging
 from datetime import timedelta
 
 from sqlalchemy import update
 
-from kupto.chat.llm import LLMUnavailable, TextDelta, ToolCall
+from kupto.chat.llm import LLMUnavailable, TextDelta, ToolCall, Usage
 from kupto.chat.tools import TOOL_DEFINITIONS
 from kupto.models import ChatMessage
 
@@ -154,6 +155,51 @@ async def test_model_error_keeps_changes_made_before_it(household_with, fake_llm
     assert "chwilowo niedostępny" in events[-2][1]["message"]
     assert events[-1] == ("done", {})
     assert "chleb" in list_items((await ala.get("/api/list")).json())
+
+
+def usage_records(caplog):
+    return [r for r in caplog.records if getattr(r, "event", None) == "llm_usage"]
+
+
+async def test_token_usage_is_logged_without_content(household_with, fake_llm, settings, caplog):
+    caplog.set_level(logging.INFO, logger="kupto")
+    (ala,) = await household_with("ala")
+    fake_llm.rounds += [
+        [add_needs_call(("mleko", None, None, "Nabiał")), Usage(100, 20, cached_tokens=50)],
+        [TextDelta("Dodałem mleko."), Usage(150, 10, reasoning_tokens=4)],
+    ]
+    user = (await ala.get("/api/users/me")).json()
+    household = (await ala.get("/api/households/me")).json()
+
+    await send(ala, "kup mleko tajne")
+
+    (record,) = usage_records(caplog)
+    assert record.outcome == "ok"
+    assert record.model == settings.openai_model
+    assert (record.user_id, record.household_id) == (user["id"], household["id"])
+    assert (record.input_tokens, record.output_tokens) == (250, 30)
+    assert (record.cached_tokens, record.reasoning_tokens) == (50, 4)
+    assert (record.model_calls, record.tool_rounds) == (2, 1)
+    assert record.tool_calls == ["add_needs"]
+    assert record.duration_ms >= 0
+    logged = caplog.text + repr([vars(r) for r in caplog.records])
+    assert "tajne" not in logged
+    assert "Dodałem" not in logged
+
+
+async def test_token_usage_is_logged_when_model_fails(household_with, fake_llm, caplog):
+    caplog.set_level(logging.INFO, logger="kupto")
+    (ala,) = await household_with("ala")
+    fake_llm.rounds += [
+        [add_needs_call(("chleb", None, None, "Pieczywo")), Usage(80, 5)],
+        LLMUnavailable("boom"),
+    ]
+
+    await send(ala, "kup chleb")
+
+    (record,) = usage_records(caplog)
+    assert record.outcome == "llm_unavailable"
+    assert (record.input_tokens, record.output_tokens, record.model_calls) == (80, 5, 2)
 
 
 async def test_finish_shopping_via_chat_requires_confirmation(
