@@ -158,6 +158,14 @@ export interface TripPage {
   next_cursor: number | null;
 }
 
+/** Typ powiadomienia push; backend może znać typy, których ten frontend jeszcze nie zna. */
+export type NotificationType = "shopping_started" | "items_added" | "shopping_finished";
+
+/** Ustawienia typów powiadomień zalogowanego użytkownika (wszystkie jego urządzenia). */
+export interface NotificationPreferences {
+  types: { type: NotificationType | (string & {}); enabled: boolean }[];
+}
+
 /** Produkt znaleziony w historii: kiedy i kto kupił go ostatnio. */
 export interface ProductHit {
   name: string;

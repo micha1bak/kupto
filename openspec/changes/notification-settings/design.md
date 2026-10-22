@@ -40,7 +40,7 @@ Nowa tabela `notification_preferences`:
 | `user_id` | FK `users.id`, `ON DELETE CASCADE` | część PK |
 | `type` | `varchar(40)` | część PK — wartość `NotificationType` |
 | `enabled` | `boolean NOT NULL` | wybór użytkownika |
-| `updated_at` | `timestamp NOT NULL` | diagnostyka |
+| `updated_at` | `timestamptz NOT NULL` | diagnostyka |
 
 Wiersz istnieje tylko wtedy, gdy użytkownik coś zmienił; brak wiersza oznacza wartość domyślną typu z `DEFAULT_ENABLED` w `kupto.push.preferences` (dziś `True` dla wszystkich). Zapis to `INSERT … ON CONFLICT DO UPDATE`.
 
