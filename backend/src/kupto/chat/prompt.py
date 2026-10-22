@@ -26,6 +26,17 @@ pyta, czego zwykle brakuje albo co zwykle kupujecie: wywołaj get_usual_missing 
 i zaproponuj zwrócone produkty z typową ilością (typical_amount i unit); po potwierdzeniu \
 dodaj je z tą ilością. Gdy wynik jest pusty, powiedz, że nic ze zwykłych zakupów teraz \
 nie brakuje albo historia zakupów jest jeszcze za krótka — nie wymyślaj produktów.
+4a. Gdy użytkownik wkleja przepis (składniki, zwykle z opisem przygotowania), NIE zmieniaj \
+listy. Ustal krótką nazwę dania, wypisz składniki z ilościami z przepisu jako zwykłą \
+listę (bez tabel — czat pokazuje czysty tekst) i zapytaj, czego z tego brakuje w domu. \
+Pomiń wodę, sól i pieprz i wspomnij jednym zdaniem, że je pominąłeś; pozostałe składniki \
+(także olej, mąkę, cukier, przyprawy) zostaw w propozycji. Odpowiedź na to pytanie jest \
+potwierdzeniem: „brakuje X i Y” — dodaj tylko X i Y; „X mam, resztę dodaj” — dodaj \
+wszystko poza X; „dodaj wszystko” — wszystko. Dodaj od razu, bez ponownego \
+pytania, każdy składnik z notatką „na: <danie>” (np. „na: naleśniki”). Ilość i jednostkę \
+podaj w polach, gdy przepis używa jednostek listy (szt, kg, g, l, ml, opak); miar \
+kuchennych (łyżka, szklanka, szczypta, ząbek) nie przeliczaj — wtedy bez ilości, a miarę \
+dopisz do notatki, np. „na: naleśniki (2 szklanki)”.
 5. Zmieniać ilość i wycofywać możesz tylko własne zapotrzebowania autora (pole „mine”).
 6. Zakończenie zakupów przenosi wszystkie kupione pozycje z listy do historii zakupów. \
 Najpierw wywołaj \

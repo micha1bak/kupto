@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatView } from "./ChatView";
 import { jsonResponse, mockFetch, renderWithProviders } from "../test/utils";
@@ -110,6 +110,29 @@ test("shows assistant error event", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("chwilowo niedostępny");
 });
 
+test("pasted recipe longer than 2000 characters is sent", async () => {
+  const recipe = `Naleśniki\n${"Składniki: mąka, mleko, jajka. ".repeat(150)}`.trim();
+  const fetch = mockFetch({
+    "GET /api/chat/messages": [],
+    "GET /api/list": { id: 1, groups: [] },
+    "POST /api/chat/messages": () =>
+      sseResponse(['event: delta\ndata: {"text": "Czego brakuje?"}\n\nevent: done\ndata: {}\n\n']),
+  });
+  renderWithProviders(<ChatView />);
+  await screen.findByText(/wkleić przepis/);
+
+  await userEvent.click(screen.getByLabelText("Wiadomość"));
+  await userEvent.paste(recipe);
+  await userEvent.click(screen.getByRole("button", { name: "Wyślij" }));
+
+  await waitFor(() =>
+    expect(fetch.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true),
+  );
+  const post = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
+  expect(JSON.parse(post[1]!.body as string)).toEqual({ content: recipe });
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
 test("too long message is blocked locally", async () => {
   const fetch = mockFetch({ "GET /api/chat/messages": [] });
   renderWithProviders(<ChatView />);
@@ -117,10 +140,10 @@ test("too long message is blocked locally", async () => {
 
   const textarea = screen.getByLabelText("Wiadomość");
   await userEvent.click(textarea);
-  await userEvent.paste("x".repeat(2001));
+  await userEvent.paste("x".repeat(8001));
   await userEvent.click(screen.getByRole("button", { name: "Wyślij" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("najwyżej 2000 znaków");
+  expect(await screen.findByRole("alert")).toHaveTextContent("najwyżej 8000 znaków");
   expect(fetch.mock.calls.every(([, init]) => init?.method !== "POST")).toBe(true);
 });
 

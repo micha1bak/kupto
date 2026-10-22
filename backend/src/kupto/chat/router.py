@@ -26,7 +26,7 @@ from kupto.push.notifier import Notifier
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
 
-MAX_MESSAGE_LENGTH = 2000
+MAX_MESSAGE_LENGTH = 8000  # mieści wklejony przepis z opisem przygotowania
 UNAVAILABLE_MESSAGE = (
     "Asystent jest chwilowo niedostępny. Spróbuj ponownie za chwilę — "
     "listę możesz w tym czasie edytować ręcznie."
