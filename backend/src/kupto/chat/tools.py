@@ -14,10 +14,11 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kupto.errors import DomainError
-from kupto.lists import service, shopping_status
+from kupto.lists import notifications, service, shopping_status
 from kupto.lists.schemas import NeedCreate, NeedUpdate, list_out
 from kupto.lists.service import NeedInput
 from kupto.models import Category, ChatPendingAction, Household, Unit, User
+from kupto.push.notifier import Notifier
 
 FINISH_SHOPPING = "finish_shopping"
 
@@ -141,6 +142,8 @@ class ToolContext:
     user: User
     # Akcja oczekująca na potwierdzenie z poprzedniej tury (już usunięta z bazy na starcie tury).
     pending_action: str | None = None
+    # Powiadomienia push o zakupach (#29–#31); bez niego (testy narzędzi, ewaluacje) nie idą.
+    notifier: Notifier | None = None
 
 
 @dataclass(frozen=True)
@@ -209,6 +212,8 @@ async def _get_list(ctx: ToolContext) -> dict[str, Any]:
 async def _add_needs(ctx: ToolContext, items: list[dict[str, Any]]) -> dict[str, Any]:
     inputs = [NeedInput(**NeedCreate.model_validate(item).model_dump()) for item in items]
     added = await service.add_needs(ctx.session, ctx.household, ctx.user, inputs)
+    if ctx.notifier is not None:
+        await notifications.items_added(ctx.session, ctx.notifier, ctx.household, ctx.user)
     return {
         "added": [
             {"name": a.item_name, "category": a.category.value, "already_on_list": a.merged}
@@ -268,11 +273,15 @@ async def _confirm_finish_shopping(ctx: ToolContext) -> dict[str, Any]:
         }
     ctx.pending_action = None
     archived = await service.finish_shopping(ctx.session, ctx.household, ctx.user)
+    if archived and ctx.notifier is not None:
+        await notifications.shopping_finished(ctx.session, ctx.notifier, ctx.household, ctx.user)
     return {"status": "finished", "archived_items": archived}
 
 
 async def _start_shopping(ctx: ToolContext) -> dict[str, Any]:
     started = await shopping_status.start(ctx.session, ctx.user)
+    if started and ctx.notifier is not None:
+        notifications.shopping_started(ctx.notifier, ctx.household, ctx.user)
     others = [
         s.login
         for s in await shopping_status.active_shoppers(ctx.session, ctx.household)

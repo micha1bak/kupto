@@ -54,8 +54,8 @@ export function InstallBanner() {
       ) : (
         <p>
           Dodaj Kupto do ekranu początkowego: stuknij <strong>Udostępnij</strong>, a potem{" "}
-          <strong>„Do ekranu początkowego”</strong>. Na iPhonie powiadomienia (wkrótce) działają
-          tylko w aplikacji dodanej do ekranu początkowego.
+          <strong>„Do ekranu początkowego”</strong>. Na iPhonie powiadomienia o zakupach
+          działają tylko w aplikacji dodanej do ekranu początkowego.
         </p>
       )}
       <button className={styles.close} onClick={dismiss} aria-label="Zamknij">
