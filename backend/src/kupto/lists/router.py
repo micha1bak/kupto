@@ -7,6 +7,7 @@ from kupto.deps import CurrentHousehold, CurrentUser, NotifierDep, SessionDep, S
 from kupto.errors import DomainError
 from kupto.lists import category_order, notifications, product_order, service, shopping_status
 from kupto.lists.events import BrokerUnavailable, ListEventBroker
+from kupto.lists.learned_order import learned_order
 from kupto.lists.schemas import (
     CategoryMove,
     CategoryOrderEntry,
@@ -26,11 +27,12 @@ router = APIRouter(prefix="/api/list", tags=["list"])
 async def _current_list(session: SessionDep, household: Household, user: User) -> ListOut:
     """Wspólna lista gospodarstwa w kolejności kategorii i produktów danego użytkownika."""
     shopping_list = await service.get_list(session, household)
+    learned = await learned_order(session, user)
     return list_out(
         shopping_list,
-        await category_order.get_order(session, user),
+        await category_order.get_order(session, user, learned),
         await shopping_status.active_shoppers(session, household),
-        await product_order.get_order(session, user),
+        await product_order.get_order(session, user, learned),
     )
 
 

@@ -1,4 +1,4 @@
-from kupto.lists.ordering import Anchor, arrange, arrange_anchored
+from kupto.lists.ordering import Anchor, arrange, arrange_anchored, learned
 
 BASE = ["a", "b", "c", "d", "e"]
 
@@ -64,3 +64,16 @@ def test_anchored_skips_absent_pins_and_keeps_orphans():
     # Kotwicy „x” nie ma w bazie, a „z” nie jest jej elementem — nic nie ginie ani nie dochodzi.
     pins = {"a": A(0, after="x"), "z": A(1), "b": A(2, at_end=True)}
     assert arrange_anchored(["a", "b", "c"], pins) == ["c", "a", "b"]
+
+
+def test_learned_without_scores_is_base():
+    assert learned(BASE, {}) == BASE
+
+
+def test_learned_elements_swap_places_and_others_stay():
+    # „b” i „d” bez wyniku zostają na miejscach 1 i 3; wyuczone zajmują miejsca 0, 2, 4.
+    assert learned(BASE, {"a": 0.9, "c": 0.5, "e": 0.1}) == ["e", "b", "c", "d", "a"]
+
+
+def test_learned_ties_keep_base_order_and_unknown_scores_are_skipped():
+    assert learned(BASE, {"d": 0.5, "b": 0.5, "a": 0.7, "x": 0.0}) == ["b", "d", "c", "a", "e"]

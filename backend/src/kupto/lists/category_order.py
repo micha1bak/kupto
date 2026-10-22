@@ -2,7 +2,8 @@
 
 Kolejność jest osobna dla każdego użytkownika (nie dla gospodarstwa). Przypięcie zapamiętuje
 miejsce w pełnej kolejności wszystkich kategorii, a nieprzypięte kategorie wypełniają pozostałe
-miejsca w kolejności automatycznej (design D1).
+miejsca w kolejności automatycznej (design D1) — wyuczonej z historii odhaczeń użytkownika
+(`kupto.lists.learned_order`).
 """
 
 from dataclasses import dataclass
@@ -12,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kupto.errors import DomainError
 from kupto.lists import events
-from kupto.lists.ordering import arrange
+from kupto.lists.learned_order import NOTHING, LearnedOrder, learned_order
+from kupto.lists.ordering import arrange, learned
 from kupto.models import Category, User, UserCategoryPin
 
 
@@ -22,17 +24,25 @@ class CategoryOrder:
     pinned: frozenset[Category]
 
 
-def automatic_order() -> list[Category]:
-    """Kolejność bazowa, wokół której układają się przypięcia; w #38 — kolejność wyuczona."""
-    return list(Category)
+def automatic_order(learned_from: LearnedOrder = NOTHING) -> list[Category]:
+    """Kolejność bazowa, wokół której układają się przypięcia: wyuczona na tle stałej
+    kolejności zbioru kategorii (bez nauki — stała kolejność zbioru)."""
+    return learned(list(Category), learned_from.categories)
 
 
 AUTOMATIC = CategoryOrder(categories=automatic_order(), pinned=frozenset())
 
 
-async def get_order(session: AsyncSession, user: User) -> CategoryOrder:
+async def get_order(
+    session: AsyncSession, user: User, learned_from: LearnedOrder | None = None
+) -> CategoryOrder:
+    """Kolejność kategorii użytkownika; `learned_from` pozwala nie liczyć nauki drugi raz."""
+    if learned_from is None:
+        learned_from = await learned_order(session, user)
     pins = await _pins(session, user)
-    return CategoryOrder(categories=arrange(automatic_order(), pins), pinned=frozenset(pins))
+    return CategoryOrder(
+        categories=arrange(automatic_order(learned_from), pins), pinned=frozenset(pins)
+    )
 
 
 async def pin(
@@ -51,7 +61,7 @@ async def pin(
     # Blokada użytkownika: równoległe przeniesienia (np. z dwóch telefonów) idą po kolei.
     await session.execute(select(User.id).where(User.id == user.id).with_for_update())
     pins = await _pins(session, user)
-    order = arrange(automatic_order(), pins)
+    order = arrange(automatic_order(await learned_order(session, user)), pins)
     order.remove(category)
     if after is None:
         index = 0

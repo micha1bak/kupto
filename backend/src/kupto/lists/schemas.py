@@ -130,7 +130,7 @@ def list_out(
     products: ProductOrder = BASE,
 ) -> ListOut:
     """Lista pogrupowana według kategorii w kolejności `order`; w grupie pozycje w kolejności
-    produktów `products` (bez przypięć — bazowej, czyli alfabetycznej)."""
+    produktów `products` (bez przypięć — bazowej: wyuczonej albo alfabetycznej)."""
     groups = []
     for category in order.categories:
         items = products.arrange(
