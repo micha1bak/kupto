@@ -15,13 +15,13 @@ dependencies = [
     "openai",
     "pywebpush>=2.5.0",
     "tzdata",  # strefa Europe/Warsaw niezależnie od obrazu systemu (#40)
+    "httpx",
 ]
 
 [dependency-groups]
 dev = [
     "pytest",
     "pytest-asyncio",
-    "httpx",
     "testcontainers[postgres]",
     "ruff",
 ]
