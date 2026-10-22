@@ -21,6 +21,7 @@ from kupto.db import utcnow
 from kupto.deps import CurrentHousehold, CurrentUser, SessionDep, SettingsDep
 from kupto.errors import TooManyRequests
 from kupto.models import ChatMessage, ChatPendingAction, Household, User
+from kupto.push.notifier import Notifier
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -125,7 +126,14 @@ async def send_message(
         )
     )
     await session.commit()
-    events = _stream_reply(request.app.state.sessionmaker, llm, settings, user.id, household.id)
+    events = _stream_reply(
+        request.app.state.sessionmaker,
+        llm,
+        settings,
+        request.app.state.notifier,
+        user.id,
+        household.id,
+    )
     return StreamingResponse(
         events,
         media_type="text/event-stream",
@@ -134,13 +142,18 @@ async def send_message(
 
 
 async def _stream_reply(
-    sessionmaker, llm: LLMClient, settings: Settings, user_id: int, household_id: int
+    sessionmaker,
+    llm: LLMClient,
+    settings: Settings,
+    notifier: Notifier,
+    user_id: int,
+    household_id: int,
 ) -> AsyncIterator[str]:
     # Strumień żyje dłużej niż żądanie, więc używa własnej sesji bazy.
     async with sessionmaker() as session:
         user = await session.get(User, user_id)
         household = await session.get(Household, household_id)
-        ctx = ToolContext(session, household, user)
+        ctx = ToolContext(session, household, user, notifier=notifier)
         ctx.pending_action = await clear_pending_action(session, user)
         instructions = build_instructions(
             user.login, household.name, await list_snapshot(ctx), ctx.pending_action

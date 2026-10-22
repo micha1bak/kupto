@@ -3,9 +3,9 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, Request, status
 from fastapi.responses import StreamingResponse
 
-from kupto.deps import CurrentHousehold, CurrentUser, SessionDep, SettingsDep
+from kupto.deps import CurrentHousehold, CurrentUser, NotifierDep, SessionDep, SettingsDep
 from kupto.errors import DomainError
-from kupto.lists import category_order, service, shopping_status
+from kupto.lists import category_order, notifications, service, shopping_status
 from kupto.lists.events import BrokerUnavailable, ListEventBroker
 from kupto.lists.schemas import (
     CategoryMove,
@@ -92,9 +92,14 @@ async def _event_stream(
 
 @router.post("/needs", status_code=status.HTTP_201_CREATED)
 async def add_need(
-    payload: NeedCreate, user: CurrentUser, household: CurrentHousehold, session: SessionDep
+    payload: NeedCreate,
+    user: CurrentUser,
+    household: CurrentHousehold,
+    session: SessionDep,
+    notifier: NotifierDep,
 ) -> ListOut:
     await service.add_needs(session, household, user, [NeedInput(**payload.model_dump())])
+    await notifications.items_added(session, notifier, household, user)
     return await _current_list(session, household, user)
 
 
@@ -145,9 +150,10 @@ async def unmark_bought(
 
 @router.post("/finish")
 async def finish_shopping(
-    user: CurrentUser, household: CurrentHousehold, session: SessionDep
+    user: CurrentUser, household: CurrentHousehold, session: SessionDep, notifier: NotifierDep
 ) -> ListOut:
-    await service.finish_shopping(session, household, user)
+    if await service.finish_shopping(session, household, user):
+        await notifications.shopping_finished(session, notifier, household, user)
     return await _current_list(session, household, user)
 
 
@@ -156,9 +162,10 @@ async def finish_shopping(
 
 @router.post("/shopping")
 async def start_shopping(
-    user: CurrentUser, household: CurrentHousehold, session: SessionDep
+    user: CurrentUser, household: CurrentHousehold, session: SessionDep, notifier: NotifierDep
 ) -> ListOut:
-    await shopping_status.start(session, user)
+    if await shopping_status.start(session, user):
+        notifications.shopping_started(notifier, household, user)
     return await _current_list(session, household, user)
 
 
