@@ -62,6 +62,7 @@ def llm_client(fake_llm: FakeLLMClient) -> LLMClient:
 async def app(settings: Settings, llm_client: LLMClient) -> AsyncIterator[FastAPI]:
     app = create_app(settings, llm_client=llm_client)
     yield app
+    await app.state.list_events.close()  # ASGITransport nie uruchamia lifespan
     tables = ", ".join(t.name for t in Base.metadata.sorted_tables)
     async with app.state.sessionmaker() as session:
         await session.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))

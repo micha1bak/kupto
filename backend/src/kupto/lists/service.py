@@ -1,7 +1,8 @@
 """Reguły wspólnej listy zakupów — jedyne miejsce, w którym zmienia się jej stan.
 
 Korzystają z nich zarówno endpointy REST, jak i narzędzia asystenta czatu.
-Każda operacja jest ograniczona do listy gospodarstwa wywołującego i kończy się commitem.
+Każda operacja jest ograniczona do listy gospodarstwa wywołującego i kończy się commitem,
+przed którym publikuje sygnał zmiany listy (`events.list_changed`, dostarczany po commicie).
 """
 
 from collections.abc import Sequence
@@ -15,7 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from kupto.db import utcnow
 from kupto.errors import Forbidden, NotFound
-from kupto.lists import shopping_status
+from kupto.lists import events, shopping_status
 from kupto.lists.quantities import clean_name, normalize_name
 from kupto.models import (
     Category,
@@ -94,6 +95,7 @@ async def add_needs(
             )
         )
         added.append(AddedNeed(item_name=item.name, category=item.category, merged=not created))
+    await events.list_changed(session, household.id)
     await session.commit()
     return added
 
@@ -109,6 +111,7 @@ async def update_need(
     for field in ("amount", "unit", "note"):
         if field in changes:
             setattr(need, field, changes[field])
+    await events.list_changed(session, household.id)
     await session.commit()
 
 
@@ -122,6 +125,7 @@ async def withdraw_need(
     remaining = await session.scalar(select(Need.id).where(Need.item_id == item_id).limit(1))
     if remaining is None:
         await session.execute(delete(ListItem).where(ListItem.id == item_id))
+    await events.list_changed(session, household.id)
     await session.commit()
 
 
@@ -129,6 +133,7 @@ async def remove_item(session: AsyncSession, household: Household, item_id: int)
     item = await _get_item(session, household, item_id)
     name = item.name
     await session.delete(item)
+    await events.list_changed(session, household.id)
     await session.commit()
     return name
 
@@ -153,6 +158,7 @@ async def set_bought(
     for item in items:
         item.bought_at = now if bought else None
         item.bought_by_id = user.id if bought else None
+    await events.list_changed(session, household.id)
     await session.commit()
     return [item.name for item in items]
 
@@ -169,7 +175,7 @@ async def finish_shopping(session: AsyncSession, household: Household, user: Use
         select(ShoppingList.id).where(ShoppingList.household_id == household.id).with_for_update()
     )
     assert list_id is not None
-    await shopping_status.clear(session, user)
+    was_shopping = await shopping_status.clear(session, user)
     bought = list(
         await session.scalars(
             select(ListItem)
@@ -181,6 +187,8 @@ async def finish_shopping(session: AsyncSession, household: Household, user: Use
         )
     )
     if not bought:
+        if was_shopping:  # lista bez zmian, ale znika wskaźnik, kto robi zakupy
+            await events.list_changed(session, household.id)
         await session.commit()
         return 0
 
@@ -215,6 +223,7 @@ async def finish_shopping(session: AsyncSession, household: Household, user: Use
     # Usuwamy dokładnie przeniesione pozycje (nie wszystkie kupione), żeby pozycja odhaczona
     # w międzyczasie nie zniknęła z listy bez śladu w historii.
     await session.execute(delete(ListItem).where(ListItem.id.in_([item.id for item in bought])))
+    await events.list_changed(session, household.id)
     await session.commit()
     return len(bought)
 

@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     chat_history_limit: int = 20
     chat_max_tool_rounds: int = 5
 
+    # Podtrzymanie strumienia zmian listy (SSE) — poniżej limitów bezczynności proxy (nginx 300 s).
+    list_events_heartbeat_seconds: float = Field(default=20.0, gt=0, le=30)
+
 
 @lru_cache
 def get_settings() -> Settings:
