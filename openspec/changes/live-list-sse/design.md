@@ -41,7 +41,7 @@ Alternatywy: hak SQLAlchemy `after_commit` + osobne połączenie do `NOTIFY` (do
 
 ### D3. Publikacja w warstwie serwisu
 
-Wołają ją funkcje `service.add_needs`, `update_need`, `withdraw_need`, `remove_item`, `set_bought`, `finish_shopping` (tylko gdy coś przeniesiono), `category_order.pin/unpin/reset` oraz `households.remove_member/leave_household`. Narzędzia czatu korzystają z tych samych funkcji, więc publikują bez zmian w `chat/tools.py` i `chat/prompt.py`; nie ma ryzyka, że nowy endpoint lub narzędzie „zapomni” o zdarzeniu, o ile zmienia listę przez serwis.
+Wołają ją funkcje `service.add_needs`, `update_need`, `withdraw_need`, `remove_item`, `set_bought`, `finish_shopping` (tylko gdy coś przeniesiono), `category_order.pin/unpin/reset`, `shopping_status.start/stop` (tylko przy faktycznej zmianie statusu — lista pokazuje, kto robi zakupy; zdjęcie statusu w `finish_shopping` i przy opuszczeniu gospodarstwa też publikuje) oraz `households.remove_member/leave_household`. Narzędzia czatu (także `start_shopping`/`stop_shopping`) korzystają z tych samych funkcji, więc publikują bez zmian w `chat/tools.py` i `chat/prompt.py`; nie ma ryzyka, że nowy endpoint lub narzędzie „zapomni” o zdarzeniu, o ile zmienia listę przez serwis.
 
 ### D4. Jeden kanał, mały ładunek z zakresem
 

@@ -3,7 +3,7 @@
 ## 1. Publikacja zdarzeń w backendzie
 
 - [x] 1.1 Moduł `kupto/lists/events.py`: kanał `kupto_list`, funkcje publikujące `pg_notify` w bieżącej transakcji (`list_changed`, `order_changed`, `member_left`); test, że powiadomienie dociera do `LISTEN` dopiero po commicie, a po rollbacku wcale
-- [x] 1.2 Publikacja w `lists/service.py` (wszystkie operacje zmieniające listę; `finish_shopping` tylko gdy coś przeniesiono), `lists/category_order.py` (pin/unpin/reset, tylko użytkownik z gospodarstwem) i `households/service.py` (remove_member, leave_household); testy serwisów sprawdzają dostarczone powiadomienia
+- [x] 1.2 Publikacja w `lists/service.py` (wszystkie operacje zmieniające listę; `finish_shopping` tylko gdy coś przeniesiono), `lists/category_order.py` (pin/unpin/reset, tylko użytkownik z gospodarstwem), `lists/shopping_status.py` (start/stop przy zmianie statusu, zdjęcie statusu w `finish_shopping` i przy opuszczeniu gospodarstwa) i `households/service.py` (remove_member, leave_household); testy serwisów sprawdzają dostarczone powiadomienia
 
 ## 2. Broker LISTEN i endpoint strumienia
 

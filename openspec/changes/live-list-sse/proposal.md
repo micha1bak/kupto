@@ -24,7 +24,7 @@ Lista odświeża się dziś pollingiem co 5 s: zmiany innych domowników dociera
 
 ## Impact
 
-- **Backend**: nowy moduł `kupto/lists/events.py` (publikacja `pg_notify` + broker `LISTEN` z ponownym łączeniem); publikacja w `lists/service.py`, `lists/category_order.py` i `households/service.py` (zakończenie strumienia po opuszczeniu gospodarstwa); endpoint w `lists/router.py`; zamknięcie brokera w lifespan aplikacji; ustawienie `LIST_EVENTS_HEARTBEAT_SECONDS`. Narzędzia czatu bez zmian — publikują przez serwis.
+- **Backend**: nowy moduł `kupto/lists/events.py` (publikacja `pg_notify` + broker `LISTEN` z ponownym łączeniem); publikacja w `lists/service.py`, `lists/category_order.py`, `lists/shopping_status.py` (status „Idę na zakupy” jest częścią odpowiedzi listy) i `households/service.py` (zakończenie strumienia po opuszczeniu gospodarstwa); endpoint w `lists/router.py`; zamknięcie brokera w lifespan aplikacji; ustawienie `LIST_EVENTS_HEARTBEAT_SECONDS`. Narzędzia czatu bez zmian — publikują przez serwis.
 - **Frontend**: `api/listEvents.ts` (połączenie `EventSource`, ponowne łączenie, widoczność karty); `useShoppingList` przełącza polling na fallback 30 s.
 - **Infrastruktura**: `frontend/nginx.conf` i Caddy już przepuszczają SSE bez buforowania dla `/api/`, a heartbeat mieści się w ich limitach czasu. Każdy otwarty klient trzyma jedno długie połączenie HTTP (ale nie połączenie z bazą).
 - **API**: zmiana zgodna wstecz — nowy endpoint, istniejące bez zmian.
