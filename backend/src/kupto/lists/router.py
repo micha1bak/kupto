@@ -5,11 +5,12 @@ from fastapi.responses import StreamingResponse
 
 from kupto.deps import CurrentHousehold, CurrentUser, NotifierDep, SessionDep, SettingsDep
 from kupto.errors import DomainError
-from kupto.lists import category_order, notifications, service, shopping_status
+from kupto.lists import category_order, notifications, product_order, service, shopping_status
 from kupto.lists.events import BrokerUnavailable, ListEventBroker
 from kupto.lists.schemas import (
     CategoryMove,
     CategoryOrderEntry,
+    ItemMove,
     ListOut,
     NeedCreate,
     NeedUpdate,
@@ -23,12 +24,13 @@ router = APIRouter(prefix="/api/list", tags=["list"])
 
 
 async def _current_list(session: SessionDep, household: Household, user: User) -> ListOut:
-    """Wspólna lista gospodarstwa w kolejności kategorii danego użytkownika."""
+    """Wspólna lista gospodarstwa w kolejności kategorii i produktów danego użytkownika."""
     shopping_list = await service.get_list(session, household)
     return list_out(
         shopping_list,
         await category_order.get_order(session, user),
         await shopping_status.active_shoppers(session, household),
+        await product_order.get_order(session, user),
     )
 
 
@@ -212,4 +214,27 @@ async def reset_category_order(
     user: CurrentUser, household: CurrentHousehold, session: SessionDep
 ) -> ListOut:
     await category_order.reset(session, user)
+    return await _current_list(session, household, user)
+
+
+# Kolejność produktów w kategorii — też per użytkownik, zapamiętana per produkt (nazwa).
+
+
+@router.put("/items/{item_id}/order")
+async def pin_item(
+    item_id: int,
+    payload: ItemMove,
+    user: CurrentUser,
+    household: CurrentHousehold,
+    session: SessionDep,
+) -> ListOut:
+    await product_order.pin(session, household, user, item_id, payload.after, payload.before)
+    return await _current_list(session, household, user)
+
+
+@router.delete("/items/{item_id}/order")
+async def unpin_item(
+    item_id: int, user: CurrentUser, household: CurrentHousehold, session: SessionDep
+) -> ListOut:
+    await product_order.unpin(session, household, user, item_id)
     return await _current_list(session, household, user)

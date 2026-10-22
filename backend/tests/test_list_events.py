@@ -149,6 +149,23 @@ async def test_category_order_change_reaches_only_own_streams(household_with, su
     await assert_quiet(ola_stream)
 
 
+async def test_product_order_change_reaches_only_own_streams(household_with, subscribe):
+    ala, ola = await household_with("ala", "ola")
+    for name in ("ser", "mleko"):
+        await ala.post("/api/list/needs", json={"name": name, "category": "Nabiał"})
+    body = (await ala.get("/api/list")).json()
+    ser, mleko = (i["id"] for i in sorted(body["groups"][0]["items"], key=lambda i: i["name"]))
+    ala_stream, ola_stream = await subscribe("ala"), await subscribe("ola")
+
+    response = await ala.put(f"/api/list/items/{ser}/order", json={"after": None, "before": mleko})
+    assert response.status_code == 200
+    await assert_signal(ala_stream)
+
+    assert (await ala.delete(f"/api/list/items/{ser}/order")).status_code == 200
+    await assert_signal(ala_stream)
+    await assert_quiet(ola_stream)
+
+
 async def test_removed_member_stream_is_closed(household_with, subscribe, session):
     ala, ola = await household_with("ala", "ola")
     ala_stream, ola_stream = await subscribe("ala"), await subscribe("ola")

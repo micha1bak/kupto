@@ -223,3 +223,43 @@ async def test_push_subscriptions_migration_keeps_existing_data(empty_database):
 
     await migrate(empty_database, "up", "head")
     assert await table_exists(empty_database, "push_subscriptions")
+
+
+async def test_product_pins_migration_keeps_existing_data(empty_database):
+    await migrate(empty_database, "up", "0005")
+    await execute(
+        empty_database,
+        *SEED_STATEMENTS,
+        "INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at, "
+        "updated_at) VALUES (1, 'https://fcm.googleapis.com/a', 'k', 'a', now(), now())",
+    )
+    tables = (*EXISTING_TABLES, *HISTORY_TABLES, "push_subscriptions")
+    before = await snapshot(empty_database, tables)
+
+    await migrate(empty_database, "up", "0006")
+
+    assert await snapshot(empty_database, tables) == before
+    assert await snapshot(empty_database, ("user_product_pins",)) == {"user_product_pins": []}
+    # Przypięcia w obrębie kategorii: ranga unikalna w kategorii, ten sam produkt raz.
+    insert = (
+        "INSERT INTO user_product_pins (user_id, normalized_name, category, after_name, "
+        "at_end, position) VALUES "
+    )
+    await execute(
+        empty_database,
+        insert
+        + "(1, 'ser', 'Nabiał', NULL, false, 0), (1, 'jogurt', 'Nabiał', 'mleko', false, 1), "
+        "(1, 'chleb', 'Pieczywo', NULL, true, 0), (2, 'ser', 'Nabiał', NULL, false, 0)",
+    )
+    with pytest.raises(IntegrityError):
+        await execute(empty_database, insert + "(1, 'kefir', 'Nabiał', NULL, false, 1)")
+    with pytest.raises(IntegrityError):
+        await execute(empty_database, insert + "(1, 'ser', 'Inne', NULL, false, 0)")
+
+    await migrate(empty_database, "down", "0005")
+
+    assert not await table_exists(empty_database, "user_product_pins")
+    assert await snapshot(empty_database, tables) == before
+
+    await migrate(empty_database, "up", "head")
+    assert await table_exists(empty_database, "user_product_pins")

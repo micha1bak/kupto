@@ -164,6 +164,28 @@ class UserCategoryPin(Base):
     position: Mapped[int] = mapped_column(SmallInteger)
 
 
+class UserProductPin(Base):
+    """Produkt przypięty przez użytkownika na wybranym miejscu w obrębie kategorii.
+
+    Kluczem jest znormalizowana nazwa produktu, więc przypięcie działa przy każdym kolejnym
+    dodaniu produktu. Miejsce to kotwica — nieprzypięty produkt `after_name`, za którym stoi
+    przypięty (`None` = początek kategorii, `at_end` = koniec) — oraz `position`, ranga wśród
+    przypięć użytkownika w kategorii (`kupto.lists.ordering.arrange_anchored`).
+    """
+
+    __tablename__ = "user_product_pins"
+    __table_args__ = (UniqueConstraint("user_id", "category", "position"),)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    normalized_name: Mapped[str] = mapped_column(String(100), primary_key=True)
+    category: Mapped[Category] = mapped_column(_enum(Category, "category"))
+    after_name: Mapped[str | None] = mapped_column(String(100))
+    at_end: Mapped[bool] = mapped_column(default=False)
+    position: Mapped[int] = mapped_column(SmallInteger)
+
+
 class ShoppingTrip(Base):
     """Jedno zakończenie zakupów w gospodarstwie — nagłówek wpisu w historii zakupów."""
 
