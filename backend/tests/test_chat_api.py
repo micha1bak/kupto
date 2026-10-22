@@ -156,24 +156,29 @@ async def test_model_error_keeps_changes_made_before_it(household_with, fake_llm
     assert "chleb" in list_items((await ala.get("/api/list")).json())
 
 
-async def test_finish_shopping_via_chat_requires_confirmation(household_with, fake_llm):
+async def test_finish_shopping_via_chat_requires_confirmation(
+    household_with, fake_llm, purchase_history
+):
     (ala,) = await household_with("ala")
     body = (await ala.post("/api/list/needs", json={"name": "mleko"})).json()
     await ala.post("/api/list/needs", json={"name": "chleb"})
     await ala.post(f"/api/list/items/{list_items(body)['mleko']['id']}/bought")
     fake_llm.rounds += [
         [ToolCall("c1", "request_finish_shopping", "{}")],
-        [TextDelta("Usunąć kupione mleko?")],
+        [TextDelta("Przenieść kupione mleko do historii?")],
         [ToolCall("c2", "confirm_finish_shopping", "{}")],
         [TextDelta("Gotowe.")],
     ]
 
     await send(ala, "skończyłem zakupy")
     assert set(list_items((await ala.get("/api/list")).json())) == {"mleko", "chleb"}
+    assert await purchase_history() == []
 
     assert "nie pytaj ponownie" not in fake_llm.calls[0]["instructions"]
     await send(ala, "tak")
     assert set(list_items((await ala.get("/api/list")).json())) == {"chleb"}
+    (trip,) = await purchase_history()
+    assert [i.name for i in trip.items] == ["mleko"]
     assert "nie pytaj ponownie" in fake_llm.calls[2]["instructions"]
 
 

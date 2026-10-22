@@ -97,8 +97,8 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     _function("unmark_bought", "Cofa oznaczenie pozycji jako kupionych.", {"item_ids": _ID_LIST}),
     _function(
         "request_finish_shopping",
-        "Prosi o potwierdzenie zakończenia zakupów (usunięcia kupionych pozycji). "
-        "Po wywołaniu zapytaj użytkownika o potwierdzenie.",
+        "Prosi o potwierdzenie zakończenia zakupów (przeniesienia kupionych pozycji z listy "
+        "do historii zakupów). Po wywołaniu zapytaj użytkownika o potwierdzenie.",
         {},
     ),
     _function(
@@ -240,7 +240,7 @@ async def _request_finish_shopping(ctx: ToolContext) -> dict[str, Any]:
     await ctx.session.commit()
     snapshot = await list_snapshot(ctx)
     bought = [i["name"] for i in snapshot["items"] if i["bought"]]
-    return {"status": "confirmation_required", "bought_items_to_remove": bought}
+    return {"status": "confirmation_required", "bought_items_to_archive": bought}
 
 
 async def _confirm_finish_shopping(ctx: ToolContext) -> dict[str, Any]:
@@ -250,8 +250,8 @@ async def _confirm_finish_shopping(ctx: ToolContext) -> dict[str, Any]:
             "request_finish_shopping i zapytaj użytkownika."
         }
     ctx.pending_action = None
-    removed = await service.finish_shopping(ctx.session, ctx.household)
-    return {"status": "finished", "removed_items": removed}
+    archived = await service.finish_shopping(ctx.session, ctx.household, ctx.user)
+    return {"status": "finished", "archived_items": archived}
 
 
 async def clear_pending_action(session: AsyncSession, user: User) -> str | None:

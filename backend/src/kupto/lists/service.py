@@ -22,7 +22,10 @@ from kupto.models import (
     HouseholdProduct,
     ListItem,
     Need,
+    PurchasedItem,
+    PurchasedNeed,
     ShoppingList,
+    ShoppingTrip,
     Unit,
     User,
 )
@@ -153,13 +156,63 @@ async def set_bought(
     return [item.name for item in items]
 
 
-async def finish_shopping(session: AsyncSession, household: Household) -> int:
-    list_id = await _list_id(session, household)
-    result = await session.execute(
-        delete(ListItem).where(ListItem.list_id == list_id, ListItem.bought_at.is_not(None))
+async def finish_shopping(session: AsyncSession, household: Household, user: User) -> int:
+    """Przenosi kupione pozycje z listy do historii zakupów; zwraca ich liczbę.
+
+    Zapis historii i usunięcie z listy dzieją się w jednej transakcji. Blokada wiersza listy
+    szereguje równoległe zakończenia zakupów, więc żadna pozycja nie trafi do historii dwa razy.
+    """
+    list_id = await session.scalar(
+        select(ShoppingList.id).where(ShoppingList.household_id == household.id).with_for_update()
     )
+    assert list_id is not None
+    bought = list(
+        await session.scalars(
+            select(ListItem)
+            .where(ListItem.list_id == list_id, ListItem.bought_at.is_not(None))
+            .order_by(ListItem.bought_at, ListItem.id)
+            .options(selectinload(ListItem.needs))
+            .with_for_update(of=ListItem)
+            .execution_options(populate_existing=True)
+        )
+    )
+    if not bought:
+        await session.commit()
+        return 0
+
+    session.add(
+        ShoppingTrip(
+            household_id=household.id,
+            finished_at=utcnow(),
+            finished_by_id=user.id,
+            items=[
+                PurchasedItem(
+                    name=item.name,
+                    normalized_name=item.normalized_name,
+                    category=item.category,
+                    bought_at=item.bought_at,
+                    bought_by_id=item.bought_by_id,
+                    needs=[
+                        PurchasedNeed(
+                            user_id=need.user_id,
+                            amount=need.amount,
+                            unit=need.unit,
+                            note=need.note,
+                            requested_at=need.created_at,
+                        )
+                        for need in item.needs
+                    ],
+                )
+                for item in bought
+            ],
+        )
+    )
+    await session.flush()
+    # Usuwamy dokładnie przeniesione pozycje (nie wszystkie kupione), żeby pozycja odhaczona
+    # w międzyczasie nie zniknęła z listy bez śladu w historii.
+    await session.execute(delete(ListItem).where(ListItem.id.in_([item.id for item in bought])))
     await session.commit()
-    return result.rowcount
+    return len(bought)
 
 
 async def _find_item(session: AsyncSession, list_id: int, normalized: str) -> ListItem | None:

@@ -148,7 +148,7 @@ async def test_list_question(household_with, chat):
     assert "ser" in reply.lower()
 
 
-async def test_finish_shopping_asks_for_confirmation(household_with, chat, items):
+async def test_finish_shopping_asks_for_confirmation(household_with, chat, items, purchase_history):
     (ala,) = await household_with("ala")
     body = (await ala.post("/api/list/needs", json={"name": "mleko"})).json()
     await ala.post("/api/list/needs", json={"name": "chleb"})
@@ -157,9 +157,12 @@ async def test_finish_shopping_asks_for_confirmation(household_with, chat, items
 
     await chat(ala, "skończyłem zakupy")
     assert set(await items(ala)) == {"mleko", "chleb"}
+    assert await purchase_history() == []
 
     await chat(ala, "tak, potwierdzam")
     assert set(await items(ala)) == {"chleb"}
+    (trip,) = await purchase_history()
+    assert [i.name for i in trip.items] == ["mleko"]
 
 
 async def test_english_message_gets_english_reply_and_polish_item(household_with, chat, items):

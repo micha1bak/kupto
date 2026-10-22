@@ -7,14 +7,16 @@ from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from testcontainers.community.postgres import PostgresContainer
 
 from kupto.chat.llm import FakeLLMClient, LLMClient
 from kupto.config import Settings
 from kupto.db import Base
 from kupto.main import create_app
+from kupto.models import PurchasedItem, ShoppingTrip
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
@@ -121,3 +123,21 @@ def household_with(login_as):
         return clients
 
     return factory
+
+
+@pytest.fixture
+def purchase_history(app: FastAPI):
+    """Odczyt historii zakupów (zakończenia z pozycjami i zapotrzebowaniami) w osobnej sesji."""
+
+    async def load(household_id: int | None = None) -> list[ShoppingTrip]:
+        statement = (
+            select(ShoppingTrip)
+            .options(selectinload(ShoppingTrip.items).selectinload(PurchasedItem.needs))
+            .order_by(ShoppingTrip.id)
+        )
+        if household_id is not None:
+            statement = statement.where(ShoppingTrip.household_id == household_id)
+        async with app.state.sessionmaker() as session:
+            return list(await session.scalars(statement))
+
+    return load

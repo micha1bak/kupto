@@ -287,7 +287,7 @@ export function ListView({ userId }: { userId: number }) {
   const anyPinned = groups.some((g) => g.pinned);
 
   function confirmFinish() {
-    if (window.confirm("Zakończyć zakupy? Kupione pozycje zostaną usunięte z listy.")) {
+    if (window.confirm("Zakończyć zakupy? Kupione pozycje zostaną przeniesione do historii.")) {
       finish.mutate(undefined);
     }
   }

@@ -85,7 +85,7 @@ async def unmark_bought(
 async def finish_shopping(
     user: CurrentUser, household: CurrentHousehold, session: SessionDep
 ) -> ListOut:
-    await service.finish_shopping(session, household)
+    await service.finish_shopping(session, household, user)
     return await _current_list(session, household, user)
 
 
