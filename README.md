@@ -53,6 +53,7 @@ Opisane w `.env.example`:
 | `COOKIE_SECURE` | `true` przy HTTPS (zalecane); `false` tylko przy czystym HTTP |
 | `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` | dostęp do modelu (puste `OPENAI_BASE_URL` = OpenAI) |
 | `CHAT_RATE_LIMIT_PER_HOUR` | limit wiadomości do asystenta na użytkownika |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | powiadomienia push (opcjonalne; puste = wyłączone), zob. `deploy/README.md` |
 
 ## CI
 

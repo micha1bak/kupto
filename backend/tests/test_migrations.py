@@ -7,6 +7,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import make_url, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -188,3 +189,37 @@ async def test_shopping_status_migration_keeps_existing_data(empty_database):
 
     await migrate(empty_database, "up", "head")
     assert await column_exists(empty_database, "users", "shopping_since")
+
+
+async def test_push_subscriptions_migration_keeps_existing_data(empty_database):
+    await migrate(empty_database, "up", "0004")
+    await execute(empty_database, *SEED_STATEMENTS)
+    tables = (*EXISTING_TABLES, *HISTORY_TABLES)
+    before = await snapshot(empty_database, tables)
+
+    await migrate(empty_database, "up", "0005")
+
+    assert await snapshot(empty_database, tables) == before
+    assert await snapshot(empty_database, ("push_subscriptions",)) == {"push_subscriptions": []}
+    # Kilka urządzeń jednego użytkownika, endpoint unikalny.
+    insert = (
+        "INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at, "
+        "updated_at) VALUES "
+    )
+    await execute(
+        empty_database,
+        insert + "(1, 'https://fcm.googleapis.com/a', 'k', 'a', now(), now()), "
+        "(1, 'https://fcm.googleapis.com/b', 'k', 'a', now(), now())",
+    )
+    with pytest.raises(IntegrityError):
+        await execute(
+            empty_database, insert + "(2, 'https://fcm.googleapis.com/a', 'k', 'a', now(), now())"
+        )
+
+    await migrate(empty_database, "down", "0004")
+
+    assert not await table_exists(empty_database, "push_subscriptions")
+    assert await snapshot(empty_database, tables) == before
+
+    await migrate(empty_database, "up", "head")
+    assert await table_exists(empty_database, "push_subscriptions")

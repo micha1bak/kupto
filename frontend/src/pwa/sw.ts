@@ -5,6 +5,7 @@
  * wydzieliłby wspólny kawałek, a SW musi być jednym plikiem).
  */
 import { routeRequest } from "./swRouting";
+import { parsePushPayload, pickWindow, resolveClickUrl } from "./swNotifications";
 
 declare const __KUPTO_PRECACHE__: string[];
 declare const __KUPTO_SW_VERSION__: string;
@@ -17,12 +18,29 @@ interface FetchEvent extends ExtendableEvent {
   readonly request: Request;
   respondWith(response: Response | Promise<Response>): void;
 }
+interface PushEvent extends ExtendableEvent {
+  readonly data: { text(): string } | null;
+}
+interface NotificationEvent extends ExtendableEvent {
+  readonly notification: Notification;
+}
+interface WindowClient {
+  readonly url: string;
+  focus(): Promise<WindowClient>;
+}
 interface ServiceWorkerScope {
   readonly location: Location;
+  readonly registration: ServiceWorkerRegistration;
   skipWaiting(): Promise<void>;
-  readonly clients: { claim(): Promise<void> };
+  readonly clients: {
+    claim(): Promise<void>;
+    matchAll(options: { type: "window"; includeUncontrolled: boolean }): Promise<WindowClient[]>;
+    openWindow(url: string): Promise<WindowClient | null>;
+  };
   addEventListener(type: "install" | "activate", listener: (event: ExtendableEvent) => void): void;
   addEventListener(type: "fetch", listener: (event: FetchEvent) => void): void;
+  addEventListener(type: "push", listener: (event: PushEvent) => void): void;
+  addEventListener(type: "notificationclick", listener: (event: NotificationEvent) => void): void;
 }
 
 const sw = self as unknown as ServiceWorkerScope;
@@ -90,4 +108,45 @@ async function cacheFirst(request: Request): Promise<Response> {
   return cached ?? fetch(request);
 }
 
-// --- Powiadomienia (#27): tu dojdą nasłuchy `push` i `notificationclick` ---
+// --- Powiadomienia push (#27, design D8) ---
+
+sw.addEventListener("push", (event) => {
+  let text: string | null = null;
+  try {
+    text = event.data?.text() ?? null;
+  } catch {
+    // nieczytelny ładunek — pokażemy ogólne powiadomienie
+  }
+  const payload = parsePushPayload(text);
+  // Subskrypcja ma `userVisibleOnly: true` — każde push musi pokazać powiadomienie.
+  event.waitUntil(
+    sw.registration.showNotification(payload.title, {
+      body: payload.body,
+      // Ten sam tag zastępuje poprzednie powiadomienie (grupowanie); `renotify` znów sygnalizuje.
+      tag: payload.tag ?? undefined,
+      renotify: payload.tag !== null,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: payload.url, type: payload.type },
+      lang: "pl",
+    } as NotificationOptions),
+  );
+});
+
+sw.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const data = event.notification.data as { url?: unknown } | null;
+  const target = resolveClickUrl(data?.url, sw.location.origin);
+  event.waitUntil(
+    (async () => {
+      const windows = await sw.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const existing = pickWindow(windows, target);
+      if (!existing) {
+        await sw.clients.openWindow(target);
+        return;
+      }
+      // Bez nawigacji: przeładowanie przerwałoby np. pisaną właśnie wiadomość w czacie.
+      await existing.focus();
+    })(),
+  );
+});

@@ -37,6 +37,8 @@ uv run uvicorn --factory kupto.main:create_app --reload    # http://localhost:80
 | `CHAT_HISTORY_LIMIT` | `20` | ile ostatnich wiadomości trafia do modelu |
 | `CHAT_MAX_TOOL_ROUNDS` | `5` | maks. rund wywołań narzędzi na wiadomość |
 | `LIST_EVENTS_HEARTBEAT_SECONDS` | `20` | co ile strumień zmian listy wysyła podtrzymanie (≤ 30) |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | — (powiadomienia wyłączone) | para kluczy Web Push z `uv run python -m kupto.push.keys` (base64url) |
+| `VAPID_SUBJECT` | — | kontakt dla usług push: `mailto:adres@domena` lub `https://domena` |
 
 ## Testy
 

@@ -8,6 +8,7 @@ from kupto.config import Settings
 from kupto.db import get_session
 from kupto.errors import Conflict, Unauthorized
 from kupto.models import Household, User
+from kupto.push.notifier import Notifier
 
 NO_HOUSEHOLD = "no_household"
 
@@ -16,8 +17,14 @@ def get_app_settings(request: Request) -> Settings:
     return request.app.state.settings
 
 
+def get_notifier(request: Request) -> Notifier:
+    return request.app.state.notifier
+
+
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_app_settings)]
+# Wysyłka powiadomień push — wołać po commicie zmiany (zob. `kupto.push.notifier`).
+NotifierDep = Annotated[Notifier, Depends(get_notifier)]
 
 
 async def get_current_user(

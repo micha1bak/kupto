@@ -6,6 +6,7 @@ import { keys, useProfile } from "./api/queries";
 import { AuthForm } from "./auth/AuthForm";
 import { HouseholdPage, HouseholdSetup } from "./household/HouseholdPage";
 import { MainPage } from "./layout/MainPage";
+import { disablePushOnLogout } from "./pwa/push";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +22,8 @@ function Authenticated({ page }: { page: "main" | "household" }) {
   const navigate = useNavigate();
 
   async function logout() {
+    // Jeszcze z ważną sesją — serwer musi wiedzieć, czyją subskrypcję usuwa.
+    await disablePushOnLogout();
     await post("/api/auth/logout");
     client.clear();
     navigate("/login");

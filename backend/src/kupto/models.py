@@ -241,6 +241,25 @@ class ChatMessage(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
+class PushSubscription(Base):
+    """Subskrypcja Web Push jednego urządzenia (przeglądarki) użytkownika.
+
+    `endpoint` jest unikalny: urządzenie należy do najwyżej jednego użytkownika, a ponowny zapis
+    przepina je na zalogowanego.
+    """
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    p256dh: Mapped[str] = mapped_column(String(200))
+    auth: Mapped[str] = mapped_column(String(100))
+    user_agent: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
 class ChatPendingAction(Base):
     __tablename__ = "chat_pending_actions"
 
