@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from kupto.lists.category_order import AUTOMATIC, CategoryOrder
 from kupto.lists.quantities import aggregate_quantities
 from kupto.models import Category, ListItem, ShoppingList, Unit
 
@@ -19,6 +20,13 @@ class NeedUpdate(BaseModel):
     amount: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=3)
     unit: Unit | None = None
     note: str | None = Field(default=None, max_length=200)
+
+
+class CategoryMove(BaseModel):
+    """Sąsiedzi przeniesionej kategorii na liście klienta; brak sąsiada = początek albo koniec."""
+
+    after: Category | None = None
+    before: Category | None = None
 
 
 class QuantityOut(BaseModel):
@@ -49,7 +57,13 @@ class ItemOut(BaseModel):
 
 class CategoryGroup(BaseModel):
     category: Category
+    pinned: bool
     items: list[ItemOut]
+
+
+class CategoryOrderEntry(BaseModel):
+    category: Category
+    pinned: bool
 
 
 class ListOut(BaseModel):
@@ -84,14 +98,24 @@ def item_out(item: ListItem) -> ItemOut:
     )
 
 
-def list_out(shopping_list: ShoppingList) -> ListOut:
-    """Lista pogrupowana według kategorii w stałej kolejności; w grupie pozycje alfabetycznie."""
+def list_out(shopping_list: ShoppingList, order: CategoryOrder = AUTOMATIC) -> ListOut:
+    """Lista pogrupowana według kategorii w kolejności `order`; w grupie pozycje alfabetycznie."""
     groups = []
-    for category in Category:
+    for category in order.categories:
         items = sorted(
             (i for i in shopping_list.items if i.category == category),
             key=lambda i: i.normalized_name,
         )
         if items:
-            groups.append(CategoryGroup(category=category, items=[item_out(i) for i in items]))
+            groups.append(
+                CategoryGroup(
+                    category=category,
+                    pinned=category in order.pinned,
+                    items=[item_out(i) for i in items],
+                )
+            )
     return ListOut(id=shopping_list.id, groups=groups)
+
+
+def category_order_out(order: CategoryOrder) -> list[CategoryOrderEntry]:
+    return [CategoryOrderEntry(category=c, pinned=c in order.pinned) for c in order.categories]
