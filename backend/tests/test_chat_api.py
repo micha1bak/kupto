@@ -255,3 +255,30 @@ async def test_clearing_history_keeps_list(household_with, fake_llm):
 
     assert (await ala.get("/api/chat/messages")).json() == []
     assert "chleb" in list_items((await ala.get("/api/list")).json())
+
+
+async def test_going_shopping_via_chat_sets_status_for_household(household_with, fake_llm):
+    ala, ola = await household_with("ala", "ola")
+    await ala.post("/api/list/needs", json={"name": "mleko"})
+    fake_llm.rounds += [
+        [ToolCall("c1", "start_shopping", "{}")],
+        [TextDelta("Udanych zakupów! Do kupienia: mleko.")],
+    ]
+
+    _, events = await send(ala, "idę do sklepu")
+
+    assert ("list_changed", {}) in events
+    body = (await ola.get("/api/list")).json()
+    assert [s["login"] for s in body["shoppers"]] == ["ala"]
+    assert set(list_items(body)) == {"mleko"}
+    assert "start_shopping" in {t["name"] for t in fake_llm.calls[0]["tools"]}
+
+
+async def test_model_sees_who_is_shopping(household_with, fake_llm):
+    ala, ola = await household_with("ala", "ola")
+    await ola.post("/api/list/shopping")
+    fake_llm.rounds.append([TextDelta("Zakupy robi ola.")])
+
+    await send(ala, "czy ktoś jest w sklepie?")
+
+    assert '"shopping_now": ["ola"]' in fake_llm.calls[0]["instructions"]

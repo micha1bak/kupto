@@ -78,10 +78,20 @@ export interface CategoryGroup {
   items: Item[];
 }
 
+/** Członek gospodarstwa ze statusem „robię zakupy” (status wygasa sam o `expires_at`). */
+export interface Shopper {
+  user_id: number;
+  login: string;
+  since: string;
+  expires_at: string;
+}
+
 export interface ShoppingList {
   id: number;
   /** Grupy w kolejności kategorii zalogowanego użytkownika. */
   groups: CategoryGroup[];
+  /** Kto z gospodarstwa robi teraz zakupy; najdawniej rozpoczęty pierwszy. */
+  shoppers: Shopper[];
 }
 
 /** Sąsiedzi przeniesionej kategorii; brak sąsiada oznacza początek albo koniec kolejności. */

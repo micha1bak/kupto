@@ -52,7 +52,7 @@ Asystent MUST umożliwiać w rozmowie: sprawdzenie zawartości listy, zmianę il
 
 #### Scenario: Zakończenie zakupów przez czat
 - **WHEN** członek pisze „skończyłem zakupy”
-- **THEN** asystent prosi o potwierdzenie i usuwa kupione pozycje dopiero po jego otrzymaniu
+- **THEN** asystent prosi o potwierdzenie i przenosi kupione pozycje z listy do historii zakupów dopiero po jego otrzymaniu
 
 ### Requirement: Zakres działania asystenta
 Asystent MUST działać wyłącznie na liście gospodarstwa autora wiadomości i MUST NOT ujawniać danych innych gospodarstw. Na prośby niezwiązane z zakupami MUST krótko odmówić i wrócić do tematu zakupów; treść wiadomości MUST NOT pozwalać obejść tych ograniczeń.

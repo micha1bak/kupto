@@ -53,6 +53,9 @@ class User(Base):
         ForeignKey("households.id", ondelete="SET NULL"), index=True
     )
     joined_household_at: Mapped[datetime | None]
+    # Początek statusu „robię zakupy”; NULL = brak statusu. Aktywność (z wygasaniem) oceniaj
+    # wyłącznie przez `kupto.lists.shopping_status`, nie bezpośrednio z tej kolumny.
+    shopping_since: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     household: Mapped["Household | None"] = relationship(

@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 
@@ -5,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from kupto.lists.category_order import AUTOMATIC, CategoryOrder
 from kupto.lists.quantities import aggregate_quantities
+from kupto.lists.shopping_status import Shopper
 from kupto.models import Category, ListItem, ShoppingList, Unit
 
 
@@ -66,9 +68,20 @@ class CategoryOrderEntry(BaseModel):
     pinned: bool
 
 
+class ShopperOut(BaseModel):
+    """Członek gospodarstwa, który teraz robi zakupy."""
+
+    user_id: int
+    login: str
+    since: datetime
+    expires_at: datetime
+
+
 class ListOut(BaseModel):
     id: int
     groups: list[CategoryGroup]
+    # Aktywne statusy „robię zakupy” członków gospodarstwa, najdawniej rozpoczęty pierwszy.
+    shoppers: list[ShopperOut] = []
 
 
 def item_out(item: ListItem) -> ItemOut:
@@ -98,7 +111,11 @@ def item_out(item: ListItem) -> ItemOut:
     )
 
 
-def list_out(shopping_list: ShoppingList, order: CategoryOrder = AUTOMATIC) -> ListOut:
+def list_out(
+    shopping_list: ShoppingList,
+    order: CategoryOrder = AUTOMATIC,
+    shoppers: Sequence[Shopper] = (),
+) -> ListOut:
     """Lista pogrupowana według kategorii w kolejności `order`; w grupie pozycje alfabetycznie."""
     groups = []
     for category in order.categories:
@@ -114,7 +131,14 @@ def list_out(shopping_list: ShoppingList, order: CategoryOrder = AUTOMATIC) -> L
                     items=[item_out(i) for i in items],
                 )
             )
-    return ListOut(id=shopping_list.id, groups=groups)
+    return ListOut(
+        id=shopping_list.id,
+        groups=groups,
+        shoppers=[
+            ShopperOut(user_id=s.user_id, login=s.login, since=s.since, expires_at=s.expires_at)
+            for s in shoppers
+        ],
+    )
 
 
 def category_order_out(order: CategoryOrder) -> list[CategoryOrderEntry]:
