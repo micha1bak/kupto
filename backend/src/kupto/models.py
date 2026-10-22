@@ -2,7 +2,16 @@ import enum
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Enum, ForeignKey, Index, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Enum,
+    ForeignKey,
+    Index,
+    Numeric,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kupto.db import Base, utcnow
@@ -133,6 +142,23 @@ class HouseholdProduct(Base):
     )
     normalized_name: Mapped[str] = mapped_column(String(100), primary_key=True)
     category: Mapped[Category] = mapped_column(_enum(Category, "category"))
+
+
+class UserCategoryPin(Base):
+    """Kategoria przypięta przez użytkownika na danym miejscu jego kolejności kategorii.
+
+    `position` to indeks w pełnej kolejności wszystkich kategorii (także pustych); nieprzypięte
+    kategorie układają się wokół przypiętych w kolejności automatycznej.
+    """
+
+    __tablename__ = "user_category_pins"
+    __table_args__ = (UniqueConstraint("user_id", "position"),)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    category: Mapped[Category] = mapped_column(_enum(Category, "category"), primary_key=True)
+    position: Mapped[int] = mapped_column(SmallInteger)
 
 
 class ChatMessage(Base):
