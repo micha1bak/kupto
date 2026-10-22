@@ -13,7 +13,11 @@ bo zasady projektu blokują OIDC.
    - `/opt/kupto/.env` z parametrów SSM `/kupto/*`,
    - `docker compose pull` i `up -d --wait` — odtwarzane są tylko kontenery z nowym obrazem
      lub konfiguracją; migracje bazy wykonuje backend przy starcie,
-   - sprawdzenie `http://localhost/api/health`.
+   - sprawdzenie `/api/health` wewnątrz sieci Compose (`web` → `backend`).
+
+Na zewnątrz wystawiony jest tylko Caddy (porty 80 i 443): certyfikat Let's Encrypt dla
+`KUPTO_DOMAIN`, przekierowanie HTTP → HTTPS i proxy do `web` (nginx: SPA + `/api`).
+Certyfikaty leżą w wolumenie `caddy_data`.
 
 Od merge do działającej wersji mija zwykle 5–10 minut (budowa obrazów + najbliższy tick
 timera).
@@ -33,6 +37,7 @@ Wszystkie jako `SecureString` w regionie `eu-north-1`, nazwy = zmienne środowis
 | `/kupto/OPENAI_BASE_URL` | `https://api.groq.com/openai/v1` |
 | `/kupto/OPENAI_MODEL` | `openai/gpt-oss-120b` |
 | `/kupto/CHAT_RATE_LIMIT_PER_HOUR` | `30` |
+| `/kupto/KUPTO_DOMAIN` | `kupto.bakweb.pl` — rekord A na Elastic IP z `infra/` (DNS w SEOHOST) |
 
 Klucz wpisuje się bez pokazywania go na ekranie i bez zapisu w historii powłoki:
 
@@ -59,7 +64,5 @@ Powłoka na serwerze: `aws ssm start-session --profile kupto --target <instance_
 
 - `systemctl list-timers kupto-update.timer` — kiedy następne sprawdzenie,
 - `journalctl -u kupto-update -n 50` — wynik ostatnich wdrożeń,
-- `docker compose -p kupto ps` / `docker compose -p kupto logs backend` — stan aplikacji.
-
-Do czasu HTTPS (#19) aplikacja odpowiada tylko po HTTP na porcie 80, a przy
-`COOKIE_SECURE=true` logowanie w przeglądarce nie działa — to zamierzone.
+- `docker compose -p kupto ps` / `docker compose -p kupto logs backend` — stan aplikacji,
+- `docker compose -p kupto logs caddy` — wydawanie i odnawianie certyfikatu.
