@@ -47,19 +47,43 @@ uv run ruff check src tests evals
 ## Ewaluacje asystenta (prawdziwy model)
 
 `evals/` sprawdza scenariusze ze specyfikacji `needs-chat`, które zależą od modelu: rozpoznawanie
-wielu produktów, mianownik nazw, ilości i notatki, dopytywanie przy ogólnych potrzebach, odmowę
-tematów spoza zakupów, odporność na prompt injection, oznaczanie kupionych, potwierdzanie
-zakończenia zakupów i język odpowiedzi. Domyślnie są pomijane (marker `llm`).
+wielu produktów, mianownik nazw, kategoryzację, ilości i notatki, dopytywanie przy ogólnych
+potrzebach („coś na grilla”) i potwierdzenie z wyjątkiem, odmowę tematów spoza zakupów, odporność
+na prompt injection, oznaczanie kupionych, potwierdzanie zakończenia zakupów i język odpowiedzi
+(12 testów). Domyślnie są pomijane (marker `llm`).
 
 ```bash
-OPENAI_API_KEY=sk-... OPENAI_MODEL=gpt-4.1-mini uv run pytest -m llm
+OPENAI_API_KEY=gsk_... OPENAI_BASE_URL=https://api.groq.com/openai/v1 \
+  OPENAI_MODEL=openai/gpt-oss-120b EVAL_DELAY_SECONDS=40 uv run pytest -m llm
 ```
 
 Ustawienia można też wpisać do `backend/.env`. Przy dostawcy z niskim limitem tokenów na minutę
-(np. darmowy plan Groq) ustaw odstęp między wiadomościami, np. `EVAL_DELAY_SECONDS=45`
-(pełne uruchomienie trwa wtedy ok. 10 minut).
+(np. darmowy plan Groq) ustaw odstęp między wiadomościami, np. `EVAL_DELAY_SECONDS=40`
+(pełne uruchomienie trwa wtedy ok. 9 minut).
 
-### Wyniki (2026-10-21, Groq `openai/gpt-oss-120b`, `EVAL_DELAY_SECONDS=45`)
+### Wybór modelu (2026-10-22, Groq, `EVAL_DELAY_SECONDS=40`, prompt bez zmian)
+
+| Model | Przebieg 1 | Przebieg 2 | Błędy | Cena wej./wyj. za 1 mln tokenów | Koszt przebiegu* |
+|---|---|---|---|---|---|
+| **`openai/gpt-oss-120b`** | **12/12** | **12/12** | — | $0,15 / $0,60 | ok. $0,015 |
+| `openai/gpt-oss-20b` | 12/12 | 9/12 | „płyn do naczyń” w kategorii „Inne”; podwójne `add_needs` dla już obecnego mleka; „tak, ale bez kiełbasy” potraktowane jak odmowa (nic nie dodane). Poza asercjami: odpowiedź po angielsku na polską próbę prompt injection | $0,075 / $0,30 | ok. $0,007 |
+| `qwen/qwen3.8-27b` (preview) | 8/12 | — | rozumowanie modelu trafia do treści odpowiedzi („I need to call request_finish_shopping…”, „.”); deklaruje zmiany bez wywołania narzędzia (mleko, grill); odpowiedź po polsku na angielską wiadomość | $0,80 / $4,00 | ok. $0,08 |
+
+\* Szacunek: ok. 14 wiadomości i ok. 30 rund modelu na przebieg, jedna runda to ok. 1,4–2 tys.
+tokenów wejścia (prompt + narzędzia + lista) i kilkaset tokenów wyjścia (z rozumowaniem). Czas
+przebiegu (ok. 9 min) wynika głównie z `EVAL_DELAY_SECONDS`; sama runda z wywołaniem narzędzia
+trwała ok. 1,9 s (120b) i 1,1 s (20b).
+
+**Wybrany model: `openai/gpt-oss-120b` na Groq.** Jako jedyny przeszedł wszystkie scenariusze
+w obu przebiegach. `gpt-oss-20b` jest o połowę tańszy, ale robi realne błędy (zła kategoria,
+zduplikowane zapotrzebowanie, źle zrozumiane potwierdzenie z wyjątkiem). Przy cenie rzędu 0,1 grosza
+za wiadomość ta oszczędność nie uzasadnia gorszej jakości. Qwen nie nadaje się do produkcji (model
+preview, wycieka rozumowanie, pomija narzędzia). Błędy obu tańszych modeli to błędy modelu, nie
+promptu (ten sam prompt na 120b przechodzi w całości), więc prompt został bez zmian. Domyślne
+`OPENAI_MODEL=gpt-4.1-mini` w `config.py` dotyczy OpenAI (puste `OPENAI_BASE_URL`) i nie było
+ewaluowane w tej rundzie (brak klucza OpenAI). Dla Groq ustaw `OPENAI_MODEL=openai/gpt-oss-120b`.
+
+### Wcześniejsze przebiegi (2026-10-21, Groq `openai/gpt-oss-120b`, `EVAL_DELAY_SECONDS=45`, 11 testów)
 
 | Przebieg | Wynik | Uwagi |
 |---|---|---|
