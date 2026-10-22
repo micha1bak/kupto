@@ -11,6 +11,7 @@ from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kupto.errors import DomainError
+from kupto.lists import events
 from kupto.lists.ordering import arrange
 from kupto.models import Category, User, UserCategoryPin
 
@@ -70,6 +71,7 @@ async def pin(
             if c in pinned
         ],
     )
+    await events.order_changed(session, user)
     await session.commit()
 
 
@@ -79,11 +81,13 @@ async def unpin(session: AsyncSession, user: User, category: Category) -> None:
             UserCategoryPin.user_id == user.id, UserCategoryPin.category == category
         )
     )
+    await events.order_changed(session, user)
     await session.commit()
 
 
 async def reset(session: AsyncSession, user: User) -> None:
     await session.execute(delete(UserCategoryPin).where(UserCategoryPin.user_id == user.id))
+    await events.order_changed(session, user)
     await session.commit()
 
 

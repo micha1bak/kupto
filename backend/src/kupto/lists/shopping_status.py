@@ -17,6 +17,7 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kupto.db import utcnow
+from kupto.lists import events
 from kupto.models import Household, User
 
 SHOPPING_STATUS_TTL = timedelta(hours=3)
@@ -51,6 +52,8 @@ async def start(session: AsyncSession, user: User, now: datetime | None = None) 
         .values(shopping_since=now)
         .returning(User.id)
     )
+    if started is not None:
+        await _status_changed(session, user)
     await session.commit()
     await session.refresh(user, ["shopping_since"])
     return started is not None
@@ -59,6 +62,8 @@ async def start(session: AsyncSession, user: User, now: datetime | None = None) 
 async def stop(session: AsyncSession, user: User, now: datetime | None = None) -> bool:
     """Wyłącza status; zwraca True, jeśli był aktywny."""
     was_active = await clear(session, user, now)
+    if was_active:
+        await _status_changed(session, user)
     await session.commit()
     return was_active
 
@@ -94,3 +99,9 @@ async def active_shoppers(
         Shopper(user_id=uid, login=login, since=since, expires_at=expires_at(since))
         for uid, login, since in rows
     ]
+
+
+async def _status_changed(session: AsyncSession, user: User) -> None:
+    # Lista pokazuje, kto robi zakupy, więc zmiana statusu to zmiana listy dla domowników.
+    if user.household_id is not None:
+        await events.list_changed(session, user.household_id)

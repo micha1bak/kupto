@@ -21,6 +21,10 @@ przeglądarka ──► web (nginx: SPA + proxy /api, bez buforowania dla SSE)
 - `frontend/` — React + Vite + TypeScript; szczegóły w `frontend/README.md`.
 - `openspec/` — specyfikacje i plan zmian (OpenSpec).
 
+Lista jest na żywo: każda zmiana (ręczna lub przez czat) wysyła w transakcji Postgres `NOTIFY`,
+backend nasłuchuje `LISTEN` i przekazuje otwartym klientom gospodarstwa sygnał przez SSE
+(`/api/list/events`), a klient pobiera wtedy listę od nowa.
+
 Model nigdy nie zmienia bazy bezpośrednio: wybiera narzędzie (np. „dodaj zapotrzebowanie”),
 a backend wykonuje je w kontekście gospodarstwa zalogowanego użytkownika, z tymi samymi regułami
 co ręczne operacje w UI.

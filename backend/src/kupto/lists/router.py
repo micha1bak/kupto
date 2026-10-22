@@ -1,7 +1,12 @@
-from fastapi import APIRouter, status
+from collections.abc import AsyncIterator
 
-from kupto.deps import CurrentHousehold, CurrentUser, SessionDep
+from fastapi import APIRouter, Request, status
+from fastapi.responses import StreamingResponse
+
+from kupto.deps import CurrentHousehold, CurrentUser, SessionDep, SettingsDep
+from kupto.errors import DomainError
 from kupto.lists import category_order, service, shopping_status
+from kupto.lists.events import BrokerUnavailable, ListEventBroker
 from kupto.lists.schemas import (
     CategoryMove,
     CategoryOrderEntry,
@@ -30,6 +35,59 @@ async def _current_list(session: SessionDep, household: Household, user: User) -
 @router.get("")
 async def get_list(user: CurrentUser, household: CurrentHousehold, session: SessionDep) -> ListOut:
     return await _current_list(session, household, user)
+
+
+class EventsUnavailable(DomainError):
+    status_code = 503
+
+
+# Ile czekamy na połączenie LISTEN przy otwieraniu strumienia, zanim klient wróci do pollingu.
+BROKER_READY_TIMEOUT_SECONDS = 5.0
+RECONNECT_DELAY_MS = 3000
+
+
+@router.get("/events", response_class=StreamingResponse)
+async def list_events(
+    request: Request,
+    user: CurrentUser,
+    household: CurrentHousehold,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> StreamingResponse:
+    """Strumień SSE: sygnał `list_changed`, gdy lista gospodarstwa (albo własna kolejność
+    kategorii) się zmieni. Treść listy klient pobiera zwykłym `GET /api/list` (design D1)."""
+    user_id, household_id = user.id, household.id
+    # Strumień żyje długo — połączenie z puli bazy wraca od razu, zostaje tylko subskrypcja.
+    await session.close()
+    broker: ListEventBroker = request.app.state.list_events
+    try:
+        await broker.wait_ready(BROKER_READY_TIMEOUT_SECONDS)
+    except BrokerUnavailable:
+        raise EventsUnavailable("Zmiany listy na żywo są chwilowo niedostępne.") from None
+    return StreamingResponse(
+        _event_stream(broker, household_id, user_id, settings.list_events_heartbeat_seconds),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+async def _event_stream(
+    broker: ListEventBroker, household_id: int, user_id: int, heartbeat: float
+) -> AsyncIterator[str]:
+    # Subskrypcja dopiero w generatorze: `finally` sprząta ją także przy rozłączeniu klienta.
+    try:
+        subscription = broker.subscribe(household_id, user_id)
+    except BrokerUnavailable:
+        return  # nasłuch padł w międzyczasie — klient połączy się ponownie
+    try:
+        yield f"retry: {RECONNECT_DELAY_MS}\n\nevent: ready\ndata: {{}}\n\n"
+        while True:
+            changed = await subscription.wait(heartbeat)
+            if subscription.closed:
+                return
+            yield "event: list_changed\ndata: {}\n\n" if changed else ": ping\n\n"
+    finally:
+        broker.unsubscribe(subscription)
 
 
 @router.post("/needs", status_code=status.HTTP_201_CREATED)

@@ -1,7 +1,9 @@
 # Kupto — frontend
 
-SPA w React + Vite + TypeScript. Dane z serwera pobiera TanStack Query (lista odświeżana co 5 s),
-a odpowiedzi asystenta są czytane jako strumień SSE (`fetch` + `ReadableStream`).
+SPA w React + Vite + TypeScript. Dane z serwera pobiera TanStack Query, a odpowiedzi asystenta
+są czytane jako strumień SSE (`fetch` + `ReadableStream`). Lista odświeża się na żywo: `EventSource`
+na `/api/list/events` dostaje sygnał o zmianie i wtedy lista jest pobierana ponownie
+(`src/api/listEvents.ts`); gdy strumień nie działa, lista jest odpytywana co 30 s.
 
 ## Uruchomienie deweloperskie
 

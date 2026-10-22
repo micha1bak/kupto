@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kupto.db import utcnow
 from kupto.errors import Conflict, Forbidden, NotFound
-from kupto.lists import shopping_status
+from kupto.lists import events, shopping_status
 from kupto.models import ChatMessage, ChatPendingAction, Household, ShoppingList, User
 
 
@@ -77,10 +77,14 @@ async def _detach(session: AsyncSession, user: User, household: Household) -> No
     )
     await session.execute(delete(ChatPendingAction).where(ChatPendingAction.user_id == user.id))
     # Status zakupów dotyczy tego gospodarstwa — nie może pojawić się w następnym.
-    await shopping_status.clear(session, user)
+    if await shopping_status.clear(session, user):
+        # Pozostali członkowie widzą na liście, kto robi zakupy — ten wskaźnik właśnie znika.
+        await events.list_changed(session, household.id)
     user.household_id = None
     user.joined_household_at = None
     await session.flush()
+    # Otwarte strumienie zmian listy tego użytkownika mają się zakończyć (po commicie).
+    await events.member_left(session, household.id, user.id)
 
 
 def _require_owner(actor: User, household: Household) -> None:

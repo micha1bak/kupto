@@ -1,8 +1,9 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ListView } from "./ListView";
-import { LIST_POLL_MS } from "../api/queries";
+import { LIST_FALLBACK_POLL_MS } from "../api/queries";
 import type { ShoppingList } from "../api/types";
+import { FakeEventSource } from "../test/fakeEventSource";
 import { jsonResponse, mockFetch, renderWithProviders } from "../test/utils";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -119,8 +120,8 @@ test("manual add sends parsed amount and optional fields", async () => {
   });
 });
 
-test("list is polled often enough to show others' changes within 10 seconds", () => {
-  expect(LIST_POLL_MS).toBeLessThanOrEqual(10_000);
+test("without the live stream the list is polled often enough to show changes within 30 seconds", () => {
+  expect(LIST_FALLBACK_POLL_MS).toBeLessThanOrEqual(30_000);
 });
 
 const pinnedList: ShoppingList = {
@@ -284,4 +285,18 @@ test("without shoppers there is no shopping banner", async () => {
 
   await screen.findByRole("button", { name: "Idę na zakupy" });
   expect(screen.queryByRole("list", { name: "Kto robi zakupy" })).not.toBeInTheDocument();
+});
+
+test("refetches the list when the live stream signals a change", async () => {
+  FakeEventSource.instances = [];
+  vi.stubGlobal("EventSource", FakeEventSource);
+  const fetch = mockFetch({ "GET /api/list": list });
+  renderWithProviders(<ListView userId={1} />);
+  await screen.findByText("mleko");
+  expect(fetch).toHaveBeenCalledTimes(1);
+
+  act(() => FakeEventSource.last.emit("ready"));
+  act(() => FakeEventSource.last.emit("list_changed"));
+
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
 });
