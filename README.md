@@ -50,6 +50,18 @@ Opisane w `.env.example`:
 | `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` | dostęp do modelu (puste `OPENAI_BASE_URL` = OpenAI) |
 | `CHAT_RATE_LIMIT_PER_HOUR` | limit wiadomości do asystenta na użytkownika |
 
+## CI
+
+Workflow `.github/workflows/ci.yml` (GitHub Actions) uruchamia się na każdym pull requeście
+i po pushu do `main`; nowy push do tego samego PR anuluje poprzedni przebieg. Joby:
+
+- **Backend** — `uv sync --locked`, `ruff check`, `ruff format --check`, `pytest` (Postgres
+  w testcontainers; ewaluacje z prawdziwym modelem są pomijane, klucz API nie jest potrzebny);
+- **Frontend** — `npm ci`, sprawdzenie typów (`tsc -b`), Vitest, `vite build`;
+- **Docker (backend)**, **Docker (frontend)** — budowa obu obrazów bez publikowania.
+
+CI niczego nie wdraża ani nie publikuje.
+
 ## Wdrożenie
 
 Automatyczne wdrażanie na VPS (GitHub Actions) zostało usunięte — docelową produkcją będzie AWS,
