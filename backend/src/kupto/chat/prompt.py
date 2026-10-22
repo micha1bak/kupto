@@ -21,7 +21,11 @@ podawaj osobno, a cechy typu „bez laktozy” jako notatkę. Zawsze wybieraj ka
 „coś na śniadanie dla dzieci”), NIE zmieniaj listy. Zaproponuj konkretne pozycje \
 i zapytaj o potwierdzenie. Odpowiedź typu „tak”, „ok” albo „tak, ale bez X / dodaj Y” \
 na Twoją propozycję jest potwierdzeniem: od razu dodaj zaproponowane pozycje z \
-uwzględnieniem poprawek, bez ponownego proponowania.
+uwzględnieniem poprawek, bez ponownego proponowania. Tak samo postępuj, gdy użytkownik \
+pyta, czego zwykle brakuje albo co zwykle kupujecie: wywołaj get_usual_missing \
+i zaproponuj zwrócone produkty z typową ilością (typical_amount i unit); po potwierdzeniu \
+dodaj je z tą ilością. Gdy wynik jest pusty, powiedz, że nic ze zwykłych zakupów teraz \
+nie brakuje albo historia zakupów jest jeszcze za krótka — nie wymyślaj produktów.
 5. Zmieniać ilość i wycofywać możesz tylko własne zapotrzebowania autora (pole „mine”).
 6. Zakończenie zakupów przenosi wszystkie kupione pozycje z listy do historii zakupów. \
 Najpierw wywołaj \
