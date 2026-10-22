@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Nowy push do tego samego PR (lub gałęzi) anuluje poprzedni, wciąż trwający przebieg.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # setup-uv od v8 nie publikuje ruchomych tagów głównych — przypięta pełna wersja.
+      - uses: astral-sh/setup-uv@v10.3.1
+        with:
+          version: "0.13.4" # ta sama wersja co w backend/Dockerfile
+          working-directory: backend
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Instalacja zależności
+        run: uv sync --locked
+
+      - name: Lint (ruff check)
+        run: uv run ruff check src tests evals
+
+      - name: Formatowanie (ruff format --check)
+        run: uv run ruff format --check src tests evals
+
+      # Postgres startuje w testcontainers (Docker jest dostępny na ubuntu-latest).
+      # Ewaluacje z prawdziwym modelem (marker `llm`) są pomijane przez `addopts` w pyproject.toml.
+      - name: Testy (pytest)
+        run: uv run pytest
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22 # jak w frontend/Dockerfile (node:22-alpine)
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalacja zależności
+        run: npm ci
+
+      - name: Sprawdzenie typów (tsc)
+        run: npx tsc -b
+
+      - name: Testy (Vitest)
+        run: npm test
+
+      - name: Build (vite build)
+        run: npx vite build
+
+  docker:
+    name: Docker (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Budowa obrazu (bez publikacji)
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.image }}
+          push: false
+          tags: kupto-${{ matrix.image }}:ci
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
