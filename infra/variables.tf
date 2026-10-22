@@ -33,3 +33,9 @@ variable "backup_retention_days" {
   type        = number
   default     = 35
 }
+
+variable "volume_backup_retention_days" {
+  description = "Po ilu dniach AWS Backup usuwa cotygodniowe kopie dysku serwera."
+  type        = number
+  default     = 28
+}

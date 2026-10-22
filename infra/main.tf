@@ -66,6 +66,11 @@ resource "aws_instance" "app" {
     volume_size           = var.root_volume_size
     encrypted             = true
     delete_on_termination = false
+
+    # Wybór do cotygodniowych kopii AWS Backup (backup.tf).
+    tags = {
+      Backup = "weekly"
+    }
   }
 
   tags = {

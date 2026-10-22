@@ -7,4 +7,5 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 Environment=AWS_DEFAULT_REGION=eu-north-1
-ExecStart=/opt/kupto/repo/deploy/kupto-update.sh
+# Wspólna blokada z kupto-backup: bez odtwarzania kontenera db w trakcie zrzutu.
+ExecStart=/usr/bin/flock /run/kupto.lock /opt/kupto/repo/deploy/kupto-update.sh

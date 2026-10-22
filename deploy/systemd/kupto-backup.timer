@@ -1,0 +1,11 @@
+[Unit]
+Description=Kupto: codzienny zrzut bazy około 03:00 UTC
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+RandomizedDelaySec=30min
+# Zrzut pominięty przy wyłączonym serwerze wykona się zaraz po starcie.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

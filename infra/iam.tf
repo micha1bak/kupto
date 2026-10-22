@@ -1,4 +1,4 @@
-# Rola instancji: Session Manager (bez SSH), zapis zrzutów bazy do S3, odczyt sekretów z SSM.
+# Rola instancji: Session Manager (bez SSH), zrzuty bazy w S3, odczyt sekretów z SSM.
 
 data "aws_iam_policy_document" "ec2_assume" {
   statement {
@@ -22,9 +22,11 @@ resource "aws_iam_role_policy_attachment" "ssm_core" {
 }
 
 data "aws_iam_policy_document" "app" {
+  # Odczyt potrzebny do odtworzenia bazy na serwerze (deploy/README.md); bez prawa usuwania,
+  # więc przejęty serwer nie skasuje kopii (wygasają przez lifecycle).
   statement {
-    sid       = "WriteDatabaseDumps"
-    actions   = ["s3:PutObject"]
+    sid       = "ReadWriteDatabaseDumps"
+    actions   = ["s3:PutObject", "s3:GetObject"]
     resources = ["${aws_s3_bucket.backups.arn}/postgres/*"]
   }
 

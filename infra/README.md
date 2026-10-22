@@ -2,7 +2,9 @@
 
 Infrastruktura produkcyjna wg [ADR 0001](../docs/adr/0001-architektura-aws.md): jedna instancja
 EC2 `t4g.micro` w projekcie `kupto` (`eu-north-1`), Elastic IP, security group tylko na 80/443,
-rola instancji (Session Manager, zrzuty bazy do S3, sekrety z SSM) i bucket na kopie bazy.
+rola instancji (Session Manager, zrzuty bazy w S3, sekrety z SSM), bucket na zrzuty bazy
+(z parametrem SSM `/kupto/BACKUP_BUCKET` dla skryptu na serwerze) i cotygodniowe kopie dysku
+przez AWS Backup (`backup.tf`).
 
 ## Wymagania
 
@@ -42,3 +44,9 @@ otwarcia powłoki na serwerze przez Session Manager (bez SSH; wymaga `session-ma
   ignorowane, żeby `apply` nigdy nie podmienił serwera z danymi bazy. Po świadomym usunięciu
   instancji stary wolumen trzeba usunąć ręcznie.
 - `user_data` przygotowuje tylko Dockera, Compose i swap; aplikację wdrażają #19–#21.
+- Kopie (#22): AWS Backup wybiera wolumeny po tagu `Backup = weekly` (ustawionym na dysku
+  systemowym w `main.tf`; zmiana tagu nie wymienia instancji). Rola `kupto-backup` ma
+  zarządzane polityki AWS Backup do kopii i odtwarzania. Sejf `kupto` nie usunie się przez
+  `terraform destroy`, dopóki są w nim punkty przywracania. Rola instancji może zapisywać
+  i czytać `postgres/*` w buckecie, ale nie usuwać — zrzuty wygasają przez lifecycle.
+  Procedury odtworzenia: [deploy/README.md](../deploy/README.md#kopie-zapasowe-22).

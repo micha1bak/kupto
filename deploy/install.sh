@@ -11,7 +11,7 @@ if [ ! -d "$repo/.git" ]; then
   git clone --quiet https://github.com/micha1bak/kupto.git "$repo"
 fi
 
-install -m 0644 "$repo"/deploy/systemd/kupto-update.{service,timer} /etc/systemd/system/
+install -m 0644 "$repo"/deploy/systemd/kupto-{update,backup}.{service,timer} /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now kupto-update.timer
+systemctl enable --now kupto-update.timer kupto-backup.timer
 systemctl start kupto-update.service
