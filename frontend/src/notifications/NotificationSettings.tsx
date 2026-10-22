@@ -8,6 +8,7 @@ import {
   type PushEnv,
   type PushState,
 } from "../pwa/push";
+import { NotificationTypes } from "./NotificationTypes";
 
 const DESCRIPTION: Record<PushState, string> = {
   loading: "Sprawdzanie…",
@@ -75,6 +76,8 @@ export function NotificationSettings({ env: injected }: { env?: PushEnv }) {
         </button>
       )}
       {error && <p className="error">{error}</p>}
+      {/* Typy tylko tam, gdzie serwer i przeglądarka obsługują powiadomienia (design D5). */}
+      {(state === "enabled" || state === "disabled") && <NotificationTypes />}
     </section>
   );
 }

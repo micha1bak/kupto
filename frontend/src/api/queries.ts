@@ -5,6 +5,7 @@ import { useListEvents } from "./listEvents";
 import type {
   ChatMessage,
   Household,
+  NotificationPreferences,
   ProductHit,
   Profile,
   ShoppingList,
@@ -20,6 +21,7 @@ export const keys = {
   history: ["history"] as const,
   historySearch: ["history-search"] as const,
   usual: ["usual"] as const,
+  notificationPreferences: ["notification-preferences"] as const,
 };
 
 /**
@@ -73,6 +75,13 @@ export const useUsualProducts = () =>
     queryKey: keys.usual,
     queryFn: () => api<UsualProduct[]>("/api/history/usual"),
     staleTime: 5 * 60_000,
+  });
+
+/** Które typy powiadomień użytkownik chce dostawać (per użytkownik, nie per urządzenie). */
+export const useNotificationPreferences = () =>
+  useQuery({
+    queryKey: keys.notificationPreferences,
+    queryFn: () => api<NotificationPreferences>("/api/push/preferences"),
   });
 
 // Historię odświeżamy tylko jawnie po każdej wymianie (ChatView), nie np. przy powrocie do karty —

@@ -6,8 +6,9 @@ from pydantic import AfterValidator, BaseModel, Field
 
 from kupto.deps import CurrentUser, NotifierDep, SessionDep
 from kupto.errors import NotFound
-from kupto.push import subscriptions
+from kupto.push import preferences, subscriptions
 from kupto.push.keys import b64url_decode
+from kupto.push.notification import NotificationType
 from kupto.push.notifier import Notifier
 
 router = APIRouter(prefix="/api/push", tags=["push"])
@@ -86,6 +87,41 @@ async def save_subscription(
         auth=payload.keys.auth,
         user_agent=user_agent,
     )
+
+
+class PreferenceOut(BaseModel):
+    type: NotificationType
+    enabled: bool
+
+
+class PreferencesOut(BaseModel):
+    types: list[PreferenceOut]
+
+
+class PreferenceIn(BaseModel):
+    enabled: bool
+
+
+async def _preferences_out(session: SessionDep, user: CurrentUser) -> PreferencesOut:
+    chosen = await preferences.preferences(session, user)
+    return PreferencesOut(types=[PreferenceOut(type=t, enabled=e) for t, e in chosen.items()])
+
+
+# Ustawienia typów (#32) działają także bez kluczy VAPID — to zwykłe dane użytkownika.
+@router.get("/preferences")
+async def get_preferences(user: CurrentUser, session: SessionDep) -> PreferencesOut:
+    return await _preferences_out(session, user)
+
+
+@router.put("/preferences/{notification_type}")
+async def set_preference(
+    notification_type: NotificationType,
+    payload: PreferenceIn,
+    user: CurrentUser,
+    session: SessionDep,
+) -> PreferencesOut:
+    await preferences.set_enabled(session, user, notification_type, payload.enabled)
+    return await _preferences_out(session, user)
 
 
 @router.delete("/subscriptions", status_code=status.HTTP_204_NO_CONTENT)

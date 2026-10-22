@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from kupto.config import Settings
 from kupto.db import utcnow
 from kupto.models import PushSubscription, User
+from kupto.push import preferences
 from kupto.push.notification import Notification, NotificationType
 from kupto.push.vapid import VapidConfig
 
@@ -104,11 +105,8 @@ class WebPushTransport:
 async def allowed_recipients(
     session: AsyncSession, user_ids: Collection[int], notification_type: NotificationType
 ) -> set[int]:
-    """Adresaci, którzy chcą dostać powiadomienie danego typu.
-
-    Punkt zaczepienia dla ustawień powiadomień (#32) — dziś przepuszcza wszystkich.
-    """
-    return set(user_ids)
+    """Adresaci, którzy chcą dostać powiadomienie danego typu (ustawienia #32, design D3)."""
+    return await preferences.recipients_wanting(session, user_ids, notification_type)
 
 
 class Notifier:
