@@ -114,3 +114,49 @@ export interface NeedCreate {
   note?: string | null;
   category?: Category | null;
 }
+
+/** Zapotrzebowanie, które doprowadziło do zakupu pozycji z historii. */
+export interface PurchasedNeed {
+  user_id: number | null;
+  login: string | null;
+  amount: number | null;
+  unit: Unit | null;
+  note: string | null;
+  requested_at: string;
+}
+
+export interface PurchasedItem {
+  id: number;
+  name: string;
+  category: Category;
+  quantities: Quantity[];
+  needs: PurchasedNeed[];
+  bought_at: string;
+  bought_by: string | null;
+}
+
+/** Jedno zakończenie zakupów; grupy w kolejności kategorii zalogowanego użytkownika. */
+export interface ShoppingTrip {
+  id: number;
+  finished_at: string;
+  finished_by: string | null;
+  item_count: number;
+  groups: { category: Category; items: PurchasedItem[] }[];
+}
+
+export interface TripPage {
+  trips: ShoppingTrip[];
+  /** Wartość `before` dla starszej strony; null — to już cała historia. */
+  next_cursor: number | null;
+}
+
+/** Produkt znaleziony w historii: kiedy i kto kupił go ostatnio. */
+export interface ProductHit {
+  name: string;
+  category: Category;
+  last_bought_at: string;
+  last_bought_by: string | null;
+  last_trip_id: number;
+  last_quantities: Quantity[];
+  times_bought: number;
+}

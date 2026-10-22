@@ -9,6 +9,7 @@ from kupto.chat.router import router as chat_router
 from kupto.config import Settings, get_settings
 from kupto.db import create_sessionmaker
 from kupto.errors import register_error_handlers
+from kupto.history.router import router as history_router
 from kupto.households.router import router as households_router
 from kupto.lists.events import ListEventBroker
 from kupto.lists.router import router as list_router
@@ -52,6 +53,7 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(households_router)
     app.include_router(list_router)
+    app.include_router(history_router)
     app.include_router(chat_router)
     app.include_router(push_router)
 

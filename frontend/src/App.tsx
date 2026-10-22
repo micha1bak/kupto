@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-route
 import { ApiError, post, setNoHouseholdHandler, setUnauthorizedHandler } from "./api/client";
 import { keys, useProfile } from "./api/queries";
 import { AuthForm } from "./auth/AuthForm";
+import { HistoryPage } from "./history/HistoryPage";
 import { HouseholdPage, HouseholdSetup } from "./household/HouseholdPage";
 import { MainPage } from "./layout/MainPage";
 import { disablePushOnLogout } from "./pwa/push";
@@ -16,7 +17,7 @@ const queryClient = new QueryClient({
   },
 });
 
-function Authenticated({ page }: { page: "main" | "household" }) {
+function Authenticated({ page }: { page: "main" | "household" | "history" }) {
   const profile = useProfile();
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -34,11 +35,9 @@ function Authenticated({ page }: { page: "main" | "household" }) {
   }
   if (!profile.data) return <p className="muted">Ładowanie…</p>;
   if (!profile.data.household) return <HouseholdSetup login={profile.data.login} />;
-  return page === "household" ? (
-    <HouseholdPage />
-  ) : (
-    <MainPage profile={profile.data} onLogout={logout} />
-  );
+  if (page === "household") return <HouseholdPage />;
+  if (page === "history") return <HistoryPage />;
+  return <MainPage profile={profile.data} onLogout={logout} />;
 }
 
 function Routing() {
@@ -56,6 +55,8 @@ function Routing() {
       client.removeQueries({ queryKey: keys.list });
       client.removeQueries({ queryKey: keys.chat });
       client.removeQueries({ queryKey: keys.household });
+      client.removeQueries({ queryKey: keys.history });
+      client.removeQueries({ queryKey: keys.historySearch });
       client.invalidateQueries({ queryKey: keys.profile });
     });
   }, [navigate, client]);
@@ -65,6 +66,7 @@ function Routing() {
       <Route path="/login" element={<AuthForm mode="login" />} />
       <Route path="/register" element={<AuthForm mode="register" />} />
       <Route path="/household" element={<Authenticated page="household" />} />
+      <Route path="/history" element={<Authenticated page="history" />} />
       <Route path="*" element={<Authenticated page="main" />} />
     </Routes>
   );
