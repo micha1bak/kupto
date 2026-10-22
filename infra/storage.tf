@@ -1,4 +1,4 @@
-# Bucket na codzienne zrzuty bazy (pg_dump); harmonogram i skrypt w #22.
+# Bucket na codzienne zrzuty bazy (pg_dump, deploy/kupto-backup.sh, #22).
 
 resource "aws_s3_bucket" "backups" {
   bucket = "kupto-backups-${data.aws_caller_identity.current.account_id}"
@@ -28,4 +28,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "backups" {
       days = var.backup_retention_days
     }
   }
+}
+
+# Nazwa bucketu dla skryptu kopii na serwerze — zawiera numer konta, więc nie trafia do repo.
+resource "aws_ssm_parameter" "backup_bucket" {
+  name  = "/kupto/BACKUP_BUCKET"
+  type  = "String"
+  value = aws_s3_bucket.backups.bucket
 }

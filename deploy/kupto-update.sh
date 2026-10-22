@@ -6,7 +6,8 @@ set -euo pipefail
 
 repo=/opt/kupto/repo
 env_file=/opt/kupto/.env
-units=(kupto-update.service kupto-update.timer)
+units=(kupto-update.service kupto-update.timer kupto-backup.service kupto-backup.timer)
+timers=(kupto-update.timer kupto-backup.timer)
 
 compose() {
   docker compose --project-directory "$repo/deploy" --env-file "$env_file" \
@@ -29,6 +30,8 @@ sync_units() {
   if [ "$changed" = 1 ]; then
     systemctl daemon-reload
   fi
+  # Nowe timery (np. kupto-backup po #22) włączają się same; dla włączonych to nic nie zmienia.
+  systemctl enable --now --quiet "${timers[@]}"
 }
 
 # Parametry /kupto/NAZWA (SecureString) zamieniane na linie NAZWA=wartość.
