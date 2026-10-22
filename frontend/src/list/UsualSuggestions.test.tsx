@@ -30,6 +30,7 @@ const item = (id: number, name: string): Item =>
     needs: [],
     bought: false,
     bought_at: null,
+    pinned: false,
     bought_by: null,
   }) as Item;
 
