@@ -161,6 +161,71 @@ class UserCategoryPin(Base):
     position: Mapped[int] = mapped_column(SmallInteger)
 
 
+class ShoppingTrip(Base):
+    """Jedno zakończenie zakupów w gospodarstwie — nagłówek wpisu w historii zakupów."""
+
+    __tablename__ = "shopping_trips"
+    __table_args__ = (
+        Index("ix_shopping_trips_household_id_finished_at", "household_id", "finished_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"))
+    finished_at: Mapped[datetime] = mapped_column(default=utcnow)
+    finished_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+    items: Mapped[list["PurchasedItem"]] = relationship(
+        back_populates="trip",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PurchasedItem.id",
+    )
+
+
+class PurchasedItem(Base):
+    """Kupiona pozycja przeniesiona z listy do historii — kopia stanu z chwili zakończenia."""
+
+    __tablename__ = "purchased_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trip_id: Mapped[int] = mapped_column(
+        ForeignKey("shopping_trips.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(100))
+    normalized_name: Mapped[str] = mapped_column(String(100))
+    category: Mapped[Category] = mapped_column(_enum(Category, "category"))
+    bought_at: Mapped[datetime]
+    bought_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+
+    trip: Mapped[ShoppingTrip] = relationship(back_populates="items")
+    needs: Mapped[list["PurchasedNeed"]] = relationship(
+        back_populates="item",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PurchasedNeed.requested_at",
+    )
+
+
+class PurchasedNeed(Base):
+    """Zapotrzebowanie, które doprowadziło do zakupu pozycji z historii."""
+
+    __tablename__ = "purchased_needs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    purchased_item_id: Mapped[int] = mapped_column(
+        ForeignKey("purchased_items.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
+    unit: Mapped[Unit | None] = mapped_column(_enum(Unit, "unit"))
+    note: Mapped[str | None] = mapped_column(String(200))
+    requested_at: Mapped[datetime]
+
+    item: Mapped[PurchasedItem] = relationship(back_populates="needs")
+
+
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
     __table_args__ = (Index("ix_chat_messages_user_id_created_at", "user_id", "created_at"),)

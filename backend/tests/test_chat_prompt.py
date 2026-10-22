@@ -1,4 +1,5 @@
-from kupto.chat.prompt import build_input, build_instructions
+from kupto.chat.prompt import SYSTEM_PROMPT, build_input, build_instructions
+from kupto.chat.tools import TOOL_DEFINITIONS
 from kupto.models import ChatMessage
 
 
@@ -18,6 +19,15 @@ def test_pending_finish_shopping_is_stated_in_instructions():
 
     assert "confirm_finish_shopping; nie pytaj ponownie" not in without
     assert "confirm_finish_shopping; nie pytaj ponownie" in with_pending
+
+
+def test_finishing_shopping_is_described_as_moving_to_history():
+    request_tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "request_finish_shopping")
+
+    assert "do historii zakupów" in SYSTEM_PROMPT
+    assert "do historii zakupów" in request_tool["description"]
+    assert "usuwa wszystkie kupione" not in SYSTEM_PROMPT
+    assert "usunięcia kupionych" not in request_tool["description"]
 
 
 def test_input_is_trimmed_to_most_recent_messages():

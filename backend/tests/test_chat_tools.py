@@ -169,7 +169,7 @@ async def prepare_bought_and_unbought(ctx):
     await call(ctx, "mark_bought", item_ids=[items["mleko"]])
 
 
-async def test_confirm_without_request_does_nothing(home):
+async def test_confirm_without_request_does_nothing(home, purchase_history):
     ctx = home["ala"]
     await prepare_bought_and_unbought(ctx)
     await start_turn(ctx)
@@ -178,6 +178,7 @@ async def test_confirm_without_request_does_nothing(home):
 
     assert "error" in result.output
     assert len((await call(ctx, "get_list")).output["items"]) == 2
+    assert await purchase_history() == []
 
 
 async def test_confirm_in_same_turn_as_request_does_nothing(home):
@@ -188,11 +189,11 @@ async def test_confirm_in_same_turn_as_request_does_nothing(home):
     request = await call(ctx, "request_finish_shopping")
     confirm = await call(ctx, "confirm_finish_shopping")
 
-    assert request.output["bought_items_to_remove"] == ["mleko"]
+    assert request.output["bought_items_to_archive"] == ["mleko"]
     assert "error" in confirm.output
 
 
-async def test_confirm_in_next_turn_finishes_shopping(home):
+async def test_confirm_in_next_turn_finishes_shopping(home, purchase_history):
     ctx = home["ala"]
     await prepare_bought_and_unbought(ctx)
     await start_turn(ctx)
@@ -201,12 +202,15 @@ async def test_confirm_in_next_turn_finishes_shopping(home):
     await start_turn(ctx)
     result = await call(ctx, "confirm_finish_shopping")
 
-    assert result.output == {"status": "finished", "removed_items": 1}
+    assert result.output == {"status": "finished", "archived_items": 1}
     assert result.list_changed
     assert [i["name"] for i in (await call(ctx, "get_list")).output["items"]] == ["chleb"]
+    (trip,) = await purchase_history(ctx.household.id)
+    assert trip.finished_by_id == ctx.user.id
+    assert [(i.name, i.bought_by_id) for i in trip.items] == [("mleko", ctx.user.id)]
 
 
-async def test_any_other_message_cancels_pending_confirmation(home):
+async def test_any_other_message_cancels_pending_confirmation(home, purchase_history):
     ctx = home["ala"]
     await prepare_bought_and_unbought(ctx)
     await start_turn(ctx)
@@ -218,3 +222,4 @@ async def test_any_other_message_cancels_pending_confirmation(home):
 
     assert "error" in result.output
     assert len((await call(ctx, "get_list")).output["items"]) == 2
+    assert await purchase_history() == []

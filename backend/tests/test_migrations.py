@@ -1,12 +1,49 @@
 import asyncio
+import uuid
+from collections.abc import AsyncIterator
 from pathlib import Path
 
+import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import text
+from sqlalchemy import make_url, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+# Tabele sprzed historii zakupów (stan po migracji 0002).
+EXISTING_TABLES = (
+    "users",
+    "households",
+    "shopping_lists",
+    "household_products",
+    "list_items",
+    "needs",
+    "user_category_pins",
+    "chat_messages",
+    "chat_pending_actions",
+)
+HISTORY_TABLES = ("shopping_trips", "purchased_items", "purchased_needs")
+
+
+def alembic_config(database_url: str) -> Config:
+    config = Config(BACKEND_DIR / "alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+    config.attributes["configure_logger"] = False
+    return config
+
+
+async def migrate(database_url: str, direction: str, revision: str) -> None:
+    action = command.upgrade if direction == "up" else command.downgrade
+    await asyncio.to_thread(action, alembic_config(database_url), revision)
+
+
+async def execute(database_url: str, *statements: str) -> None:
+    engine = create_async_engine(database_url)
+    async with engine.begin() as connection:
+        for statement in statements:
+            await connection.execute(text(statement))
+    await engine.dispose()
 
 
 async def table_exists(database_url: str, name: str) -> bool:
@@ -19,13 +56,88 @@ async def table_exists(database_url: str, name: str) -> bool:
     return exists
 
 
+async def snapshot(database_url: str, tables: tuple[str, ...]) -> dict[str, list[tuple]]:
+    engine = create_async_engine(database_url)
+    async with engine.connect() as connection:
+        rows = {
+            table: [
+                tuple(row)
+                for row in await connection.execute(text(f"SELECT * FROM {table} ORDER BY 1, 2"))
+            ]
+            for table in tables
+        }
+    await engine.dispose()
+    return rows
+
+
+@pytest.fixture
+async def empty_database(database_url: str) -> AsyncIterator[str]:
+    """Osobna, pusta baza w kontenerze testowym — migracje nie ruszają bazy innych testów."""
+    name = f"migrations_{uuid.uuid4().hex[:12]}"
+    admin = create_async_engine(database_url, isolation_level="AUTOCOMMIT")
+    async with admin.connect() as connection:
+        await connection.execute(text(f'CREATE DATABASE "{name}"'))
+    yield make_url(database_url).set(database=name).render_as_string(hide_password=False)
+    async with admin.connect() as connection:
+        await connection.execute(text(f'DROP DATABASE "{name}" WITH (FORCE)'))
+    await admin.dispose()
+
+
 async def test_category_pins_migration_downgrades_and_upgrades(migrated_database):
-    config = Config(BACKEND_DIR / "alembic.ini")
-    config.set_main_option("sqlalchemy.url", migrated_database)
-    config.attributes["configure_logger"] = False
-
-    await asyncio.to_thread(command.downgrade, config, "0001")
+    await migrate(migrated_database, "down", "0001")
     assert not await table_exists(migrated_database, "user_category_pins")
+    assert not await table_exists(migrated_database, "shopping_trips")
 
-    await asyncio.to_thread(command.upgrade, config, "head")
+    await migrate(migrated_database, "up", "head")
     assert await table_exists(migrated_database, "user_category_pins")
+    assert await table_exists(migrated_database, "shopping_trips")
+
+
+async def test_purchase_history_migration_keeps_existing_data(empty_database):
+    await migrate(empty_database, "up", "0002")
+    # Dane jak na produkcji przed wdrożeniem: gospodarstwo z dwoma członkami, lista z kupioną
+    # i niekupioną pozycją, zapotrzebowania, pamięć kategorii, przypięcia i historia czatu.
+    await execute(
+        empty_database,
+        "INSERT INTO users (id, login, password_hash, created_at) VALUES "
+        "(1, 'ala', 'x', now()), (2, 'ola', 'x', now())",
+        "INSERT INTO households (id, name, owner_id, created_at) VALUES (1, 'Dom', 1, now())",
+        "UPDATE users SET household_id = 1, joined_household_at = now()",
+        "INSERT INTO shopping_lists (id, household_id) VALUES (1, 1)",
+        "INSERT INTO household_products VALUES (1, 'mleko', 'Nabiał')",
+        "INSERT INTO list_items (id, list_id, name, normalized_name, category, bought_at, "
+        "bought_by_id, created_at) VALUES "
+        "(1, 1, 'mleko', 'mleko', 'Nabiał', now(), 2, now()), "
+        "(2, 1, 'chleb', 'chleb', 'Pieczywo', NULL, NULL, now())",
+        "INSERT INTO needs (id, item_id, user_id, amount, unit, note, created_at) VALUES "
+        "(1, 1, 1, 2, 'l', 'bez laktozy', now()), (2, 2, 2, NULL, NULL, NULL, now())",
+        "INSERT INTO user_category_pins VALUES (1, 'Chemia i higiena', 0)",
+        "INSERT INTO chat_messages (user_id, household_id, role, content, created_at) "
+        "VALUES (1, 1, 'user', 'kup mleko', now())",
+        "INSERT INTO chat_pending_actions VALUES (1, 'finish_shopping', now())",
+    )
+    before = await snapshot(empty_database, EXISTING_TABLES)
+
+    await migrate(empty_database, "up", "head")
+
+    assert await snapshot(empty_database, EXISTING_TABLES) == before
+    assert await snapshot(empty_database, HISTORY_TABLES) == {t: [] for t in HISTORY_TABLES}
+    # Nowe tabele przyjmują historię odwołującą się do istniejących danych i typów enum.
+    await execute(
+        empty_database,
+        "INSERT INTO shopping_trips (id, household_id, finished_at, finished_by_id) "
+        "VALUES (1, 1, now(), 1)",
+        "INSERT INTO purchased_items (id, trip_id, name, normalized_name, category, bought_at, "
+        "bought_by_id) VALUES (1, 1, 'mleko', 'mleko', 'Nabiał', now(), 2)",
+        "INSERT INTO purchased_needs (purchased_item_id, user_id, amount, unit, note, "
+        "requested_at) VALUES (1, 1, 2, 'l', 'bez laktozy', now())",
+    )
+
+    await migrate(empty_database, "down", "0002")
+
+    for table in HISTORY_TABLES:
+        assert not await table_exists(empty_database, table)
+    assert await snapshot(empty_database, EXISTING_TABLES) == before
+
+    await migrate(empty_database, "up", "head")
+    assert await snapshot(empty_database, HISTORY_TABLES) == {t: [] for t in HISTORY_TABLES}

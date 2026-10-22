@@ -186,16 +186,123 @@ async def test_remove_item_removes_all_needs(session, home):
     assert await items_by_name(session, household) == {}
 
 
-async def test_finish_shopping_removes_only_bought_items(session, home):
+async def test_finish_shopping_moves_only_bought_items_to_history(session, home, purchase_history):
     household, ala, *_ = home
     await service.add_needs(session, household, ala, [NeedInput("mleko"), NeedInput("chleb")])
     milk = (await items_by_name(session, household))["mleko"]
     await service.set_bought(session, household, ala, [milk.id], bought=True)
 
-    removed = await service.finish_shopping(session, household)
+    archived = await service.finish_shopping(session, household, ala)
 
-    assert removed == 1
+    assert archived == 1
     assert list(await items_by_name(session, household)) == ["chleb"]
+    (trip,) = await purchase_history(household.id)
+    assert [i.name for i in trip.items] == ["mleko"]
+
+
+async def test_history_keeps_who_when_category_requesters_and_amounts(
+    session, home, purchase_history
+):
+    household, ala, ola, *_ = home
+    await service.add_needs(
+        session,
+        household,
+        ala,
+        [NeedInput(" Mleko ", Decimal(2), Unit.L, "bez laktozy", Category.DAIRY)],
+    )
+    await service.add_needs(session, household, ola, [NeedInput("mleko", Decimal(1), Unit.L)])
+    await service.set_bought(
+        session, household, ola, [(await items_by_name(session, household))["Mleko"].id], True
+    )
+    milk = (await items_by_name(session, household))["Mleko"]
+    bought_at = milk.bought_at
+    requested_at = [n.created_at for n in milk.needs]
+
+    await service.finish_shopping(session, household, ala)
+
+    (trip,) = await purchase_history(household.id)
+    assert (trip.household_id, trip.finished_by_id) == (household.id, ala.id)
+    assert trip.finished_at >= bought_at
+    (item,) = trip.items
+    assert (item.name, item.normalized_name, item.category) == ("Mleko", "mleko", Category.DAIRY)
+    assert (item.bought_by_id, item.bought_at) == (ola.id, bought_at)
+    assert [(n.user_id, n.amount, n.unit, n.note) for n in item.needs] == [
+        (ala.id, Decimal(2), Unit.L, "bez laktozy"),
+        (ola.id, Decimal(1), Unit.L, None),
+    ]
+    assert [n.requested_at for n in item.needs] == requested_at
+
+
+async def test_history_keeps_items_without_amount_and_check_off_order(
+    session, home, purchase_history
+):
+    household, ala, ola, *_ = home
+    await service.add_needs(
+        session, household, ala, [NeedInput("chleb"), NeedInput("masło"), NeedInput("sól")]
+    )
+    items = await items_by_name(session, household)
+    await service.set_bought(session, household, ola, [items["masło"].id], bought=True)
+    await service.set_bought(session, household, ala, [items["chleb"].id], bought=True)
+
+    await service.finish_shopping(session, household, ola)
+
+    (trip,) = await purchase_history(household.id)
+    assert [(i.name, i.bought_by_id) for i in trip.items] == [("masło", ola.id), ("chleb", ala.id)]
+    assert trip.items[0].bought_at < trip.items[1].bought_at
+    assert [(n.user_id, n.amount, n.unit) for n in trip.items[1].needs] == [(ala.id, None, None)]
+    assert list(await items_by_name(session, household)) == ["sól"]
+
+
+async def test_finish_shopping_without_bought_items_changes_nothing(
+    session, home, purchase_history
+):
+    household, ala, *_ = home
+    await service.add_needs(session, household, ala, [NeedInput("chleb")])
+
+    assert await service.finish_shopping(session, household, ala) == 0
+
+    assert list(await items_by_name(session, household)) == ["chleb"]
+    assert await purchase_history() == []
+
+
+async def test_each_finish_creates_separate_trip(session, home, purchase_history):
+    household, ala, ola, *_ = home
+    await service.add_needs(session, household, ala, [NeedInput("mleko")])
+    milk = (await items_by_name(session, household))["mleko"]
+    await service.set_bought(session, household, ala, [milk.id], bought=True)
+    await service.finish_shopping(session, household, ala)
+
+    # Ten sam produkt może wrócić na listę i zostać kupiony ponownie.
+    await service.add_needs(session, household, ola, [NeedInput("mleko"), NeedInput("chleb")])
+    items = await items_by_name(session, household)
+    await service.set_bought(
+        session, household, ola, [items["mleko"].id, items["chleb"].id], bought=True
+    )
+    await service.finish_shopping(session, household, ola)
+
+    first, second = await purchase_history(household.id)
+    assert (first.finished_by_id, [i.name for i in first.items]) == (ala.id, ["mleko"])
+    assert (second.finished_by_id, sorted(i.name for i in second.items)) == (
+        ola.id,
+        ["chleb", "mleko"],
+    )
+    assert await items_by_name(session, household) == {}
+
+
+async def test_history_is_scoped_to_household(session, home, purchase_history):
+    household, ala, _, other, ewa = home
+    await service.add_needs(session, household, ala, [NeedInput("mleko")])
+    await service.add_needs(session, other, ewa, [NeedInput("kawa")])
+    for home_, user in ((household, ala), (other, ewa)):
+        (item,) = (await service.get_list(session, home_)).items
+        await service.set_bought(session, home_, user, [item.id], bought=True)
+
+    await service.finish_shopping(session, other, ewa)
+
+    assert await purchase_history(household.id) == []
+    (trip,) = await purchase_history(other.id)
+    assert [i.name for i in trip.items] == ["kawa"]
+    assert [i.name for i in (await service.get_list(session, household)).items] == ["mleko"]
 
 
 async def test_operations_are_scoped_to_callers_household(session, home):

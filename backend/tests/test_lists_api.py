@@ -1,3 +1,8 @@
+from sqlalchemy import select
+
+from kupto.models import Category, User
+
+
 def groups(body):
     return {g["category"]: [i["name"] for i in g["items"]] for g in body["groups"]}
 
@@ -152,15 +157,33 @@ async def test_remove_item(household_with):
     assert body["groups"] == []
 
 
-async def test_finish_shopping(household_with):
+async def test_finish_shopping(household_with, session, purchase_history):
+    ala, ola = await household_with("ala", "ola")
+    await ala.post("/api/list/needs", json={"name": "chleb"})
+    body = (await ala.post("/api/list/needs", json={"name": "mleko", "category": "Nabiał"})).json()
+    await ola.post(f"/api/list/items/{item(body, 'mleko')['id']}/bought")
+
+    response = await ola.post("/api/list/finish")
+
+    assert response.status_code == 200
+    assert groups(response.json()) == {"Inne": ["chleb"]}
+    assert (await ala.get("/api/list")).json() == response.json()
+    users = {u.login: u.id for u in await session.scalars(select(User))}
+    (trip,) = await purchase_history()
+    assert trip.finished_by_id == users["ola"]
+    (milk,) = trip.items
+    assert (milk.name, milk.category, milk.bought_by_id) == ("mleko", Category.DAIRY, users["ola"])
+    assert [n.user_id for n in milk.needs] == [users["ala"]]
+
+
+async def test_finish_shopping_with_nothing_bought(household_with, purchase_history):
     (ala,) = await household_with("ala")
     await ala.post("/api/list/needs", json={"name": "chleb"})
-    body = (await ala.post("/api/list/needs", json={"name": "mleko"})).json()
-    await ala.post(f"/api/list/items/{item(body, 'mleko')['id']}/bought")
 
     body = (await ala.post("/api/list/finish")).json()
 
     assert groups(body) == {"Inne": ["chleb"]}
+    assert await purchase_history() == []
 
 
 async def test_other_household_items_are_not_accessible(household_with):
