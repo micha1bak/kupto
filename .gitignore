@@ -11,6 +11,12 @@ node_modules/
 frontend/dist/
 *.tsbuildinfo
 
+# Terraform: katalogi providerów, lokalny stan i plany (blokada .terraform.lock.hcl zostaje w repo)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+
 # Markdown jest domyślnie ignorowany; wyjątki dla dokumentacji projektu i OpenSpec
 *.md
 !README.md
