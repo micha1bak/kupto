@@ -95,11 +95,23 @@ Członek MUST móc zakończyć zakupy: wszystkie pozycje oznaczone jako kupione 
 - **THEN** lista się nie zmienia, a w historii nie pojawia się nowe zakończenie zakupów
 
 ### Requirement: Widoczność zmian innych członków
-Zmiany listy wprowadzone przez jednego członka (przez czat lub ręcznie) MUST być widoczne dla pozostałych członków z otwartą aplikacją najpóźniej po 10 sekundach, bez ręcznego odświeżania strony.
+Zmiany listy wprowadzone przez jednego członka (przez czat lub ręcznie) MUST być widoczne dla pozostałych członków z otwartą aplikacją bez ręcznego odświeżania strony: przy działającym połączeniu na żywo w ciągu kilku sekund, a gdy połączenie na żywo jest niedostępne — najpóźniej po 30 sekundach. Po powrocie do aplikacji (karta lub aplikacja ponownie na pierwszym planie) lista MUST zostać odświeżona od razu.
 
 #### Scenario: Zmiana przez innego członka
-- **WHEN** członek A dodaje pozycję, a członek B ma otwarty widok listy
-- **THEN** pozycja pojawia się u członka B w ciągu 10 sekund
+- **WHEN** członek A dodaje pozycję, a członek B ma otwarty widok listy z działającym połączeniem na żywo
+- **THEN** pozycja pojawia się u członka B w ciągu kilku sekund
+
+#### Scenario: Zmiana przez czat
+- **WHEN** członek A prosi asystenta czatu o dodanie pozycji, a członek B ma otwarty widok listy
+- **THEN** pozycja pojawia się u członka B bez ręcznego odświeżania
+
+#### Scenario: Połączenie na żywo niedostępne
+- **WHEN** połączenie na żywo członka B nie działa, a członek A zmienia listę
+- **THEN** zmiana pojawia się u członka B najpóźniej po 30 sekundach
+
+#### Scenario: Powrót do aplikacji
+- **WHEN** członek B wraca do karty z aplikacją, a w tym czasie lista się zmieniła
+- **THEN** lista u członka B jest odświeżana od razu po powrocie
 
 ### Requirement: Automatyczna kolejność kategorii
 Lista MUST być zwracana z grupami kategorii w kolejności kategorii zalogowanego użytkownika, pomijając kategorie bez pozycji. Bez przypięć kolejność ta MUST być kolejnością automatyczną, czyli obecnie kolejnością zbioru kategorii: Warzywa i owoce, Pieczywo, Nabiał, Mięso i ryby, Mrożonki, Produkty suche, Napoje, Słodycze i przekąski, Chemia i higiena, Inne.
@@ -190,3 +202,79 @@ Każde zakończenie zakupów z co najmniej jedną kupioną pozycją MUST zostać
 #### Scenario: Historia jest osobna dla gospodarstwa
 - **WHEN** członek innego gospodarstwa kończy zakupy
 - **THEN** jego kupione pozycje trafiają wyłącznie do historii jego gospodarstwa
+
+### Requirement: Strumień zmian listy
+System MUST udostępniać zalogowanemu członkowi gospodarstwa strumień zdarzeń (SSE) sygnalizujących zmianę listy jego gospodarstwa, bez treści listy. Brak sesji MUST skutkować 401, brak gospodarstwa — 409. Członek MUST NOT otrzymywać zdarzeń o zmianach list innych gospodarstw; po opuszczeniu lub usunięciu z gospodarstwa jego strumień MUST się zakończyć.
+
+#### Scenario: Zmiana listy własnego gospodarstwa
+- **WHEN** członek ma otwarty strumień, a inny członek jego gospodarstwa odhacza pozycję
+- **THEN** strumień dostarcza zdarzenie zmiany listy
+
+#### Scenario: Zmiana listy innego gospodarstwa
+- **WHEN** członek ma otwarty strumień, a użytkownik innego gospodarstwa dodaje pozycję na swoją listę
+- **THEN** strumień nie dostarcza zdarzenia zmiany listy
+
+#### Scenario: Użytkownik bez gospodarstwa
+- **WHEN** zalogowany użytkownik bez gospodarstwa otwiera strumień
+- **THEN** system zwraca 409
+
+#### Scenario: Usunięcie z gospodarstwa
+- **WHEN** właściciel usuwa członka, który ma otwarty strumień
+- **THEN** strumień tego członka się kończy
+
+#### Scenario: Zmiana własnej kolejności kategorii
+- **WHEN** członek ma otwarty strumień na dwóch urządzeniach i przypina kategorię na jednym z nich
+- **THEN** strumień na drugim urządzeniu dostarcza zdarzenie zmiany listy, a strumienie pozostałych członków nie
+
+### Requirement: Podtrzymanie strumienia zmian
+Otwarty strumień zmian listy MUST wysyłać sygnał podtrzymania co najwyżej co 30 sekund, także gdy lista się nie zmienia, żeby pośrednicy sieciowi nie zamykali bezczynnego połączenia. Po zerwaniu połączenia klient MUST łączyć się ponownie i MUST pobrać aktualną listę, bo zmiany z czasu rozłączenia nie są dostarczane ponownie.
+
+#### Scenario: Bezczynna lista
+- **WHEN** strumień jest otwarty, a lista nie zmienia się przez dłuższy czas
+- **THEN** strumień co najwyżej co 30 sekund wysyła sygnał podtrzymania
+
+#### Scenario: Ponowne połączenie
+- **WHEN** połączenie strumienia zostało zerwane, a w tym czasie lista się zmieniła
+- **THEN** klient łączy się ponownie i pobiera aktualną listę
+
+### Requirement: Przeglądanie historii zakupów
+Członek gospodarstwa MUST móc przeglądać historię zakupów swojego gospodarstwa: zakończenia zakupów od najnowszych, doczytywane porcjami. Każde zakończenie MUST pokazywać czas, członka, który je wykonał, oraz kupione pozycje pogrupowane po kategorii — z czasem i autorem zakupu, zgłaszającymi i sumą ilości w każdej jednostce. Członek MUST NOT widzieć historii innego gospodarstwa. Historia MUST NOT pokazywać kwot ani wydatków.
+
+#### Scenario: Najnowsze zakończenie pierwsze
+- **WHEN** ala zakończyła zakupy w poniedziałek, a ola we wtorek
+- **THEN** historia pokazuje najpierw zakończenie oli, potem ali
+
+#### Scenario: Szczegóły pozycji
+- **WHEN** ala zgłosiła 2 l mleka, ola 1 l mleka, ola kupiła mleko, a ala zakończyła zakupy
+- **THEN** w zakończeniu ali, w grupie Nabiał, jest mleko kupione przez olę, ze zgłaszającymi alą i olą i sumą 3 l
+
+#### Scenario: Doczytywanie starszych zakończeń
+- **WHEN** gospodarstwo ma więcej zakończeń, niż mieści się na jednej stronie
+- **THEN** członek widzi najnowsze zakończenia i może doczytać kolejne, starsze, bez powtórzeń i pominięć
+
+#### Scenario: Pusta historia
+- **WHEN** w gospodarstwie nikt jeszcze nie zakończył zakupów
+- **THEN** historia jest pusta, a widok informuje, że nie ma jeszcze zakończonych zakupów
+
+#### Scenario: Historia innego gospodarstwa
+- **WHEN** ewa z innego gospodarstwa przegląda historię
+- **THEN** nie widzi zakończeń gospodarstwa ali
+
+### Requirement: Wyszukiwanie produktu w historii
+Członek gospodarstwa MUST móc wyszukać produkt w historii zakupów swojego gospodarstwa po fragmencie nazwy, bez względu na wielkość liter i polskie znaki. Dla każdego pasującego produktu wynik MUST zawierać, kiedy i kto ostatnio go kupił oraz ile razy był kupowany; ostatnio kupione produkty MUST być pierwsze.
+
+#### Scenario: Kiedy ostatnio kupowaliśmy
+- **WHEN** ola kupiła kawę tydzień temu, a ala wczoraj, i ktoś wyszukuje „KAWA”
+- **THEN** wynik pokazuje kawę kupioną ostatnio wczoraj przez alę, kupowaną 2 razy
+
+#### Scenario: Bez polskich znaków
+- **WHEN** w historii jest „żółty ser”, a członek wyszukuje „zolty”
+- **THEN** wynik zawiera „żółty ser”
+
+#### Scenario: Brak wyników
+- **WHEN** członek wyszukuje produkt, którego nikt w gospodarstwie nie kupował
+- **THEN** wynik jest pusty
+
+#### Scenario: Wyszukiwanie nie wychodzi poza gospodarstwo
+- **WHEN** inne gospodarstwo kupowało kawę, a gospodarstwo ali nie
+- **THEN** wyszukiwanie „kawa” przez alę nic nie zwraca
