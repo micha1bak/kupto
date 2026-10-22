@@ -69,6 +69,8 @@ export interface Item {
   bought: boolean;
   bought_at: string | null;
   bought_by: string | null;
+  /** Czy zalogowany użytkownik przypiął ten produkt na jego miejscu w kategorii. */
+  pinned: boolean;
 }
 
 export interface CategoryGroup {
@@ -98,6 +100,12 @@ export interface ShoppingList {
 export interface CategoryMove {
   after: Category | null;
   before: Category | null;
+}
+
+/** Sąsiedzi (id pozycji) przeniesionego produktu w jego grupie; brak sąsiada = początek albo koniec kategorii. */
+export interface ItemMove {
+  after: number | null;
+  before: number | null;
 }
 
 export interface ChatMessage {

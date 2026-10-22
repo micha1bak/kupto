@@ -37,6 +37,7 @@ const list: ShoppingList = {
           bought: false,
           bought_at: null,
           bought_by: null,
+          pinned: false,
         },
       ],
     },
@@ -53,6 +54,7 @@ const list: ShoppingList = {
           bought: false,
           bought_at: null,
           bought_by: null,
+          pinned: false,
         },
       ],
     },
@@ -302,4 +304,115 @@ test("refetches the list when the live stream signals a change", async () => {
   act(() => FakeEventSource.last.emit("list_changed"));
 
   await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+});
+
+// Kolejność produktów w kategorii (#34).
+
+const product = (id: number, name: string, pinned = false) => ({
+  ...list.groups[0].items[0],
+  id,
+  name,
+  quantities: [],
+  needs: [],
+  pinned,
+});
+
+const dairyList: ShoppingList = {
+  id: 1,
+  groups: [
+    { category: "Nabiał", pinned: false, items: [product(20, "jogurt"), product(21, "mleko"), product(22, "ser")] },
+    list.groups[1],
+  ],
+  shoppers: [],
+};
+
+/** Jak `mockGroupLayout`, ale wiersze produktów dostają pasy 40 px w obrębie swojej grupy. */
+function mockItemLayout() {
+  return vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    const item = this.closest(".item");
+    if (!item) return new DOMRect(0, 0, 300, 400);
+    const index = [...item.parentElement!.children].indexOf(item);
+    return new DOMRect(0, index * 40, 300, 40);
+  });
+}
+
+const dairyNames = () =>
+  within(screen.getByRole("list", { name: "Nabiał" }))
+    .getAllByRole("checkbox")
+    .map((c) => c.getAttribute("aria-label")!.replace("Kupione: ", ""));
+
+test("every item has a drag handle and pinned items can be unpinned", async () => {
+  const pinned: ShoppingList = {
+    ...dairyList,
+    groups: [{ ...dairyList.groups[0], items: [product(22, "ser", true), product(20, "jogurt"), product(21, "mleko")] }],
+  };
+  const fetch = mockFetch({ "GET /api/list": pinned, "DELETE /api/list/items/22/order": dairyList });
+  renderWithProviders(<ListView userId={1} />);
+
+  expect(await screen.findByRole("button", { name: "Przenieś ser" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Przenieś jogurt" })).toBeInTheDocument();
+  expect(screen.getAllByRole("img", { name: "przypięty" })).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: "Odepnij produkt jogurt" })).not.toBeInTheDocument();
+
+  await userEvent.click(screen.getByRole("button", { name: "Odepnij produkt ser" }));
+
+  await vi.waitFor(() => expect(dairyNames()).toEqual(["jogurt", "mleko", "ser"]));
+  expect(fetch).toHaveBeenLastCalledWith("/api/list/items/22/order", expect.objectContaining({ method: "DELETE" }));
+  expect(screen.queryByRole("img", { name: "przypięty" })).not.toBeInTheDocument();
+});
+
+test("moving an item with the keyboard pins it optimistically within its category", async () => {
+  const rect = mockItemLayout();
+  let resolve: (r: Response) => void = () => {};
+  const fetch = mockFetch({
+    "GET /api/list": dairyList,
+    "PUT /api/list/items/22/order": () => new Promise<Response>((r) => (resolve = r)),
+  });
+  renderWithProviders(<ListView userId={1} />);
+
+  const handle = await screen.findByRole("button", { name: "Przenieś ser" });
+  handle.focus();
+  await userEvent.keyboard("[Space]");
+  await userEvent.keyboard("[ArrowUp]");
+  await userEvent.keyboard("[Space]");
+
+  await vi.waitFor(() => expect(dairyNames()).toEqual(["jogurt", "ser", "mleko"]));
+  const [, init] = fetch.mock.calls.find(([url]) => url === "/api/list/items/22/order")!;
+  expect(init).toMatchObject({ method: "PUT" });
+  expect(JSON.parse(init!.body as string)).toEqual({ after: 20, before: 21 });
+  expect(screen.getByRole("img", { name: "przypięty" })).toBeInTheDocument();
+  // Kategorie zostają na swoich miejscach i bez przypięcia.
+  expect(groupNames()).toEqual(["Nabiał", "Chemia i higiena"]);
+  expect(fetch.mock.calls.some(([url]) => url.startsWith("/api/list/category-order"))).toBe(false);
+  resolve(jsonResponse(dairyList));
+  rect.mockRestore();
+});
+
+test("a failed item pin restores the previous order", async () => {
+  const rect = mockItemLayout();
+  mockFetch({
+    "GET /api/list": dairyList,
+    "PUT /api/list/items/20/order": () => jsonResponse({ detail: "Błąd zapisu." }, 500),
+  });
+  renderWithProviders(<ListView userId={1} />);
+
+  const handle = await screen.findByRole("button", { name: "Przenieś jogurt" });
+  handle.focus();
+  await userEvent.keyboard("[Space]");
+  await userEvent.keyboard("[ArrowDown]");
+  await userEvent.keyboard("[Space]");
+
+  expect(await screen.findByText("Błąd zapisu.")).toBeInTheDocument();
+  expect(dairyNames()).toEqual(["jogurt", "mleko", "ser"]);
+  rect.mockRestore();
+});
+
+test("checking an item does not move it", async () => {
+  const fetch = mockFetch({ "GET /api/list": dairyList, "POST /api/list/items/21/bought": dairyList });
+  renderWithProviders(<ListView userId={1} />);
+
+  await userEvent.click(await screen.findByRole("checkbox", { name: "Kupione: mleko" }));
+
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/list/items/21/bought", expect.anything()));
+  expect(fetch.mock.calls.some(([url]) => url.endsWith("/order"))).toBe(false);
 });

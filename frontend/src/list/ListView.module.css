@@ -84,11 +84,48 @@
 
 .item {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto auto 1fr auto;
   gap: 0.6rem;
   align-items: start;
   padding: 0.55rem 0;
   border-bottom: 1px solid var(--border);
+}
+
+.item.dragging {
+  background: var(--surface);
+}
+
+/* Uchwyt wiersza: z dala od kosza, wystarczająco duży dla kciuka; przesunięcie palcem po nim
+   przewija listę, przeciąganie startuje dopiero po przytrzymaniu (jak nagłówki kategorii). */
+.itemHandle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  min-height: 2rem;
+  margin: -0.15rem -0.2rem 0 -0.3rem;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: grab;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.item.dragging .itemHandle {
+  cursor: grabbing;
+  color: var(--accent);
+}
+
+.name .unpin {
+  margin-left: 0.4rem;
+  font-weight: normal;
+}
+
+.name .pin {
+  margin-left: 0.35rem;
 }
 
 .item input[type="checkbox"] {

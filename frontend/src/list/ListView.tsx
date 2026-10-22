@@ -28,6 +28,7 @@ import {
   type Unit,
 } from "../api/types";
 import { dropCategory, reorderGroups, type CategoryDrop } from "./categoryOrder";
+import { dropItem, reorderItems, type ItemDrop } from "./productOrder";
 import { formatQuantities, formatQuantity, formatTime } from "./format";
 import { UsualSuggestions } from "./UsualSuggestions";
 import styles from "./ListView.module.css";
@@ -124,8 +125,14 @@ function AddItemForm() {
   );
 }
 
+const itemOrderPath = (itemId: number) => `/api/list/items/${itemId}/order`;
+
 function ItemRow({ item, userId }: { item: Item; userId: number }) {
   const queryClient = useQueryClient();
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    attributes: { roleDescription: "przesuwalny produkt" },
+  });
   const toggle = useMutation({
     mutationFn: (bought: boolean) =>
       (bought ? post : del)<ShoppingList>(`/api/list/items/${item.id}/bought`),
@@ -141,9 +148,24 @@ function ItemRow({ item, userId }: { item: Item; userId: number }) {
   });
   const remove = useListMutation(() => del<ShoppingList>(`/api/list/items/${item.id}`));
   const withdraw = useListMutation((needId: number) => del<ShoppingList>(`/api/list/needs/${needId}`));
+  const unpin = useListMutation(() => del<ShoppingList>(itemOrderPath(item.id)));
 
   return (
-    <li className={`${styles.item} ${item.bought ? styles.bought : ""}`}>
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={`${styles.item} ${item.bought ? styles.bought : ""} ${isDragging ? styles.dragging : ""}`}
+    >
+      <span
+        ref={setActivatorNodeRef}
+        className={styles.itemHandle}
+        {...attributes}
+        {...listeners}
+        aria-label={`Przenieś ${item.name}`}
+        title="Przytrzymaj i przeciągnij, by przypiąć produkt w innym miejscu"
+      >
+        ⠿
+      </span>
       <input
         type="checkbox"
         checked={item.bought}
@@ -155,6 +177,21 @@ function ItemRow({ item, userId }: { item: Item; userId: number }) {
           {item.name}
           {item.quantities.length > 0 && (
             <span className={styles.quantity}>{formatQuantities(item.quantities)}</span>
+          )}
+          {item.pinned && (
+            <>
+              <span className={styles.pin} role="img" aria-label="przypięty" title="Przypięty">
+                📌
+              </span>
+              <button
+                className={styles.unpin}
+                onClick={() => unpin.mutate(undefined)}
+                disabled={unpin.isPending}
+                aria-label={`Odepnij produkt ${item.name}`}
+              >
+                Odepnij
+              </button>
+            </>
           )}
         </span>
         <ul className={styles.needs}>
@@ -214,12 +251,60 @@ const announcements: Announcements = {
   onDragCancel: ({ active }) => `Anulowano przenoszenie kategorii ${active.id}.`,
 };
 
-function GroupSection({ group, userId }: { group: CategoryGroup; userId: number }) {
+const itemScreenReaderInstructions = {
+  draggable:
+    "Aby przenieść produkt w obrębie kategorii, naciśnij spację lub Enter, wybierz miejsce strzałkami w górę i w dół, " +
+    "a potem naciśnij spację lub Enter, by go tam przypiąć. Escape anuluje. Na ekranie dotykowym przytrzymaj uchwyt.",
+};
+
+function itemAnnouncements(items: Item[]): Announcements {
+  const name = (id: string | number) => items.find((i) => i.id === id)?.name ?? "produkt";
+  return {
+    onDragStart: ({ active }) => `Podniesiono produkt ${name(active.id)}.`,
+    onDragOver: ({ active, over }) =>
+      over
+        ? `Produkt ${name(active.id)} jest w miejscu produktu ${name(over.id)}.`
+        : `Produkt ${name(active.id)} jest poza kategorią.`,
+    onDragEnd: ({ active, over }) =>
+      over && over.id !== active.id
+        ? `Produkt ${name(active.id)} przypięty w miejscu produktu ${name(over.id)}.`
+        : `Produkt ${name(active.id)} został na swoim miejscu.`,
+    onDragCancel: ({ active }) => `Anulowano przenoszenie produktu ${name(active.id)}.`,
+  };
+}
+
+/** Mysz: wystarczy pociągnąć; dotyk: przytrzymanie, żeby przewijanie i stuknięcia działały jak dotąd. */
+function useDragSensors() {
+  return useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: TOUCH_HOLD_MS, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+}
+
+function GroupSection({
+  group,
+  userId,
+  onItemDrop,
+}: {
+  group: CategoryGroup;
+  userId: number;
+  onItemDrop: (drop: ItemDrop) => void;
+}) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: group.category,
     attributes: { roleDescription: "przesuwalna kategoria" },
   });
   const unpin = useListMutation(() => del<ShoppingList>(categoryPath(group.category)));
+  // Własny kontekst przeciągania grupy: produkt przesuwa się tylko w obrębie swojej kategorii,
+  // a czujniki są podpięte tylko do uchwytów wierszy — nagłówek grupy przeciąga się jak dotąd.
+  const itemSensors = useDragSensors();
+  const itemIds = group.items.map((i) => i.id);
+
+  function handleItemDragEnd({ active, over }: DragEndEvent) {
+    const drop = dropItem(group.category, itemIds, active.id as number, (over?.id as number | undefined) ?? null);
+    if (drop) onItemDrop(drop);
+  }
 
   return (
     <div
@@ -247,11 +332,24 @@ function GroupSection({ group, userId }: { group: CategoryGroup; userId: number 
           </button>
         )}
       </h3>
-      <ul className={styles.items} aria-label={group.category}>
-        {group.items.map((item) => (
-          <ItemRow key={item.id} item={item} userId={userId} />
-        ))}
-      </ul>
+      <DndContext
+        sensors={itemSensors}
+        collisionDetection={closestCenter}
+        modifiers={[verticalOnly]}
+        onDragEnd={handleItemDragEnd}
+        accessibility={{
+          announcements: itemAnnouncements(group.items),
+          screenReaderInstructions: itemScreenReaderInstructions,
+        }}
+      >
+        <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+          <ul className={styles.items} aria-label={group.category}>
+            {group.items.map((item) => (
+              <ItemRow key={item.id} item={item} userId={userId} />
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }
@@ -287,6 +385,22 @@ function useCategoryPin() {
   });
 }
 
+function useItemPin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, after, before }: ItemDrop) => put<ShoppingList>(itemOrderPath(itemId), { after, before }),
+    // Optymistycznie, jak przy kategoriach: produkt zostaje tam, gdzie go upuszczono.
+    onMutate: async (drop) => {
+      await queryClient.cancelQueries({ queryKey: keys.list });
+      const previous = queryClient.getQueryData<ShoppingList>(keys.list);
+      if (previous) queryClient.setQueryData(keys.list, reorderItems(previous, drop));
+      return { previous };
+    },
+    onError: (_e, _v, context) => queryClient.setQueryData(keys.list, context?.previous),
+    onSuccess: (data) => queryClient.setQueryData(keys.list, data),
+  });
+}
+
 export function ListView({ userId }: { userId: number }) {
   const list = useShoppingList();
   const finish = useListMutation(() => post<ShoppingList>("/api/list/finish"));
@@ -294,11 +408,9 @@ export function ListView({ userId }: { userId: number }) {
   const stopShopping = useListMutation(() => del<ShoppingList>("/api/list/shopping"));
   const resetOrder = useListMutation(() => del<ShoppingList>("/api/list/category-order"));
   const pin = useCategoryPin();
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: TOUCH_HOLD_MS, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const itemPin = useItemPin();
+  const sensors = useDragSensors();
+  const pinError = pin.error ?? itemPin.error;
   const groups = list.data?.groups ?? [];
   const order = groups.map((g) => g.category);
   const anyBought = groups.some((g) => g.items.some((i) => i.bought));
@@ -376,9 +488,9 @@ export function ListView({ userId }: { userId: number }) {
           Lista jest pusta. Napisz w czacie, czego potrzebujesz, albo dodaj produkt poniżej.
         </p>
       )}
-      {pin.error && (
+      {pinError && (
         <p className="error">
-          {pin.error instanceof ApiError ? pin.error.message : "Nie udało się zapisać kolejności."}
+          {pinError instanceof ApiError ? pinError.message : "Nie udało się zapisać kolejności."}
         </p>
       )}
       <DndContext
@@ -390,7 +502,7 @@ export function ListView({ userId }: { userId: number }) {
       >
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
           {groups.map((group) => (
-            <GroupSection key={group.category} group={group} userId={userId} />
+            <GroupSection key={group.category} group={group} userId={userId} onItemDrop={itemPin.mutate} />
           ))}
         </SortableContext>
       </DndContext>
