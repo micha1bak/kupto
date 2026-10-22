@@ -8,6 +8,8 @@ import type {
   NotificationPreferences,
   ProductHit,
   Profile,
+  Recipe,
+  RecipeSummary,
   ShoppingList,
   TripPage,
   UsualProduct,
@@ -22,6 +24,7 @@ export const keys = {
   historySearch: ["history-search"] as const,
   usual: ["usual"] as const,
   notificationPreferences: ["notification-preferences"] as const,
+  recipes: ["recipes"] as const,
 };
 
 /**
@@ -92,4 +95,15 @@ export const useChatHistory = () =>
     queryFn: () => api<ChatMessage[]>("/api/chat/messages"),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+  });
+
+/** Przepisy gospodarstwa alfabetycznie. */
+export const useRecipes = () =>
+  useQuery({ queryKey: keys.recipes, queryFn: () => api<RecipeSummary[]>("/api/recipes") });
+
+/** Zapisany przepis ze składnikami; klucz pod `keys.recipes`, więc odświeża się razem z listą. */
+export const useRecipe = (id: number) =>
+  useQuery({
+    queryKey: [...keys.recipes, id],
+    queryFn: () => api<Recipe>(`/api/recipes/${id}`),
   });

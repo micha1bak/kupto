@@ -7,6 +7,7 @@ import { AuthForm } from "./auth/AuthForm";
 import { HistoryPage } from "./history/HistoryPage";
 import { HouseholdPage, HouseholdSetup } from "./household/HouseholdPage";
 import { MainPage } from "./layout/MainPage";
+import { RecipesPage } from "./recipes/RecipesPage";
 import { disablePushOnLogout } from "./pwa/push";
 
 const queryClient = new QueryClient({
@@ -17,7 +18,7 @@ const queryClient = new QueryClient({
   },
 });
 
-function Authenticated({ page }: { page: "main" | "household" | "history" }) {
+function Authenticated({ page }: { page: "main" | "household" | "history" | "recipes" }) {
   const profile = useProfile();
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -37,6 +38,7 @@ function Authenticated({ page }: { page: "main" | "household" | "history" }) {
   if (!profile.data.household) return <HouseholdSetup login={profile.data.login} />;
   if (page === "household") return <HouseholdPage />;
   if (page === "history") return <HistoryPage />;
+  if (page === "recipes") return <RecipesPage />;
   return <MainPage profile={profile.data} onLogout={logout} />;
 }
 
@@ -57,6 +59,7 @@ function Routing() {
       client.removeQueries({ queryKey: keys.household });
       client.removeQueries({ queryKey: keys.history });
       client.removeQueries({ queryKey: keys.historySearch });
+      client.removeQueries({ queryKey: keys.recipes });
       client.invalidateQueries({ queryKey: keys.profile });
     });
   }, [navigate, client]);
@@ -67,6 +70,7 @@ function Routing() {
       <Route path="/register" element={<AuthForm mode="register" />} />
       <Route path="/household" element={<Authenticated page="household" />} />
       <Route path="/history" element={<Authenticated page="history" />} />
+      <Route path="/recipes/*" element={<Authenticated page="recipes" />} />
       <Route path="*" element={<Authenticated page="main" />} />
     </Routes>
   );

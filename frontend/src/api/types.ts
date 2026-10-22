@@ -192,3 +192,50 @@ export interface UsualProduct {
   last_bought_at: string;
   overdue: number;
 }
+
+/** Składnik zapisanego przepisu; miara kuchenna bez jednostki listy jest w `note`. */
+export interface RecipeIngredient {
+  id: number;
+  name: string;
+  amount: number | null;
+  unit: Unit | null;
+  note: string | null;
+  category: Category | null;
+}
+
+/** Przepis z bazy przepisów gospodarstwa (`GET /api/recipes/{id}`). */
+export interface Recipe {
+  id: number;
+  name: string;
+  servings: string | null;
+  source_url: string | null;
+  instructions: string | null;
+  /** W kolejności z przepisu. */
+  ingredients: RecipeIngredient[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Przepis na liście przepisów gospodarstwa (`GET /api/recipes`). */
+export interface RecipeSummary {
+  id: number;
+  name: string;
+  servings: string | null;
+  ingredient_count: number;
+  updated_at: string;
+}
+
+/** Treść przepisu do zapisu — `PUT` zastępuje cały przepis razem ze składnikami. */
+export interface RecipeInput {
+  name: string;
+  servings: string | null;
+  source_url: string | null;
+  instructions: string | null;
+  ingredients: Omit<RecipeIngredient, "id">[];
+}
+
+/** Wynik dodania składników przepisu na listę. */
+export interface RecipeToList {
+  added: { name: string; category: Category; already_on_list: boolean }[];
+}
