@@ -175,3 +175,17 @@ async def test_english_message_gets_english_reply_and_polish_item(household_with
     words = set(reply.lower().replace("*", "").split())
     assert words & {"added", "i've", "i", "the", "your"}
     assert not words & {"dodano", "dodałem", "dodałam", "listy"}
+
+
+async def test_going_to_the_shop_sets_shopping_status(household_with, chat, items):
+    ala, ola = await household_with("ala", "ola")
+    await ala.post("/api/list/needs", json={"name": "mleko", "category": "Nabiał"})
+
+    await chat(ala, "idę do sklepu")
+
+    body = (await ola.get("/api/list")).json()
+    assert [s["login"] for s in body["shoppers"]] == ["ala"]
+    # Status nie zmienia listy: nic nie dodane ani nie odhaczone.
+    found = await items(ala)
+    assert set(found) == {"mleko"}
+    assert not found["mleko"]["bought"]

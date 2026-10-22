@@ -15,6 +15,7 @@ from sqlalchemy.orm import selectinload
 
 from kupto.db import utcnow
 from kupto.errors import Forbidden, NotFound
+from kupto.lists import shopping_status
 from kupto.lists.quantities import clean_name, normalize_name
 from kupto.models import (
     Category,
@@ -159,13 +160,16 @@ async def set_bought(
 async def finish_shopping(session: AsyncSession, household: Household, user: User) -> int:
     """Przenosi kupione pozycje z listy do historii zakupów; zwraca ich liczbę.
 
-    Zapis historii i usunięcie z listy dzieją się w jednej transakcji. Blokada wiersza listy
+    Kończący przestaje robić zakupy (status innych domowników zostaje), także gdy nie było
+    kupionych pozycji. Zapis historii, usunięcie z listy i zdjęcie statusu dzieją się w jednej
+    transakcji. Blokada wiersza listy
     szereguje równoległe zakończenia zakupów, więc żadna pozycja nie trafi do historii dwa razy.
     """
     list_id = await session.scalar(
         select(ShoppingList.id).where(ShoppingList.household_id == household.id).with_for_update()
     )
     assert list_id is not None
+    await shopping_status.clear(session, user)
     bought = list(
         await session.scalars(
             select(ListItem)

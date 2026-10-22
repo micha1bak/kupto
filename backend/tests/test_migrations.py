@@ -26,6 +26,28 @@ EXISTING_TABLES = (
 HISTORY_TABLES = ("shopping_trips", "purchased_items", "purchased_needs")
 
 
+# Dane jak na produkcji przed wdrożeniem: gospodarstwo z dwoma członkami, lista z kupioną
+# i niekupioną pozycją, zapotrzebowania, pamięć kategorii, przypięcia i historia czatu.
+SEED_STATEMENTS = (
+    "INSERT INTO users (id, login, password_hash, created_at) VALUES "
+    "(1, 'ala', 'x', now()), (2, 'ola', 'x', now())",
+    "INSERT INTO households (id, name, owner_id, created_at) VALUES (1, 'Dom', 1, now())",
+    "UPDATE users SET household_id = 1, joined_household_at = now()",
+    "INSERT INTO shopping_lists (id, household_id) VALUES (1, 1)",
+    "INSERT INTO household_products VALUES (1, 'mleko', 'Nabiał')",
+    "INSERT INTO list_items (id, list_id, name, normalized_name, category, bought_at, "
+    "bought_by_id, created_at) VALUES "
+    "(1, 1, 'mleko', 'mleko', 'Nabiał', now(), 2, now()), "
+    "(2, 1, 'chleb', 'chleb', 'Pieczywo', NULL, NULL, now())",
+    "INSERT INTO needs (id, item_id, user_id, amount, unit, note, created_at) VALUES "
+    "(1, 1, 1, 2, 'l', 'bez laktozy', now()), (2, 2, 2, NULL, NULL, NULL, now())",
+    "INSERT INTO user_category_pins VALUES (1, 'Chemia i higiena', 0)",
+    "INSERT INTO chat_messages (user_id, household_id, role, content, created_at) "
+    "VALUES (1, 1, 'user', 'kup mleko', now())",
+    "INSERT INTO chat_pending_actions VALUES (1, 'finish_shopping', now())",
+)
+
+
 def alembic_config(database_url: str) -> Config:
     config = Config(BACKEND_DIR / "alembic.ini")
     config.set_main_option("sqlalchemy.url", database_url)
@@ -95,30 +117,10 @@ async def test_category_pins_migration_downgrades_and_upgrades(migrated_database
 
 async def test_purchase_history_migration_keeps_existing_data(empty_database):
     await migrate(empty_database, "up", "0002")
-    # Dane jak na produkcji przed wdrożeniem: gospodarstwo z dwoma członkami, lista z kupioną
-    # i niekupioną pozycją, zapotrzebowania, pamięć kategorii, przypięcia i historia czatu.
-    await execute(
-        empty_database,
-        "INSERT INTO users (id, login, password_hash, created_at) VALUES "
-        "(1, 'ala', 'x', now()), (2, 'ola', 'x', now())",
-        "INSERT INTO households (id, name, owner_id, created_at) VALUES (1, 'Dom', 1, now())",
-        "UPDATE users SET household_id = 1, joined_household_at = now()",
-        "INSERT INTO shopping_lists (id, household_id) VALUES (1, 1)",
-        "INSERT INTO household_products VALUES (1, 'mleko', 'Nabiał')",
-        "INSERT INTO list_items (id, list_id, name, normalized_name, category, bought_at, "
-        "bought_by_id, created_at) VALUES "
-        "(1, 1, 'mleko', 'mleko', 'Nabiał', now(), 2, now()), "
-        "(2, 1, 'chleb', 'chleb', 'Pieczywo', NULL, NULL, now())",
-        "INSERT INTO needs (id, item_id, user_id, amount, unit, note, created_at) VALUES "
-        "(1, 1, 1, 2, 'l', 'bez laktozy', now()), (2, 2, 2, NULL, NULL, NULL, now())",
-        "INSERT INTO user_category_pins VALUES (1, 'Chemia i higiena', 0)",
-        "INSERT INTO chat_messages (user_id, household_id, role, content, created_at) "
-        "VALUES (1, 1, 'user', 'kup mleko', now())",
-        "INSERT INTO chat_pending_actions VALUES (1, 'finish_shopping', now())",
-    )
+    await execute(empty_database, *SEED_STATEMENTS)
     before = await snapshot(empty_database, EXISTING_TABLES)
 
-    await migrate(empty_database, "up", "head")
+    await migrate(empty_database, "up", "0003")
 
     assert await snapshot(empty_database, EXISTING_TABLES) == before
     assert await snapshot(empty_database, HISTORY_TABLES) == {t: [] for t in HISTORY_TABLES}
@@ -139,5 +141,50 @@ async def test_purchase_history_migration_keeps_existing_data(empty_database):
         assert not await table_exists(empty_database, table)
     assert await snapshot(empty_database, EXISTING_TABLES) == before
 
-    await migrate(empty_database, "up", "head")
+    await migrate(empty_database, "up", "0003")
     assert await snapshot(empty_database, HISTORY_TABLES) == {t: [] for t in HISTORY_TABLES}
+
+
+async def column_exists(database_url: str, table: str, column: str) -> bool:
+    engine = create_async_engine(database_url)
+    async with engine.connect() as connection:
+        exists = await connection.scalar(
+            text(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                "WHERE table_name = :table AND column_name = :column)"
+            ),
+            {"table": table, "column": column},
+        )
+    await engine.dispose()
+    return exists
+
+
+async def test_shopping_status_migration_keeps_existing_data(empty_database):
+    await migrate(empty_database, "up", "0003")
+    await execute(
+        empty_database,
+        *SEED_STATEMENTS,
+        "INSERT INTO shopping_trips (id, household_id, finished_at, finished_by_id) "
+        "VALUES (1, 1, now(), 1)",
+    )
+    tables = (*EXISTING_TABLES, *HISTORY_TABLES)
+    before = await snapshot(empty_database, tables)
+
+    await migrate(empty_database, "up", "0004")
+
+    # Istniejące wiersze bez zmian (porównujemy kolumny sprzed migracji), status pusty.
+    after = await snapshot(empty_database, tables)
+    assert [row[:-1] for row in after["users"]] == before["users"]
+    assert [row[-1] for row in after["users"]] == [None, None]
+    assert {t: rows for t, rows in after.items() if t != "users"} == {
+        t: rows for t, rows in before.items() if t != "users"
+    }
+    await execute(empty_database, "UPDATE users SET shopping_since = now() WHERE id = 1")
+
+    await migrate(empty_database, "down", "0003")
+
+    assert not await column_exists(empty_database, "users", "shopping_since")
+    assert await snapshot(empty_database, tables) == before
+
+    await migrate(empty_database, "up", "head")
+    assert await column_exists(empty_database, "users", "shopping_since")

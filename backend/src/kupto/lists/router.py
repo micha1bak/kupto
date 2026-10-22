@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 
 from kupto.deps import CurrentHousehold, CurrentUser, SessionDep
-from kupto.lists import category_order, service
+from kupto.lists import category_order, service, shopping_status
 from kupto.lists.schemas import (
     CategoryMove,
     CategoryOrderEntry,
@@ -20,7 +20,11 @@ router = APIRouter(prefix="/api/list", tags=["list"])
 async def _current_list(session: SessionDep, household: Household, user: User) -> ListOut:
     """Wspólna lista gospodarstwa w kolejności kategorii danego użytkownika."""
     shopping_list = await service.get_list(session, household)
-    return list_out(shopping_list, await category_order.get_order(session, user))
+    return list_out(
+        shopping_list,
+        await category_order.get_order(session, user),
+        await shopping_status.active_shoppers(session, household),
+    )
 
 
 @router.get("")
@@ -86,6 +90,25 @@ async def finish_shopping(
     user: CurrentUser, household: CurrentHousehold, session: SessionDep
 ) -> ListOut:
     await service.finish_shopping(session, household, user)
+    return await _current_list(session, household, user)
+
+
+# Status „robię zakupy” zalogowanego użytkownika; widać go w `shoppers` każdej odpowiedzi listy.
+
+
+@router.post("/shopping")
+async def start_shopping(
+    user: CurrentUser, household: CurrentHousehold, session: SessionDep
+) -> ListOut:
+    await shopping_status.start(session, user)
+    return await _current_list(session, household, user)
+
+
+@router.delete("/shopping")
+async def stop_shopping(
+    user: CurrentUser, household: CurrentHousehold, session: SessionDep
+) -> ListOut:
+    await shopping_status.stop(session, user)
     return await _current_list(session, household, user)
 
 

@@ -14,7 +14,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kupto.errors import DomainError
-from kupto.lists import service
+from kupto.lists import service, shopping_status
 from kupto.lists.schemas import NeedCreate, NeedUpdate, list_out
 from kupto.lists.service import NeedInput
 from kupto.models import Category, ChatPendingAction, Household, Unit, User
@@ -107,6 +107,17 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "a użytkownik właśnie je wyraził.",
         {},
     ),
+    _function(
+        "start_shopping",
+        "Włącza status „robię zakupy” autora wiadomości — domownicy widzą, że jest w sklepie. "
+        "Status sam wygasa po 3 godzinach. Nie zmienia pozycji listy.",
+        {},
+    ),
+    _function(
+        "stop_shopping",
+        "Wyłącza status „robię zakupy” autora wiadomości. Nie zmienia pozycji listy.",
+        {},
+    ),
 ]
 
 LIST_CHANGING_TOOLS = {
@@ -117,6 +128,9 @@ LIST_CHANGING_TOOLS = {
     "mark_bought",
     "unmark_bought",
     "confirm_finish_shopping",
+    # Status zakupów jest częścią odpowiedzi listy (`shoppers`), więc klient też ją odświeża.
+    "start_shopping",
+    "stop_shopping",
 }
 
 
@@ -177,7 +191,10 @@ async def list_snapshot(ctx: ToolContext) -> dict[str, Any]:
             }
             for group in shopping_list.groups
             for item in group.items
-        ]
+        ],
+        "shopping_now": [
+            s.login for s in await shopping_status.active_shoppers(ctx.session, ctx.household)
+        ],
     }
 
 
@@ -254,6 +271,26 @@ async def _confirm_finish_shopping(ctx: ToolContext) -> dict[str, Any]:
     return {"status": "finished", "archived_items": archived}
 
 
+async def _start_shopping(ctx: ToolContext) -> dict[str, Any]:
+    started = await shopping_status.start(ctx.session, ctx.user)
+    others = [
+        s.login
+        for s in await shopping_status.active_shoppers(ctx.session, ctx.household)
+        if s.user_id != ctx.user.id
+    ]
+    return {
+        "status": "shopping",
+        "already_shopping": not started,
+        "expires_in_hours": shopping_status.SHOPPING_STATUS_TTL.total_seconds() / 3600,
+        "others_shopping": others,
+    }
+
+
+async def _stop_shopping(ctx: ToolContext) -> dict[str, Any]:
+    was_active = await shopping_status.stop(ctx.session, ctx.user)
+    return {"status": "stopped" if was_active else "was_not_shopping"}
+
+
 async def clear_pending_action(session: AsyncSession, user: User) -> str | None:
     """Pobiera i kasuje oczekującą akcję — potwierdzenie jest ważne tylko w następnej turze."""
     pending = await session.get(ChatPendingAction, user.id)
@@ -280,6 +317,8 @@ _HANDLERS = {
     "unmark_bought": _unmark_bought,
     "request_finish_shopping": _request_finish_shopping,
     "confirm_finish_shopping": _confirm_finish_shopping,
+    "start_shopping": _start_shopping,
+    "stop_shopping": _stop_shopping,
 }
 
 assert set(_HANDLERS) == {t["name"] for t in TOOL_DEFINITIONS}

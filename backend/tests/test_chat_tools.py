@@ -223,3 +223,56 @@ async def test_any_other_message_cancels_pending_confirmation(home, purchase_his
     assert "error" in result.output
     assert len((await call(ctx, "get_list")).output["items"]) == 2
     assert await purchase_history() == []
+
+
+async def test_start_shopping_is_visible_to_household_and_keeps_list(home):
+    await call(home["ala"], "add_needs", items=[need("mleko")])
+
+    result = await call(home["ala"], "start_shopping")
+
+    assert result.list_changed
+    assert result.output == {
+        "status": "shopping",
+        "already_shopping": False,
+        "expires_in_hours": 3,
+        "others_shopping": [],
+    }
+    snapshot = (await call(home["ola"], "get_list")).output
+    assert snapshot["shopping_now"] == ["ala"]
+    assert [i["name"] for i in snapshot["items"]] == ["mleko"]
+    assert (await call(home["ewa"], "get_list")).output["shopping_now"] == []
+
+
+async def test_start_shopping_reports_existing_status_and_others(home):
+    await call(home["ola"], "start_shopping")
+    await call(home["ala"], "start_shopping")
+
+    result = await call(home["ala"], "start_shopping")
+
+    assert result.output["already_shopping"] is True
+    assert result.output["others_shopping"] == ["ola"]
+
+
+async def test_stop_shopping(home):
+    await call(home["ala"], "start_shopping")
+
+    stopped = await call(home["ala"], "stop_shopping")
+    again = await call(home["ala"], "stop_shopping")
+
+    assert (stopped.output, stopped.list_changed) == ({"status": "stopped"}, True)
+    assert again.output == {"status": "was_not_shopping"}
+    assert (await call(home["ala"], "get_list")).output["shopping_now"] == []
+
+
+async def test_confirmed_finish_shopping_clears_status(home):
+    ctx = home["ala"]
+    await prepare_bought_and_unbought(ctx)
+    await call(ctx, "start_shopping")
+    await start_turn(ctx)
+    await call(ctx, "request_finish_shopping")
+    assert (await call(ctx, "get_list")).output["shopping_now"] == ["ala"]
+
+    await start_turn(ctx)
+    await call(ctx, "confirm_finish_shopping")
+
+    assert (await call(ctx, "get_list")).output["shopping_now"] == []
