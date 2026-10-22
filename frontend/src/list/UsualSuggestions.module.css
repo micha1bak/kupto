@@ -1,0 +1,49 @@
+.usual {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.products {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.products button {
+  font-size: 0.85rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+}
+
+.amount {
+  color: var(--muted);
+}
+
+.hide {
+  margin-left: auto;
+  border: none;
+  background: none;
+  padding: 0.2rem 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-decoration: underline;
+}
+
+.usual :global(.error) {
+  flex-basis: 100%;
+  margin: 0;
+}

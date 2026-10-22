@@ -160,3 +160,15 @@ export interface ProductHit {
   last_quantities: Quantity[];
   times_bought: number;
 }
+
+/** Produkt kupowany zwykle, którego nie ma teraz na liście (`GET /api/history/usual`). */
+export interface UsualProduct {
+  name: string;
+  category: Category;
+  amount: number | null;
+  unit: Unit | null;
+  times_bought: number;
+  typical_interval_days: number;
+  last_bought_at: string;
+  overdue: number;
+}

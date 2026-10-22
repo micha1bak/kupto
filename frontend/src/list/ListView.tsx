@@ -29,6 +29,7 @@ import {
 } from "../api/types";
 import { dropCategory, reorderGroups, type CategoryDrop } from "./categoryOrder";
 import { formatQuantities, formatQuantity, formatTime } from "./format";
+import { UsualSuggestions } from "./UsualSuggestions";
 import styles from "./ListView.module.css";
 
 function setItemBought(list: ShoppingList, itemId: number, bought: boolean): ShoppingList {
@@ -363,6 +364,7 @@ export function ListView({ userId }: { userId: number }) {
         </div>
       </div>
       <ShoppersBanner shoppers={shoppers} userId={userId} />
+      <UsualSuggestions list={list.data} />
       {shoppingError && (
         <p className="error">
           {shoppingError instanceof ApiError ? shoppingError.message : "Nie udało się zmienić statusu zakupów."}
