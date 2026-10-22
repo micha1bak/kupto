@@ -29,7 +29,23 @@ npm run build      # sprawdzenie typów (tsc) + build produkcyjny do dist/
 | `src/household/` | tworzenie gospodarstwa i zarządzanie członkami |
 | `src/list/` | lista zakupów pogrupowana po kategoriach |
 | `src/chat/` | czat z asystentem |
-| `src/layout/` | układ główny: zakładki na telefonie, dwie kolumny od 900 px |
+| `src/layout/` | układ główny: zakładki na telefonie, dwie kolumny od 900 px, baner instalacji |
+| `src/pwa/` | service worker, jego rejestracja i aktualizacje, logika banera, wtyczka Vite budująca `sw.js` |
+
+## PWA
+
+Aplikację można zainstalować na telefonie (manifest `public/manifest.webmanifest`, ikony w `public/icons/`).
+
+- **Service worker** (`src/pwa/sw.ts`) działa tylko w buildzie produkcyjnym. Wtyczka `src/pwa/swPlugin.ts`
+  buduje go do `dist/sw.js` z listą plików powłoki (HTML, `assets/`, manifest, ikony) i wersją buildu.
+  Pliki powłoki idą z cache tej wersji, dokument HTML najpierw z sieci (po 3 s bez odpowiedzi — z cache).
+  **`/api/*` nigdy nie przechodzi przez cache** — SW w ogóle nie obsługuje tych żądań.
+- **Aktualizacje**: każdy build zmienia `sw.js` (serwowany z `no-cache`), więc przeglądarka instaluje nową
+  wersję przy otwarciu aplikacji, a `src/pwa/register.ts` sprawdza ją też przy powrocie aplikacji z tła.
+  Nowy SW od razu przejmuje stronę i usuwa stare cache; strona, która działała na starej wersji,
+  przeładowuje się przy najbliższym przejściu w tło.
+- **Ikony**: źródłem są `public/icons/icon.svg` i `icon-maskable.svg`; PNG generuje
+  `scripts/generate-icons.sh` (Firefox headless + Python z Pillow) — uruchamiać po zmianie SVG.
 
 W produkcji SPA serwuje nginx (`nginx.conf`), który przekazuje `/api` do backendu bez
 buforowania, więc odpowiedzi czatu przychodzą strumieniowo.

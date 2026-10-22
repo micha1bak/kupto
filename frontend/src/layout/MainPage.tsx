@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ChatView } from "../chat/ChatView";
 import { ListView } from "../list/ListView";
 import type { Profile } from "../api/types";
+import { InstallBanner } from "./InstallBanner";
 import styles from "./MainPage.module.css";
 
 type Tab = "chat" | "list";
@@ -27,6 +28,7 @@ export function MainPage({ profile, onLogout }: { profile: Profile; onLogout: ()
           </button>
         ))}
       </div>
+      <InstallBanner />
       <main className={styles.content}>
         {/* Na telefonie widoczna jest jedna zakładka, na desktopie obie kolumny. */}
         <div className={`${styles.panel} ${tab === "chat" ? "" : styles.hidden}`}>
