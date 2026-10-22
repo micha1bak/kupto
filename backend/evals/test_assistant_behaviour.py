@@ -36,6 +36,32 @@ async def test_inflected_name_is_stored_in_nominative(household_with, chat, item
     assert found["jogurt naturalny"]["category"] == "Nabiał"
 
 
+async def test_products_are_categorized(household_with, chat, items):
+    (ala,) = await household_with("ala")
+
+    await chat(
+        ala,
+        "dodaj banany, schab, mrożoną pizzę, ryż, sok pomarańczowy, czekoladę i papier toaletowy",
+    )
+
+    found = await items(ala)
+    # Nazwy mogą się różnić formą („banan”/„banany”, „pizza mrożona”), więc szukamy po rdzeniu.
+    expected = {
+        "banan": "Warzywa i owoce",
+        "schab": "Mięso i ryby",
+        "pizz": "Mrożonki",
+        "ryż": "Produkty suche",
+        "sok": "Napoje",
+        "czekolad": "Słodycze i przekąski",
+        "papier": "Chemia i higiena",
+    }
+    categories = {
+        stem: [i["category"] for name, i in found.items() if stem in name] for stem in expected
+    }
+    assert categories == {stem: [category] for stem, category in expected.items()}
+    assert len(found) == len(expected)
+
+
 async def test_quantity_unit_and_note(household_with, chat, items):
     (ala,) = await household_with("ala")
 

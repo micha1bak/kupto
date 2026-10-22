@@ -39,7 +39,7 @@
 - [x] 6.5 Zaimplementować pętlę agenta z limitem `CHAT_MAX_TOOL_ROUNDS` i endpoint SSE `POST /api/chat/messages` (eventy `delta`, `list_changed`, `error`, `done`), zapisujący wiadomości do historii; weryfikacja: testy API z `FakeLLMClient` dla dodania produktów, scalenia z istniejącą pozycją i błędu modelu (zmiany sprzed błędu pozostają, event `error`)
 - [x] 6.6 Dodać walidację długości (422) i limit wiadomości na godzinę (429 z `Retry-After`) sprawdzane przed wywołaniem modelu; weryfikacja: testy API potwierdzają, że `FakeLLMClient` nie został wywołany
 - [x] 6.7 Dodać `GET /api/chat/messages` (historia własna) i `DELETE /api/chat/messages` (wyczyszczenie); weryfikacja: testy — członek B nie widzi historii A, wyczyszczenie nie zmienia listy
-- [ ] 6.8 Przygotować ewaluacje `backend/evals/` (`@pytest.mark.llm`, domyślnie pomijane) dla scenariuszy zależnych od modelu: wiele produktów w wiadomości, odmiana nazw („dwóch jogurtów naturalnych”), kategoryzacja, dopytywanie o „coś na grilla” i potwierdzenie z wyjątkiem, odmowa tematu spoza zakupów, próba prompt injection, odpowiedź po angielsku; weryfikacja: `uv run pytest -m llm` z prawdziwym kluczem przechodzi, a wynik i wybrany `OPENAI_MODEL` są opisane w `backend/README.md`
+- [x] 6.8 Przygotować ewaluacje `backend/evals/` (`@pytest.mark.llm`, domyślnie pomijane) dla scenariuszy zależnych od modelu: wiele produktów w wiadomości, odmiana nazw („dwóch jogurtów naturalnych”), kategoryzacja, dopytywanie o „coś na grilla” i potwierdzenie z wyjątkiem, odmowa tematu spoza zakupów, próba prompt injection, odpowiedź po angielsku; weryfikacja: `uv run pytest -m llm` z prawdziwym kluczem przechodzi, a wynik i wybrany `OPENAI_MODEL` są opisane w `backend/README.md`
 
 ## 7. Frontend SPA
 
