@@ -49,13 +49,27 @@ render_env() {
   mv "$tmp" "$env_file"
 }
 
+# Sprawdzane wewnątrz sieci Compose (web → backend), niezależnie od Caddy i certyfikatu.
+# Backend przy starcie wykonuje migracje, więc pierwsze próby mogą trafić na 502.
+check_health() {
+  local attempt
+  for attempt in $(seq 20); do
+    if compose exec -T web wget -qO /dev/null http://127.0.0.1/api/health; then
+      return 0
+    fi
+    sleep 3
+  done
+  echo "Brak odpowiedzi z /api/health po $attempt próbach" >&2
+  return 1
+}
+
 main() {
   sync_repo
   sync_units
   render_env
   compose pull --quiet
   compose up -d --remove-orphans --wait --wait-timeout 180
-  curl -fsS --retry 10 --retry-delay 3 --retry-all-errors http://localhost/api/health >/dev/null
+  check_health
   docker image prune -f >/dev/null
   echo "Wdrożono $(git -C "$repo" rev-parse --short HEAD); /api/health OK"
 }

@@ -44,13 +44,31 @@ services:
 
   web:
     image: ghcr.io/micha1bak/kupto-frontend:main
-    # Do czasu HTTPS (#19) web nasłuchuje bezpośrednio na 80; potem przed nim stanie Caddy.
-    ports:
-      - "80:80"
     depends_on:
       - backend
     logging: *logging
     restart: always
 
+  # HTTPS z automatycznym certyfikatem Let's Encrypt dla KUPTO_DOMAIN (#19); jedyny kontener
+  # z portami wystawionymi na zewnątrz.
+  caddy:
+    image: caddy:2.11.7-alpine
+    environment:
+      KUPTO_DOMAIN: ${KUPTO_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certyfikaty muszą przetrwać odtworzenie kontenera — inaczej limity Let's Encrypt.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    logging: *logging
+    restart: always
+
 volumes:
   db_data:
+  caddy_data:
+  caddy_config:

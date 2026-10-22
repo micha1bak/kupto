@@ -1,0 +1,12 @@
+# Caddy przed nginx (web): certyfikat Let's Encrypt i przekierowanie HTTP → HTTPS dla
+# KUPTO_DOMAIN (parametr SSM /kupto/KUPTO_DOMAIN).
+{$KUPTO_DOMAIN} {
+	encode zstd gzip
+
+	header Strict-Transport-Security "max-age=31536000"
+
+	reverse_proxy web:80 {
+		# Odpowiedzi czatu (SSE) przekazywane od razu, bez buforowania.
+		flush_interval -1
+	}
+}
