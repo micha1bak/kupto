@@ -17,6 +17,11 @@ const LABELS: Record<NotificationType, { label: string; description: string }> =
     label: "Zakupy zakończone",
     description: "Domownik zakończył zakupy — z listą tego, czego nie było.",
   },
+  usual_reminder: {
+    label: "Zwykłe produkty",
+    description:
+      "Najwyżej raz dziennie, gdy brakuje na liście czegoś, co zwykle kupujecie (domyślnie wyłączone).",
+  },
 };
 
 const isKnown = (type: string): type is NotificationType => type in LABELS;
