@@ -1,0 +1,59 @@
+name: Publikacja obrazów
+
+# Po merge do main buduje obrazy linux/arm64 (serwer to EC2 t4g, ADR 0001) i publikuje je
+# w GHCR z tagami `main` i `sha-<commit>`. Serwer sam pobiera tag `main` (deploy/).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# Kolejne publikacje nie anulują się nawzajem — przerwany push zostawiłby niepełny obraz.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publikacja (${{ matrix.image }})
+    # Natywny runner arm64 (darmowy dla publicznych repo) — bez emulacji QEMU.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/kupto-${{ matrix.image }}
+          tags: |
+            type=raw,value=main
+            type=sha,format=short
+
+      - name: Budowa i publikacja obrazu
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.image }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=publish-${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=publish-${{ matrix.image }}

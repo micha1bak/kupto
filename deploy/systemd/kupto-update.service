@@ -1,0 +1,10 @@
+[Unit]
+Description=Kupto: pobranie nowej wersji i wdrożenie
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=AWS_DEFAULT_REGION=eu-north-1
+ExecStart=/opt/kupto/repo/deploy/kupto-update.sh
