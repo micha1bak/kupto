@@ -5,6 +5,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 
 from kupto.lists.category_order import AUTOMATIC, CategoryOrder
+from kupto.lists.product_order import BASE, ProductOrder
 from kupto.lists.quantities import aggregate_quantities
 from kupto.lists.shopping_status import Shopper
 from kupto.models import Category, ListItem, ShoppingList, Unit
@@ -31,6 +32,14 @@ class CategoryMove(BaseModel):
     before: Category | None = None
 
 
+class ItemMove(BaseModel):
+    """Sąsiedzi przeniesionej pozycji w jej grupie na liście klienta (identyfikatory pozycji);
+    brak `after` = początek kategorii, brak `before` = koniec."""
+
+    after: int | None = None
+    before: int | None = None
+
+
 class QuantityOut(BaseModel):
     amount: float
     unit: Unit | None
@@ -55,6 +64,8 @@ class ItemOut(BaseModel):
     bought: bool
     bought_at: datetime | None
     bought_by: str | None
+    # Produkt przypięty przez zalogowanego użytkownika na swoim miejscu w kategorii.
+    pinned: bool = False
 
 
 class CategoryGroup(BaseModel):
@@ -84,7 +95,7 @@ class ListOut(BaseModel):
     shoppers: list[ShopperOut] = []
 
 
-def item_out(item: ListItem) -> ItemOut:
+def item_out(item: ListItem, pinned: bool = False) -> ItemOut:
     return ItemOut(
         id=item.id,
         name=item.name,
@@ -108,6 +119,7 @@ def item_out(item: ListItem) -> ItemOut:
         bought=item.bought_at is not None,
         bought_at=item.bought_at,
         bought_by=item.bought_by.login if item.bought_by else None,
+        pinned=pinned,
     )
 
 
@@ -115,20 +127,21 @@ def list_out(
     shopping_list: ShoppingList,
     order: CategoryOrder = AUTOMATIC,
     shoppers: Sequence[Shopper] = (),
+    products: ProductOrder = BASE,
 ) -> ListOut:
-    """Lista pogrupowana według kategorii w kolejności `order`; w grupie pozycje alfabetycznie."""
+    """Lista pogrupowana według kategorii w kolejności `order`; w grupie pozycje w kolejności
+    produktów `products` (bez przypięć — bazowej, czyli alfabetycznej)."""
     groups = []
     for category in order.categories:
-        items = sorted(
-            (i for i in shopping_list.items if i.category == category),
-            key=lambda i: i.normalized_name,
+        items = products.arrange(
+            category, (i for i in shopping_list.items if i.category == category)
         )
         if items:
             groups.append(
                 CategoryGroup(
                     category=category,
                     pinned=category in order.pinned,
-                    items=[item_out(i) for i in items],
+                    items=[item_out(i, products.is_pinned(i)) for i in items],
                 )
             )
     return ListOut(
