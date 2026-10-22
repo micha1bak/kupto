@@ -7,6 +7,7 @@ autora wiadomości. Błędy reguł wracają do modelu jako `{"error": ...}`, a n
 
 import json
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
 from pydantic import ValidationError
@@ -14,6 +15,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kupto.errors import DomainError
+from kupto.history import usual
 from kupto.lists import notifications, service, shopping_status
 from kupto.lists.schemas import NeedCreate, NeedUpdate, list_out
 from kupto.lists.service import NeedInput
@@ -21,6 +23,7 @@ from kupto.models import Category, ChatPendingAction, Household, Unit, User
 from kupto.push.notifier import Notifier
 
 FINISH_SHOPPING = "finish_shopping"
+MAX_USUAL_SUGGESTIONS = 10
 
 _CATEGORIES = [c.value for c in Category]
 _UNITS = [u.value for u in Unit]
@@ -106,6 +109,12 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "confirm_finish_shopping",
         "Kończy zakupy. Działa tylko, gdy w poprzedniej wiadomości poproszono o potwierdzenie, "
         "a użytkownik właśnie je wyraził.",
+        {},
+    ),
+    _function(
+        "get_usual_missing",
+        "Zwraca produkty, które gospodarstwo kupuje regularnie, a których teraz nie ma na "
+        "liście (z typową ilością i jednostką). Tylko odczyt — niczego nie dodaje.",
         {},
     ),
     _function(
@@ -278,6 +287,25 @@ async def _confirm_finish_shopping(ctx: ToolContext) -> dict[str, Any]:
     return {"status": "finished", "archived_items": archived}
 
 
+async def _get_usual_missing(ctx: ToolContext) -> dict[str, Any]:
+    suggestions = await usual.usual_missing(ctx.session, ctx.household)
+    day = timedelta(days=1)
+    return {
+        "usual_missing": [
+            {
+                "name": s.name,
+                "category": s.category.value,
+                "typical_amount": float(s.amount) if s.amount is not None else None,
+                "unit": s.unit.value if s.unit else None,
+                "bought_times": s.times_bought,
+                "every_days": round(s.typical_interval / day, 1),
+                "days_since_last": round(s.since_last / day, 1),
+            }
+            for s in suggestions[:MAX_USUAL_SUGGESTIONS]
+        ]
+    }
+
+
 async def _start_shopping(ctx: ToolContext) -> dict[str, Any]:
     started = await shopping_status.start(ctx.session, ctx.user)
     if started and ctx.notifier is not None:
@@ -326,6 +354,7 @@ _HANDLERS = {
     "unmark_bought": _unmark_bought,
     "request_finish_shopping": _request_finish_shopping,
     "confirm_finish_shopping": _confirm_finish_shopping,
+    "get_usual_missing": _get_usual_missing,
     "start_shopping": _start_shopping,
     "stop_shopping": _stop_shopping,
 }

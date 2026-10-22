@@ -3,8 +3,15 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from kupto.deps import CurrentHousehold, CurrentUser, SessionDep
-from kupto.history import service
-from kupto.history.schemas import ProductOut, TripPageOut, product_out, trip_out
+from kupto.history import service, usual
+from kupto.history.schemas import (
+    ProductOut,
+    TripPageOut,
+    UsualOut,
+    product_out,
+    trip_out,
+    usual_out,
+)
 from kupto.lists import category_order
 
 router = APIRouter(prefix="/api/history", tags=["history"])
@@ -44,3 +51,12 @@ async def search_products(
     matches = await service.search_products(session, household, q)
     logins = await service.logins(session, [m.last.bought_by_id for m in matches])
     return [product_out(m.last, m.times_bought, logins) for m in matches]
+
+
+@router.get("/usual")
+async def usual_missing(
+    _: CurrentUser, household: CurrentHousehold, session: SessionDep
+) -> list[UsualOut]:
+    """Produkty kupowane zwykle, których nie ma teraz na liście; największa zaległość pierwsza."""
+    suggestions = await usual.usual_missing(session, household)
+    return [usual_out(s) for s in suggestions[: usual.MAX_SUGGESTIONS]]

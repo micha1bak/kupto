@@ -276,3 +276,37 @@ async def test_confirmed_finish_shopping_clears_status(home):
     await call(ctx, "confirm_finish_shopping")
 
     assert (await call(ctx, "get_list")).output["shopping_now"] == []
+
+
+async def test_get_usual_missing_is_read_only(home):
+    from datetime import timedelta
+
+    from kupto.db import utcnow
+    from kupto.models import Category, PurchasedItem, PurchasedNeed, ShoppingTrip, Unit
+
+    ctx = home["ala"]
+    for days in (28, 21, 14, 7):
+        finished_at = utcnow() - timedelta(days=days)
+        milk = PurchasedItem(
+            name="mleko",
+            normalized_name="mleko",
+            category=Category("Nabiał"),
+            bought_at=finished_at,
+            needs=[PurchasedNeed(amount=2, unit=Unit("l"), requested_at=finished_at)],
+        )
+        ctx.session.add(
+            ShoppingTrip(household_id=ctx.household.id, finished_at=finished_at, items=[milk])
+        )
+    await ctx.session.commit()
+
+    result = await call(ctx, "get_usual_missing")
+    other = await call(home["ewa"], "get_usual_missing")
+
+    assert result.list_changed is False
+    (milk,) = result.output["usual_missing"]
+    assert milk["name"] == "mleko"
+    assert (milk["typical_amount"], milk["unit"]) == (2.0, "l")
+    assert (milk["bought_times"], milk["every_days"]) == (4, 7.0)
+    assert milk["days_since_last"] == 7.0
+    assert other.output == {"usual_missing": []}
+    assert (await call(ctx, "get_list")).output["items"] == []

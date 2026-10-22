@@ -189,3 +189,62 @@ async def test_going_to_the_shop_sets_shopping_status(household_with, chat, item
     found = await items(ala)
     assert set(found) == {"mleko"}
     assert not found["mleko"]["bought"]
+
+
+async def test_usual_products_are_proposed_then_added_after_confirmation(
+    household_with, chat, items, session
+):
+    from datetime import timedelta
+
+    from kupto.db import utcnow
+    from kupto.models import Category, PurchasedItem, PurchasedNeed, ShoppingTrip, Unit
+
+    (ala,) = await household_with("ala")
+    household_id = (await ala.get("/api/households/me")).json()["id"]
+    await ala.post("/api/list/needs", json={"name": "chleb", "category": "Pieczywo"})
+    # Mleko (2 l) kupowane co tydzień, ostatnio tydzień temu; chleb jest już na liście.
+    for days in (28, 21, 14, 7):
+        finished_at = utcnow() - timedelta(days=days)
+        products = [("mleko", "Nabiał", 2, "l"), ("chleb", "Pieczywo", None, None)]
+        session.add(
+            ShoppingTrip(
+                household_id=household_id,
+                finished_at=finished_at,
+                items=[
+                    PurchasedItem(
+                        name=name,
+                        normalized_name=name,
+                        category=Category(category),
+                        bought_at=finished_at,
+                        needs=[
+                            PurchasedNeed(
+                                amount=amount,
+                                unit=Unit(unit) if unit else None,
+                                requested_at=finished_at,
+                            )
+                        ],
+                    )
+                    for name, category, amount, unit in products
+                ],
+            )
+        )
+    await session.commit()
+
+    proposal = await chat(ala, "czego nam zwykle brakuje?")
+
+    assert set(await items(ala)) == {"chleb"}
+    assert "mlek" in proposal.lower()
+
+    await chat(ala, "tak, dodaj")
+
+    found = await items(ala)
+    assert set(found) == {"chleb", "mleko"}
+    assert found["mleko"]["quantities"] == [{"amount": 2.0, "unit": "l"}]
+
+
+async def test_usual_products_without_history(household_with, chat, items):
+    (ala,) = await household_with("ala")
+
+    await chat(ala, "co zwykle kupujemy?")
+
+    assert await items(ala) == {}

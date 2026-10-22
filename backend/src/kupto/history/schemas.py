@@ -1,7 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from pydantic import BaseModel
 
+from kupto.history.usual import Suggestion
 from kupto.lists.category_order import CategoryOrder
 from kupto.lists.quantities import aggregate_quantities
 from kupto.lists.schemas import QuantityOut
@@ -116,4 +117,30 @@ def product_out(item: PurchasedItem, times_bought: int, logins: dict[int, str]) 
         last_trip_id=item.trip_id,
         last_quantities=_quantities(item.needs),
         times_bought=times_bought,
+    )
+
+
+class UsualOut(BaseModel):
+    """Produkt kupowany zwykle, którego brakuje na liście (`kupto.history.usual`)."""
+
+    name: str
+    category: Category
+    amount: float | None  # typowa ilość; NULL — w historii nie podawano ilości
+    unit: Unit | None
+    times_bought: int
+    typical_interval_days: float
+    last_bought_at: datetime
+    overdue: float  # czas od ostatniego zakupu / typowy odstęp
+
+
+def usual_out(suggestion: Suggestion) -> UsualOut:
+    return UsualOut(
+        name=suggestion.name,
+        category=suggestion.category,
+        amount=float(suggestion.amount) if suggestion.amount is not None else None,
+        unit=suggestion.unit,
+        times_bought=suggestion.times_bought,
+        typical_interval_days=round(suggestion.typical_interval / timedelta(days=1), 1),
+        last_bought_at=suggestion.last_bought_at,
+        overdue=round(suggestion.overdue, 2),
     )

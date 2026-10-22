@@ -6,6 +6,9 @@ import type { ShoppingList } from "../api/types";
 import { FakeEventSource } from "../test/fakeEventSource";
 import { jsonResponse, mockFetch, renderWithProviders } from "../test/utils";
 
+// Podpowiedzi „Zwykle kupujecie” mają własne testy (UsualSuggestions.test.tsx) i własne zapytanie.
+vi.mock("./UsualSuggestions", () => ({ UsualSuggestions: () => null }));
+
 afterEach(() => vi.unstubAllGlobals());
 
 const need = (id: number, user_id: number, login: string, amount: number | null, unit: string | null) => ({

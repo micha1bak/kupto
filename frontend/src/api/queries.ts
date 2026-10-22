@@ -9,6 +9,7 @@ import type {
   Profile,
   ShoppingList,
   TripPage,
+  UsualProduct,
 } from "./types";
 
 export const keys = {
@@ -18,6 +19,7 @@ export const keys = {
   chat: ["chat"] as const,
   history: ["history"] as const,
   historySearch: ["history-search"] as const,
+  usual: ["usual"] as const,
 };
 
 /**
@@ -63,6 +65,14 @@ export const useProductSearch = (phrase: string) =>
     queryFn: () =>
       api<ProductHit[]>(`/api/history/products?q=${encodeURIComponent(phrase)}`),
     enabled: phrase !== "",
+  });
+
+/** Produkty kupowane zwykle, których brakuje na liście (podpowiedź „Zwykle kupujecie”). */
+export const useUsualProducts = () =>
+  useQuery({
+    queryKey: keys.usual,
+    queryFn: () => api<UsualProduct[]>("/api/history/usual"),
+    staleTime: 5 * 60_000,
   });
 
 // Historię odświeżamy tylko jawnie po każdej wymianie (ChatView), nie np. przy powrocie do karty —
