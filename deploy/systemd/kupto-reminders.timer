@@ -1,0 +1,11 @@
+[Unit]
+Description=Kupto: codzienne przypomnienia o zwykłych produktach o 17:00 czasu polskiego
+
+[Timer]
+OnCalendar=*-*-* 17:00:00 Europe/Warsaw
+# Pominięte uruchomienie wykona się po starcie serwera; poza 9–21 czasu polskiego komenda
+# niczego nie wysyła (kupto.history.reminders).
+Persistent=true
+
+[Install]
+WantedBy=timers.target

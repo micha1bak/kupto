@@ -1,0 +1,10 @@
+[Unit]
+Description=Kupto: przypomnienia push o zwykłych produktach
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Wspólna blokada z kupto-update: wdrożenie nie odtworzy kontenera backendu w trakcie wysyłki.
+ExecStart=/usr/bin/flock /run/kupto.lock /opt/kupto/repo/deploy/kupto-reminders.sh
