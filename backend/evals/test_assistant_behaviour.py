@@ -408,3 +408,50 @@ async def test_private_recipe_link_is_refused(household_with, chat, items):
 
     assert await items(ala) == {}
     assert "wklej" in reply.lower()
+
+
+async def test_pasted_recipe_is_saved_only_when_asked(household_with, chat, items):
+    (ala,) = await household_with("ala")
+
+    await chat(ala, PANCAKES)
+    assert (await ala.get("/api/recipes")).json() == []
+
+    await chat(ala, "zapisz ten przepis w naszych przepisach")
+
+    recipes = (await ala.get("/api/recipes")).json()
+    assert len(recipes) == 1 and "naleśnik" in recipes[0]["name"].lower(), recipes
+    detail = (await ala.get(f"/api/recipes/{recipes[0]['id']}")).json()
+    names = " ".join(i["name"].lower() for i in detail["ingredients"])
+    assert all(stem in names for stem in ("mąk", "mlek", "jaj", "olej")), names
+    # Zapis przepisu nie zmienia listy.
+    assert await items(ala) == {}
+
+
+SAVED_PANCAKES = {
+    "name": "Naleśniki",
+    "ingredients": [
+        {"name": "mąka pszenna", "note": "2 szklanki", "category": "Produkty suche"},
+        {"name": "mleko", "amount": 0.5, "unit": "l", "category": "Nabiał"},
+        {"name": "jajka", "amount": 2, "unit": "szt", "category": "Nabiał"},
+        {"name": "olej", "note": "2 łyżki", "category": "Produkty suche"},
+    ],
+}
+
+
+async def test_saved_recipe_is_proposed_then_only_missing_ingredients_are_added(
+    household_with, chat, items
+):
+    ala, ola = await household_with("ala", "ola")
+    # Przepis zapisany przez innego domownika — baza jest wspólna dla gospodarstwa.
+    assert (await ola.post("/api/recipes", json=SAVED_PANCAKES)).status_code == 201
+
+    proposal = await chat(ala, "chcę zrobić naleśniki z naszych przepisów, co trzeba kupić?")
+
+    assert await items(ala) == {}
+    assert all(stem in proposal.lower() for stem in ("mąk", "mlek", "jaj")), proposal
+
+    await chat(ala, "brakuje tylko mleka")
+
+    found = await items(ala)
+    assert set(found) == {"mleko"}
+    assert "naleśnik" in (found["mleko"]["needs"][0]["note"] or "").lower()

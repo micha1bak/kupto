@@ -316,6 +316,57 @@ class UsualReminder(Base):
     reminded_at: Mapped[datetime]
 
 
+class Recipe(Base):
+    """Przepis zapisany w bazie przepisów gospodarstwa (#46) — wspólny dla wszystkich członków.
+
+    Identyfikator jest stały (edycja zmienia przepis w miejscu), więc mogą się do niego odwoływać
+    inne funkcje, np. plan posiłków (#44). Nazwa unikalna w gospodarstwie (bez wielkości liter).
+    """
+
+    __tablename__ = "recipes"
+    __table_args__ = (UniqueConstraint("household_id", "normalized_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100))
+    normalized_name: Mapped[str] = mapped_column(String(100))
+    # Tekst, nie liczba: „4 porcje”, „10 sztuk”, „blacha 20×30” (jak schema.org `recipeYield`).
+    servings: Mapped[str | None] = mapped_column(String(50))
+    source_url: Mapped[str | None] = mapped_column(String(2000))
+    instructions: Mapped[str | None] = mapped_column(Text)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    ingredients: Mapped[list["RecipeIngredient"]] = relationship(
+        back_populates="recipe",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="RecipeIngredient.position",
+    )
+    created_by: Mapped[User | None] = relationship()
+
+
+class RecipeIngredient(Base):
+    """Składnik przepisu — pola jak w zapotrzebowaniu, więc trafia na listę bez przeliczeń.
+
+    Miary kuchenne bez jednostki listy (łyżka, szklanka) są w `note`, a `amount`/`unit` puste.
+    """
+
+    __tablename__ = "recipe_ingredients"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    recipe_id: Mapped[int] = mapped_column(ForeignKey("recipes.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(SmallInteger)
+    name: Mapped[str] = mapped_column(String(100))
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
+    unit: Mapped[Unit | None] = mapped_column(_enum(Unit, "unit"))
+    note: Mapped[str | None] = mapped_column(String(200))
+    category: Mapped[Category | None] = mapped_column(_enum(Category, "category"))
+
+    recipe: Mapped[Recipe] = relationship(back_populates="ingredients")
+
+
 class ChatPendingAction(Base):
     __tablename__ = "chat_pending_actions"
 

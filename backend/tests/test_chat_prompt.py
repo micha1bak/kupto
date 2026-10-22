@@ -62,3 +62,12 @@ def test_input_keeps_everything_when_history_is_short():
     history = [ChatMessage(role="user", content="cześć")]
 
     assert build_input(history, limit=20) == [{"role": "user", "content": "cześć"}]
+
+
+def test_saving_recipes_requires_request_and_reading_follows_recipe_rule():
+    names = {t["name"] for t in TOOL_DEFINITIONS}
+
+    assert {"save_recipe", "list_recipes", "get_recipe"} <= names
+    assert "zapisz ten przepis" in SYSTEM_PROMPT
+    assert "Bez prośby nie zapisuj" in SYSTEM_PROMPT
+    assert "list_recipes, a potem get_recipe i postępuj jak w zasadzie 4a" in SYSTEM_PROMPT

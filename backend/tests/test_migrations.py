@@ -335,3 +335,52 @@ async def test_usual_reminders_migration_keeps_existing_data(empty_database):
 
     await migrate(empty_database, "up", "head")
     assert await table_exists(empty_database, "usual_reminders")
+
+
+RECIPE_TABLES = ("recipes", "recipe_ingredients")
+
+
+async def test_household_recipes_migration_keeps_existing_data(empty_database):
+    await migrate(empty_database, "up", "0008")
+    await execute(
+        empty_database,
+        *SEED_STATEMENTS,
+        "INSERT INTO usual_reminders (household_id, normalized_name, reminded_at) VALUES "
+        "(1, 'mleko', now())",
+    )
+    tables = (*EXISTING_TABLES, *HISTORY_TABLES, "usual_reminders")
+    before = await snapshot(empty_database, tables)
+
+    await migrate(empty_database, "up", "0009")
+
+    assert await snapshot(empty_database, tables) == before
+    assert await snapshot(empty_database, RECIPE_TABLES) == {t: [] for t in RECIPE_TABLES}
+    # Przepis gospodarstwa ze składnikami (istniejące typy enum), nazwa unikalna w gospodarstwie.
+    insert = (
+        "INSERT INTO recipes (id, household_id, name, normalized_name, created_by_id, "
+        "created_at, updated_at) VALUES "
+    )
+    await execute(
+        empty_database,
+        insert + "(1, 1, 'Naleśniki', 'naleśniki', 1, now(), now())",
+        "INSERT INTO recipe_ingredients (recipe_id, position, name, amount, unit, note, "
+        "category) VALUES (1, 0, 'mleko', 0.5, 'l', NULL, 'Nabiał'), "
+        "(1, 1, 'mąka', NULL, NULL, '2 szklanki', NULL)",
+    )
+    with pytest.raises(IntegrityError):
+        await execute(empty_database, insert + "(2, 1, 'naleśniki', 'naleśniki', 1, now(), now())")
+    with pytest.raises(IntegrityError):
+        await execute(empty_database, insert + "(3, 99, 'bigos', 'bigos', 1, now(), now())")
+    # Usunięcie przepisu usuwa jego składniki.
+    await execute(empty_database, "DELETE FROM recipes WHERE id = 1")
+    assert await snapshot(empty_database, ("recipe_ingredients",)) == {"recipe_ingredients": []}
+    await execute(empty_database, insert + "(1, 1, 'Naleśniki', 'naleśniki', 1, now(), now())")
+
+    await migrate(empty_database, "down", "0008")
+
+    for table in RECIPE_TABLES:
+        assert not await table_exists(empty_database, table)
+    assert await snapshot(empty_database, tables) == before
+
+    await migrate(empty_database, "up", "head")
+    assert await snapshot(empty_database, RECIPE_TABLES) == {t: [] for t in RECIPE_TABLES}

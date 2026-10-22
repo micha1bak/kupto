@@ -279,6 +279,40 @@ async def test_pasted_recipe_is_proposed_then_missing_ingredients_are_added(
     assert [n["note"] for i in items.values() for n in i["needs"]] == ["na: naleśniki"] * 2
 
 
+async def test_recipe_saved_via_chat_is_visible_to_household(household_with, fake_llm):
+    ala, ola = await household_with("ala", "ola")
+    recipe = {
+        "name": "Naleśniki",
+        "servings": None,
+        "source_url": None,
+        "instructions": None,
+        "ingredients": [
+            {"name": "mleko", "amount": 0.5, "unit": "l", "note": None, "category": "Nabiał"},
+            {
+                "name": "woda",
+                "amount": None,
+                "unit": None,
+                "note": "1 szklanka",
+                "category": "Inne",
+            },
+        ],
+    }
+    fake_llm.rounds += [
+        [ToolCall("call_1", "save_recipe", json.dumps(recipe))],
+        [TextDelta("Zapisałem przepis „Naleśniki”.")],
+    ]
+
+    response, events = await send(ala, "zapisz ten przepis")
+
+    assert response.status_code == 200
+    # Zapis przepisu nie zmienia listy, więc klient nie dostaje sygnału jej zmiany.
+    assert ("list_changed", {}) not in events
+    assert "saved" in json.loads(fake_llm.calls[1]["input"][-1]["output"])
+    recipes = (await ola.get("/api/recipes")).json()
+    assert [(r["name"], r["ingredient_count"]) for r in recipes] == [("Naleśniki", 2)]
+    assert list_items((await ala.get("/api/list")).json()) == {}
+
+
 async def test_empty_message_is_rejected(household_with, fake_llm):
     (ala,) = await household_with("ala")
 
