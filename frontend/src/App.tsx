@@ -1,9 +1,17 @@
 import { useEffect } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
-import { ApiError, post, setNoHouseholdHandler, setUnauthorizedHandler } from "./api/client";
+import {
+  ApiError,
+  post,
+  setEmailBlockedHandler,
+  setNoHouseholdHandler,
+  setUnauthorizedHandler,
+} from "./api/client";
 import { keys, useProfile } from "./api/queries";
+import { EmailGate } from "./account/EmailGate";
 import { AuthForm } from "./auth/AuthForm";
+import { ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from "./auth/TokenPages";
 import { ChatArchivePage } from "./chat/ChatArchivePage";
 import { HistoryPage } from "./history/HistoryPage";
 import { HouseholdPage, HouseholdSetup } from "./household/HouseholdPage";
@@ -50,7 +58,9 @@ function Authenticated({ page }: { page: Page }) {
   if (!profile.data) return <p className="muted">Ładowanie…</p>;
   // Konto sprzed czatu grupowego (#78) najpierw uzupełnia imię — reszta aplikacji czeka.
   if (!profile.data.name) return <NameSetup onLogout={logout} />;
-  if (!profile.data.household) return <HouseholdSetup login={profile.data.login} />;
+  // Adres e-mail (#77): podanie (stare konto) albo potwierdzenie po terminie — reszta czeka.
+  if (profile.data.email_blocked) return <EmailGate profile={profile.data} onLogout={logout} />;
+  if (!profile.data.household) return <HouseholdSetup profile={profile.data} />;
   if (page === "household") return <HouseholdPage />;
   if (page === "history") return <HistoryPage />;
   if (page === "recipes") return <RecipesPage />;
@@ -81,12 +91,17 @@ function Routing() {
       client.removeQueries({ queryKey: keys.mealPlan });
       client.invalidateQueries({ queryKey: keys.profile });
     });
+    // Termin potwierdzenia adresu minął w trakcie pracy — profil pokaże ekran blokady.
+    setEmailBlockedHandler(() => client.invalidateQueries({ queryKey: keys.profile }));
   }, [navigate, client]);
 
   return (
     <Routes>
       <Route path="/login" element={<AuthForm mode="login" />} />
       <Route path="/register" element={<AuthForm mode="register" />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/household" element={<Authenticated page="household" />} />
       <Route path="/history" element={<Authenticated page="history" />} />
       <Route path="/recipes/*" element={<Authenticated page="recipes" />} />

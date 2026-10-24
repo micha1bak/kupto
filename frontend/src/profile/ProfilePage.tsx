@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { Profile } from "../api/types";
+import { EmailSection } from "../account/EmailSection";
 import { NameForm } from "./NameForm";
 import styles from "./ProfilePage.module.css";
 
@@ -29,9 +30,9 @@ export function ProfilePage({ profile, onLogout }: { profile: Profile; onLogout:
       <Link to="/">← Wróć do listy</Link>
       <section className={`card ${styles.who}`}>
         <h2>{profile.name ?? profile.login}</h2>
-        <p className="muted">Login: {profile.login}</p>
         {profile.household && <p className="muted">Gospodarstwo „{profile.household.name}”</p>}
       </section>
+      <EmailSection profile={profile} />
       <section className={`card ${styles.name}`}>
         <h3>Imię</h3>
         <p className="muted">Widzą je domownicy w czacie i w powiadomieniach.</p>

@@ -11,10 +11,10 @@ vi.mock("./UsualSuggestions", () => ({ UsualSuggestions: () => null }));
 
 afterEach(() => vi.unstubAllGlobals());
 
-const need = (id: number, user_id: number, login: string, amount: number | null, unit: string | null) => ({
+const need = (id: number, user_id: number, name: string, amount: number | null, unit: string | null) => ({
   id,
   user_id,
-  login,
+  name,
   amount,
   unit,
   note: null,
@@ -238,9 +238,9 @@ test("a failed pin restores the previous order", async () => {
   rect.mockRestore();
 });
 
-const shopper = (user_id: number, login: string) => ({
+const shopper = (user_id: number, name: string) => ({
   user_id,
-  login,
+  name,
   since: "2026-10-22T12:05:00Z",
   expires_at: "2026-10-22T15:05:00Z",
 });

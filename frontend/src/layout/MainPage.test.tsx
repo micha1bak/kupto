@@ -2,10 +2,10 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Profile } from "../api/types";
 import { FakeEventSource } from "../test/fakeEventSource";
-import { jsonResponse, mockFetch, renderWithProviders } from "../test/utils";
+import { jsonResponse, mockFetch, renderWithProviders, testProfile } from "../test/utils";
 import { MainPage } from "./MainPage";
 
-const profile: Profile = { id: 1, login: "ala", name: "Ala", household: { id: 1, name: "Dom" } };
+const profile: Profile = testProfile();
 const message = { id: 1, role: "user", content: "stara wiadomość", created_at: "" };
 
 function renderMain(routes: Record<string, unknown> = {}, who: Profile = profile) {

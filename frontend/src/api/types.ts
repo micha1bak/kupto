@@ -26,17 +26,32 @@ export const CATEGORIES: Category[] = [
 export type Unit = "szt" | "kg" | "g" | "l" | "ml" | "opak";
 export const UNITS: Unit[] = ["szt", "kg", "g", "l", "ml", "opak"];
 
+/** Stan adresu e-mail konta (#77); `missing` — konto sprzed adresów, które go jeszcze nie podało. */
+export type EmailStatus = "verified" | "unverified" | "missing";
+
 export interface Profile {
   id: number;
-  login: string;
+  /** Login konta sprzed #77 (działa do potwierdzenia adresu); null w kontach zakładanych e-mailem. */
+  login: string | null;
   /** Imię pokazywane domownikom; null w koncie sprzed czatu grupowego (#78) — trzeba je uzupełnić. */
   name: string | null;
+  /** Adres konta, a gdy go brak — adres czekający na potwierdzenie. */
+  email: string | null;
+  email_verified: boolean;
+  email_status: EmailStatus;
+  /** Termin potwierdzenia adresu (ISO); po nim aplikacja jest zablokowana, gdy wysyłka działa. */
+  verify_email_by: string | null;
+  /** Czy aplikacja jest zablokowana do podania/potwierdzenia adresu. */
+  email_blocked: boolean;
+  /** Czy serwer wysyła maile; bez tego weryfikacja i reset hasła są niedostępne. */
+  mail_enabled: boolean;
   household: { id: number; name: string } | null;
 }
 
 export interface Member {
   id: number;
-  login: string;
+  /** Imię domownika (bez loginu i adresu e-mail). */
+  name: string;
   is_owner: boolean;
   joined_at: string | null;
 }
@@ -55,7 +70,8 @@ export interface Quantity {
 export interface Need {
   id: number;
   user_id: number | null;
-  login: string | null;
+  /** Imię autora; null po usunięciu konta. */
+  name: string | null;
   amount: number | null;
   unit: Unit | null;
   note: string | null;
@@ -85,7 +101,7 @@ export interface CategoryGroup {
 /** Członek gospodarstwa ze statusem „robię zakupy” (status wygasa sam o `expires_at`). */
 export interface Shopper {
   user_id: number;
-  login: string;
+  name: string;
   since: string;
   expires_at: string;
 }
@@ -132,7 +148,7 @@ export interface NeedCreate {
 /** Zapotrzebowanie, które doprowadziło do zakupu pozycji z historii. */
 export interface PurchasedNeed {
   user_id: number | null;
-  login: string | null;
+  name: string | null;
   amount: number | null;
   unit: Unit | null;
   note: string | null;

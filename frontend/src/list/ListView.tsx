@@ -197,7 +197,7 @@ function ItemRow({ item, userId }: { item: Item; userId: number }) {
         <ul className={styles.needs}>
           {item.needs.map((need) => (
             <li key={need.id}>
-              {need.login ?? "ktoś"}
+              {need.name ?? "ktoś"}
               {need.amount !== null && `: ${formatQuantity(need.amount, need.unit)}`}
               {need.note && ` (${need.note})`}
               {need.user_id === userId && (
@@ -361,7 +361,7 @@ function ShoppersBanner({ shoppers, userId }: { shoppers: Shopper[]; userId: num
     <ul className={styles.shoppers} aria-label="Kto robi zakupy">
       {shoppers.map((s) => (
         <li key={s.user_id}>
-          🛒 {s.user_id === userId ? "Robisz zakupy" : `${s.login} robi zakupy`} od {formatTime(s.since)}
+          🛒 {s.user_id === userId ? "Robisz zakupy" : `${s.name} robi zakupy`} od {formatTime(s.since)}
         </li>
       ))}
     </ul>
