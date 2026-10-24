@@ -152,7 +152,31 @@ async def test_chat_change_reaches_other_members_stream(
     response = await ala.post("/api/chat/messages", json={"content": "Dodaj mleko"})
 
     assert response.status_code == 200
-    assert await stream.next() == "list_changed"
+    # Wiadomość ali i odpowiedź asystenta (chat_changed) oraz zmiana listy (list_changed);
+    # sygnały tego samego rodzaju mogą się zlać w jeden.
+    events = [await stream.next()]
+    while events[-1] is not None:
+        try:
+            events.append(await stream.next(within=0.5))
+        except TimeoutError:
+            break
+    assert events[0] == "chat_changed"
+    assert {"list_changed", "chat_changed"} <= set(events)
+
+
+async def test_chat_message_reaches_household_only(
+    household_with, live_client, open_stream, fake_llm
+):
+    ala, _ = await household_with("ala", "ola")
+    await household_with("ewa", name="Sąsiedzi")
+    ola_stream = await open_stream(await live_client("ola"))
+    ewa_stream = await open_stream(await live_client("ewa"))
+    fake_llm.rounds.append([TextDelta("Cześć!")])
+
+    await ala.post("/api/chat/messages", json={"content": "Hej"})
+
+    assert await ola_stream.next() == "chat_changed"
+    await ewa_stream.expect_quiet()
 
 
 async def test_stream_ends_when_member_is_removed(

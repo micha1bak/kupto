@@ -111,9 +111,13 @@ def client(make_client: Callable[[], AsyncClient]) -> AsyncClient:
 def login_as(make_client: Callable[[], AsyncClient]):
     """Fabryka użytkowników: rejestruje (jeśli trzeba) i loguje, zwraca zalogowanego klienta."""
 
-    async def factory(login: str, password: str = "haslo-testowe") -> AsyncClient:
+    async def factory(
+        login: str, password: str = "haslo-testowe", name: str | None = None
+    ) -> AsyncClient:
         client = make_client()
-        await client.post("/api/auth/register", json={"login": login, "password": password})
+        # Imię domyślnie równe loginowi — asercje na loginach i imionach się nie rozjeżdżają.
+        payload = {"login": login, "password": password, "name": name or login}
+        await client.post("/api/auth/register", json=payload)
         response = await client.post("/api/auth/login", json={"login": login, "password": password})
         assert response.status_code == 200, response.text
         return client

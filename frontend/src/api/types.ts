@@ -29,6 +29,8 @@ export const UNITS: Unit[] = ["szt", "kg", "g", "l", "ml", "opak"];
 export interface Profile {
   id: number;
   login: string;
+  /** Imię pokazywane domownikom; null w koncie sprzed czatu grupowego (#78) — trzeba je uzupełnić. */
+  name: string | null;
   household: { id: number; name: string } | null;
 }
 
@@ -113,6 +115,10 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   created_at: string;
+  /** Autor wiadomości domownika (imię, a bez imienia login); null dla odpowiedzi asystenta. */
+  author: { id: number; name: string } | null;
+  /** Wiadomość bieżącego użytkownika. */
+  mine: boolean;
 }
 
 export interface NeedCreate {

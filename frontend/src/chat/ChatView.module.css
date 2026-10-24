@@ -26,8 +26,39 @@
   min-height: 12rem;
 }
 
-.bubble {
+/* Wiadomość: nad dymkiem kto i kiedy (#78). Szerokość ograniczona, długie słowa się łamią —
+   bez przewijania w bok przy 375 px. */
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
   max-width: 85%;
+  min-width: 0;
+}
+
+.meta {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+  min-width: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  padding: 0 0.3rem;
+}
+
+.sender {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta time {
+  flex-shrink: 0;
+}
+
+.bubble {
   padding: 0.55rem 0.8rem;
   border-radius: 14px;
   white-space: pre-wrap;
@@ -35,15 +66,42 @@
   line-height: 1.4;
 }
 
-.user {
+/* Własne po prawej. */
+.mine {
   align-self: flex-end;
+}
+
+.mine .meta {
+  justify-content: flex-end;
+}
+
+.mine .bubble {
   background: var(--bubble-user);
   color: #fff;
   border-bottom-right-radius: 4px;
 }
 
+/* Domownicy po lewej, neutralnie, z obramowaniem — odróżnia ich od asystenta. */
+.other {
+  align-self: flex-start;
+}
+
+.other .bubble {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+
+/* Asystent po lewej, w kolorze asystenta, z etykietą „Asystent”. */
 .assistant {
   align-self: flex-start;
+}
+
+.assistant .sender {
+  color: var(--accent);
+}
+
+.assistant .bubble {
   background: var(--bubble-assistant);
   border-bottom-left-radius: 4px;
 }

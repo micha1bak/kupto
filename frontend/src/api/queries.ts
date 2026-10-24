@@ -22,6 +22,7 @@ export const keys = {
   household: ["household"] as const,
   list: ["list"] as const,
   chat: ["chat"] as const,
+  chatArchive: ["chat-archive"] as const,
   history: ["history"] as const,
   historySearch: ["history-search"] as const,
   usual: ["usual"] as const,
@@ -98,14 +99,23 @@ export const useNotificationPreferences = () =>
     queryFn: () => api<NotificationPreferences>("/api/push/preferences"),
   });
 
-// Historię odświeżamy tylko jawnie po każdej wymianie (ChatView), nie np. przy powrocie do karty —
-// inaczej wiadomości z bieżącej wymiany pojawiałyby się podwójnie (lokalnie i z serwera).
+// Wątek czatu gospodarstwa odświeżamy tylko jawnie: po każdej wymianie i na sygnał `chat_changed`
+// ze strumienia zmian (ChatView), nie np. przy powrocie do karty — inaczej wiadomości z bieżącej
+// wymiany pojawiałyby się podwójnie (lokalnie i z serwera).
 export const useChatHistory = () =>
   useQuery({
     queryKey: keys.chat,
     queryFn: () => api<ChatMessage[]>("/api/chat/messages"),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+  });
+
+/** Własna prywatna rozmowa sprzed czatu grupowego (#78) — archiwum się nie zmienia. */
+export const useChatArchive = () =>
+  useQuery({
+    queryKey: keys.chatArchive,
+    queryFn: () => api<ChatMessage[]>("/api/chat/archive"),
+    staleTime: Infinity,
   });
 
 /** Przepisy gospodarstwa alfabetycznie. */

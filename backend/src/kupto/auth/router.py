@@ -1,5 +1,7 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -16,9 +18,18 @@ from kupto.models import Household, User
 router = APIRouter(prefix="/api", tags=["auth"])
 
 
+# Imię pokazywane domownikom w czacie i powiadomieniach (#78); spacje z brzegów są obcinane.
+Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+
+
 class Credentials(BaseModel):
     login: str = Field(min_length=3, max_length=50)
     password: str = Field(min_length=8, max_length=128)
+    name: Name
+
+
+class ProfileUpdate(BaseModel):
+    name: Name
 
 
 class LoginCredentials(BaseModel):
@@ -39,12 +50,19 @@ class HouseholdRef(BaseModel):
 class Profile(BaseModel):
     id: int
     login: str
+    name: str | None  # None w koncie sprzed czatu grupowego — klient prosi o uzupełnienie
     household: HouseholdRef | None
 
 
 @router.post("/auth/register", status_code=status.HTTP_201_CREATED)
 async def register(credentials: Credentials, session: SessionDep) -> Message:
-    session.add(User(login=credentials.login, password_hash=hash_password(credentials.password)))
+    session.add(
+        User(
+            login=credentials.login,
+            name=credentials.name,
+            password_hash=hash_password(credentials.password),
+        )
+    )
     try:
         await session.commit()
     except IntegrityError as exc:
@@ -79,11 +97,23 @@ async def logout(response: Response, settings: SettingsDep) -> Message:
     return Message(message="Wylogowano.")
 
 
-@router.get("/users/me")
-async def me(user: CurrentUser, session: SessionDep) -> Profile:
+async def _profile(session: SessionDep, user: User) -> Profile:
     household = await session.get(Household, user.household_id) if user.household_id else None
     return Profile(
         id=user.id,
         login=user.login,
+        name=user.name,
         household=HouseholdRef(id=household.id, name=household.name) if household else None,
     )
+
+
+@router.get("/users/me")
+async def me(user: CurrentUser, session: SessionDep) -> Profile:
+    return await _profile(session, user)
+
+
+@router.patch("/users/me")
+async def update_me(payload: ProfileUpdate, user: CurrentUser, session: SessionDep) -> Profile:
+    user.name = payload.name
+    await session.commit()
+    return await _profile(session, user)

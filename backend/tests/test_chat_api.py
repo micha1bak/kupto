@@ -108,10 +108,11 @@ async def test_model_receives_instructions_list_and_history(household_with, fake
 
     call = fake_llm.calls[1]
     assert '"name": "chleb"' in call["instructions"]
+    # Wiadomości członków z imieniem autora (czat grupowy, #78); odpowiedzi asystenta bez.
     assert call["input"] == [
-        {"role": "user", "content": "pierwsza"},
-        {"role": "assistant", "content": "Pierwsza odpowiedź"},
-        {"role": "user", "content": "druga"},
+        {"role": "user", "content": "ala: pierwsza"},
+        {"role": "assistant", "content": "[do: ala] Pierwsza odpowiedź"},
+        {"role": "user", "content": "ala: druga"},
     ]
     assert call["tools"] == TOOL_DEFINITIONS
 
@@ -269,12 +270,15 @@ async def test_pasted_recipe_is_proposed_then_missing_ingredients_are_added(
     assert response.status_code == 200
     assert list_items((await ala.get("/api/list")).json()) == {}
     # Cały przepis trafia do modelu, a przy potwierdzeniu model widzi też swoją propozycję.
-    assert fake_llm.calls[0]["input"][-1] == {"role": "user", "content": RECIPE}
+    assert fake_llm.calls[0]["input"][-1] == {"role": "user", "content": f"ala: {RECIPE}"}
 
     _, events = await send(ala, "brakuje mi tylko mleka i jajek")
 
     assert ("list_changed", {}) in events
-    assert fake_llm.calls[1]["input"][-2] == {"role": "assistant", "content": proposal}
+    assert fake_llm.calls[1]["input"][-2] == {
+        "role": "assistant",
+        "content": f"[do: ala] {proposal}",
+    }
     items = list_items((await ala.get("/api/list")).json())
     assert set(items) == {"mleko", "jajka"}
     assert [n["note"] for i in items.values() for n in i["needs"]] == ["na: naleśniki"] * 2
@@ -356,28 +360,158 @@ async def test_rate_limit(household_with, fake_llm, settings, session):
     assert (await send(ala, "hej"))[0].status_code == 200
 
 
-async def test_history_is_private_and_persistent(household_with, fake_llm):
-    ala, ola = await household_with("ala", "ola")
-    fake_llm.rounds.append([TextDelta("Dodam!")])
-    await send(ala, "kup chleb")
-
-    ala_history = (await ala.get("/api/chat/messages")).json()
-    assert [(m["role"], m["content"]) for m in ala_history] == [
-        ("user", "kup chleb"),
-        ("assistant", "Dodam!"),
+def thread(messages):
+    return [
+        (m["role"], m["author"]["name"] if m["author"] else None, m["mine"], m["content"])
+        for m in messages
     ]
-    assert (await ola.get("/api/chat/messages")).json() == []
 
 
-async def test_clearing_history_keeps_list(household_with, fake_llm):
+async def test_household_shares_one_thread_with_authors(household_with, login_as, fake_llm):
+    ala, ola = await household_with("ala", "ola")
+    (ewa,) = await household_with("ewa", name="Sąsiedzi")
+    await ola.patch("/api/users/me", json={"name": "Ola"})
+    fake_llm.rounds += [[TextDelta("Dodam!")], [TextDelta("Jasne.")]]
+    await send(ala, "kup chleb")
+    await send(ola, "i masło")
+
+    ola_thread = (await ola.get("/api/chat/messages")).json()
+    assert thread(ola_thread) == [
+        ("user", "ala", False, "kup chleb"),
+        ("assistant", None, False, "Dodam!"),
+        ("user", "Ola", True, "i masło"),
+        ("assistant", None, False, "Jasne."),
+    ]
+    assert all(m["created_at"] for m in ola_thread)
+    assert [m["mine"] for m in (await ala.get("/api/chat/messages")).json()] == [
+        True,
+        False,
+        False,
+        False,
+    ]
+    assert (await ewa.get("/api/chat/messages")).json() == []
+    # Model ola dostaje całą rozmowę gospodarstwa z imionami autorów.
+    assert fake_llm.calls[1]["input"] == [
+        {"role": "user", "content": "ala: kup chleb"},
+        {"role": "assistant", "content": "[do: ala] Dodam!"},
+        {"role": "user", "content": "Ola: i masło"},
+    ]
+    assert "Ostatnią wiadomość napisał(a) „Ola”" in fake_llm.calls[1]["instructions"]
+
+
+async def test_archived_private_messages_are_not_in_thread_or_model(
+    household_with, fake_llm, session
+):
+    ala, ola = await household_with("ala", "ola")
+    fake_llm.rounds += [[TextDelta("Stara odpowiedź")], [TextDelta("Nowa odpowiedź")]]
+    await send(ala, "stara prywatna rozmowa")
+    # Tak migracja 0012 oznacza rozmowy sprzed czatu grupowego.
+    await session.execute(update(ChatMessage).values(private=True))
+    await session.commit()
+
+    await send(ola, "nowa")
+
+    assert thread((await ala.get("/api/chat/messages")).json()) == [
+        ("user", "ola", False, "nowa"),
+        ("assistant", None, False, "Nowa odpowiedź"),
+    ]
+    assert fake_llm.calls[1]["input"] == [{"role": "user", "content": "ola: nowa"}]
+
+
+async def test_model_gets_only_recent_messages(household_with, fake_llm, session, settings):
     (ala,) = await household_with("ala")
-    fake_llm.rounds += [[add_needs_call(("chleb", None, None, "Pieczywo"))], [TextDelta("Dodane")]]
+    fake_llm.rounds += [[TextDelta("Wczoraj")], [TextDelta("Dziś")]]
+    await send(ala, "wczorajsza")
+    await session.execute(
+        update(ChatMessage).values(
+            created_at=ChatMessage.created_at
+            - timedelta(hours=settings.chat_history_max_age_hours, minutes=1)
+        )
+    )
+    await session.commit()
+
+    await send(ala, "dzisiejsza")
+
+    assert fake_llm.calls[1]["input"] == [{"role": "user", "content": "ala: dzisiejsza"}]
+    # W wątku starsze wiadomości zostają.
+    assert len((await ala.get("/api/chat/messages")).json()) == 4
+
+
+async def test_thread_returns_most_recent_messages(household_with, session, monkeypatch):
+    from kupto.chat import router as chat_router
+
+    (ala,) = await household_with("ala")
+    profile = (await ala.get("/api/users/me")).json()
+    for i in range(5):
+        session.add(
+            ChatMessage(
+                user_id=profile["id"],
+                household_id=profile["household"]["id"],
+                role="user",
+                content=f"m{i}",
+            )
+        )
+        await session.flush()
+    await session.commit()
+    monkeypatch.setattr(chat_router, "THREAD_LIMIT", 3)
+
+    messages = (await ala.get("/api/chat/messages")).json()
+
+    assert [m["content"] for m in messages] == ["m2", "m3", "m4"]
+
+
+async def test_hiding_history_affects_only_own_view(household_with, fake_llm):
+    ala, ola = await household_with("ala", "ola")
+    fake_llm.rounds += [
+        [add_needs_call(("chleb", None, None, "Pieczywo"))],
+        [TextDelta("Dodane")],
+        [TextDelta("Ok")],
+    ]
     await send(ala, "kup chleb")
 
     assert (await ala.delete("/api/chat/messages")).status_code == 204
 
     assert (await ala.get("/api/chat/messages")).json() == []
+    assert len((await ola.get("/api/chat/messages")).json()) == 2
     assert "chleb" in list_items((await ala.get("/api/list")).json())
+
+    await send(ola, "dzięki")
+    assert thread((await ala.get("/api/chat/messages")).json()) == [
+        ("user", "ola", False, "dzięki"),
+        ("assistant", None, False, "Ok"),
+    ]
+    # Model nadal widzi rozmowę, którą ala ukryła u siebie.
+    assert fake_llm.calls[2]["input"][0] == {"role": "user", "content": "ala: kup chleb"}
+
+
+async def test_finish_shopping_can_be_confirmed_only_by_its_author(
+    household_with, fake_llm, purchase_history
+):
+    ala, ola = await household_with("ala", "ola")
+    body = (await ala.post("/api/list/needs", json={"name": "mleko"})).json()
+    await ala.post(f"/api/list/items/{list_items(body)['mleko']['id']}/bought")
+    fake_llm.rounds += [
+        [ToolCall("c1", "request_finish_shopping", "{}")],
+        [TextDelta("Przenieść kupione mleko do historii?")],
+        # Model mimo zasad próbuje potwierdzić „tak” od oli — serwer nie ma jej prośby.
+        [ToolCall("c2", "confirm_finish_shopping", "{}")],
+        [TextDelta("Nie ma czego potwierdzać.")],
+        [ToolCall("c3", "confirm_finish_shopping", "{}")],
+        [TextDelta("Gotowe.")],
+    ]
+
+    await send(ala, "skończyłam zakupy")
+    await send(ola, "tak")
+
+    assert "nie pytaj ponownie" not in fake_llm.calls[2]["instructions"]
+    assert "Brak oczekującej prośby" in fake_llm.calls[3]["input"][-1]["output"]
+    assert await purchase_history() == []
+
+    # Prośba ali przetrwała wiadomość oli.
+    await send(ala, "tak")
+    assert "nie pytaj ponownie" in fake_llm.calls[4]["instructions"]
+    (trip,) = await purchase_history()
+    assert [i.name for i in trip.items] == ["mleko"]
 
 
 async def test_going_shopping_via_chat_sets_status_for_household(household_with, fake_llm):
@@ -507,3 +641,96 @@ async def test_meal_plan_saved_via_chat_then_only_missing_ingredients_are_added(
     items = list_items((await ala.get("/api/list")).json())
     assert set(items) == {"mleko"}
     assert items["mleko"]["needs"][0]["note"] == "na: naleśniki"
+
+
+async def test_model_history_ends_with_authors_message_despite_concurrent_one(
+    household_with, fake_llm, session, monkeypatch
+):
+    from kupto.chat import router as chat_router
+
+    ala, ola = await household_with("ala", "ola")
+    ola_profile = (await ola.get("/api/users/me")).json()
+    original = chat_router.clear_pending_action
+
+    async def ola_writes_meanwhile(db, user):
+        # Ola wysyła swoją wiadomość, zanim tura ali zbierze historię dla modelu.
+        session.add(
+            ChatMessage(
+                user_id=ola_profile["id"],
+                household_id=ola_profile["household"]["id"],
+                role="user",
+                content="a ja chcę chleb",
+            )
+        )
+        await session.commit()
+        return await original(db, user)
+
+    monkeypatch.setattr(chat_router, "clear_pending_action", ola_writes_meanwhile)
+    fake_llm.rounds.append([TextDelta("Dodam mleko.")])
+
+    await send(ala, "kup mleko")
+
+    call = fake_llm.calls[0]
+    assert call["input"] == [{"role": "user", "content": "ala: kup mleko"}]
+    assert "Ostatnią wiadomość napisał(a) „ala”" in call["instructions"]
+    # W wątku wiadomość oli jest, tylko nie w tej turze modelu.
+    contents = [m["content"] for m in (await ola.get("/api/chat/messages")).json()]
+    assert "a ja chcę chleb" in contents
+
+
+async def test_current_message_reaches_model_with_zero_history_limit(
+    household_with, fake_llm, settings
+):
+    (ala,) = await household_with("ala")
+    fake_llm.rounds += [[TextDelta("Pierwsza")], [TextDelta("Druga")]]
+    await send(ala, "pierwsza")
+    settings.chat_history_limit = 0
+
+    await send(ala, "druga")
+
+    assert fake_llm.calls[1]["input"] == [{"role": "user", "content": "ala: druga"}]
+
+
+async def test_history_limit_keeps_most_recent_messages(household_with, fake_llm, settings):
+    (ala,) = await household_with("ala")
+    fake_llm.rounds += [[TextDelta("Pierwsza")], [TextDelta("Druga")]]
+    await send(ala, "pierwsza")
+    settings.chat_history_limit = 2
+
+    await send(ala, "druga")
+
+    assert fake_llm.calls[1]["input"] == [
+        {"role": "assistant", "content": "[do: ala] Pierwsza"},
+        {"role": "user", "content": "ala: druga"},
+    ]
+
+
+async def test_archive_returns_own_private_conversation_only(household_with, fake_llm, session):
+    ala, ola = await household_with("ala", "ola")
+    fake_llm.rounds += [[TextDelta("Dodam mleko.")], [TextDelta("Dodam chleb.")]]
+    await send(ala, "kup mleko")
+    await send(ola, "kup chleb")
+    # Tak migracja 0012 oznacza rozmowy sprzed czatu grupowego.
+    await session.execute(update(ChatMessage).values(private=True))
+    await session.commit()
+    fake_llm.rounds.append([TextDelta("Ok")])
+    await send(ala, "nowa")
+
+    archive = (await ala.get("/api/chat/archive")).json()
+
+    assert thread(archive) == [
+        ("user", "ala", True, "kup mleko"),
+        ("assistant", None, False, "Dodam mleko."),
+    ]
+    assert [m["content"] for m in (await ola.get("/api/chat/archive")).json()] == [
+        "kup chleb",
+        "Dodam chleb.",
+    ]
+
+
+async def test_archive_is_empty_for_new_accounts(household_with, fake_llm):
+    (ala,) = await household_with("ala")
+    fake_llm.rounds.append([TextDelta("Ok")])
+    await send(ala, "hej")
+
+    assert (await ala.get("/api/chat/archive")).json() == []

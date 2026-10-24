@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/client";
+import { onChatChanged } from "../api/listEvents";
 import { keys, useChatHistory } from "../api/queries";
 import { streamChat } from "../api/sse";
+import { formatMessageTime } from "./time";
 import styles from "./ChatView.module.css";
 
 const MAX_LENGTH = 8000; // mieści wklejony przepis
@@ -11,6 +13,21 @@ interface Bubble {
   key: string;
   role: "user" | "assistant" | "error";
   content: string;
+  /** Imię autora wiadomości domownika (dla własnych „Ty”). */
+  author?: string;
+  mine?: boolean;
+  createdAt?: string;
+}
+
+/** Kto napisał: własne „Ty” po prawej, domownik z imieniem, asystent wyraźnie oznaczony (#78). */
+function senderLabel(bubble: Bubble): string {
+  if (bubble.role === "assistant") return "Asystent";
+  return bubble.mine ? "Ty" : (bubble.author ?? "Domownik");
+}
+
+function bubbleClass(bubble: Bubble): string {
+  if (bubble.role === "assistant") return styles.assistant;
+  return bubble.mine ? styles.mine : styles.other;
 }
 
 export function ChatView() {
@@ -19,12 +36,26 @@ export function ChatView() {
   const [local, setLocal] = useState<Bubble[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  // W trakcie własnej wymiany odświeżenie z sygnału czekamy do jej końca (i tak pobieramy wtedy
+  // wątek) — inaczej lokalne dymki wymiany pojawiłyby się podwójnie.
+  const sendingRef = useRef(false);
   const bottom = useRef<HTMLDivElement>(null);
+
+  useEffect(
+    () =>
+      onChatChanged(() => {
+        if (!sendingRef.current) queryClient.invalidateQueries({ queryKey: keys.chat });
+      }),
+    [queryClient],
+  );
 
   const stored: Bubble[] = (history.data ?? []).map((m) => ({
     key: `h${m.id}`,
     role: m.role,
     content: m.content,
+    author: m.author?.name,
+    mine: m.mine,
+    createdAt: m.created_at,
   }));
   const bubbles = [...stored, ...local];
 
@@ -44,10 +75,12 @@ export function ChatView() {
     const replyKey = `a${id}`;
     setDraft("");
     setSending(true);
+    sendingRef.current = true;
+    const now = new Date().toISOString();
     setLocal((l) => [
       ...l.filter((b) => b.role !== "error"),
-      { key: `u${id}`, role: "user", content },
-      { key: replyKey, role: "assistant", content: "" },
+      { key: `u${id}`, role: "user", content, mine: true, createdAt: now },
+      { key: replyKey, role: "assistant", content: "", createdAt: now },
     ]);
     const append = (text: string) =>
       setLocal((l) => l.map((b) => (b.key === replyKey ? { ...b, content: b.content + text } : b)));
@@ -64,6 +97,7 @@ export function ChatView() {
     } finally {
       setLocal((l) => l.filter((b) => b.role !== "assistant" || b.content !== ""));
       setSending(false);
+      sendingRef.current = false;
       queryClient.invalidateQueries({ queryKey: keys.list });
       // Asystent mógł zapisać przepis (save_recipe), zmienić preferencje gospodarstwa
       // (update_preferences) albo plan obiadów (save_meal_plan) — tego nie sygnalizuje strumień listy.
@@ -90,25 +124,36 @@ export function ChatView() {
   return (
     <section className={styles.view} aria-label="Czat">
       <div className={styles.header}>
-        {/* Wyczyszczenie historii jest w opcjach czatu (tytuł czatu w pasku, layout/ChatOptions). */}
-        <h2>Asystent</h2>
+        {/* Ukrycie historii jest w opcjach czatu (tytuł czatu w pasku, layout/ChatOptions). */}
+        <h2>Czat gospodarstwa</h2>
       </div>
       <div className={styles.messages} role="log" aria-live="polite">
         {bubbles.length === 0 && !history.isLoading && (
           <p className={`muted ${styles.hint}`}>
-            Napisz, czego potrzebujesz — np. „skończyło się mleko i chleb” albo „coś na grilla w
-            sobotę”. Możesz też wkleić przepis — zapytam, czego brakuje.
+            Tu piszą wszyscy domownicy, a asystent odpowiada na każdą wiadomość. Napisz, czego
+            potrzebujesz — np. „skończyło się mleko i chleb” albo „coś na grilla w sobotę”. Możesz
+            też wkleić przepis — asystent zapyta, czego brakuje.
           </p>
         )}
-        {bubbles.map((b) => (
-          <div
-            key={b.key}
-            className={b.role === "error" ? styles.errorBubble : `${styles.bubble} ${styles[b.role]}`}
-            role={b.role === "error" ? "alert" : undefined}
-          >
-            {b.content || "…"}
-          </div>
-        ))}
+        {bubbles.map((b) => {
+          if (b.role === "error") {
+            return (
+              <div key={b.key} className={styles.errorBubble} role="alert">
+                {b.content}
+              </div>
+            );
+          }
+          const time = b.createdAt ? formatMessageTime(b.createdAt) : null;
+          return (
+            <div key={b.key} className={`${styles.message} ${bubbleClass(b)}`}>
+              <div className={styles.meta}>
+                <span className={styles.sender}>{senderLabel(b)}</span>
+                {time && <time dateTime={b.createdAt}>{time}</time>}
+              </div>
+              <div className={styles.bubble}>{b.content || "…"}</div>
+            </div>
+          );
+        })}
         <div ref={bottom} />
       </div>
       <form className={styles.form} onSubmit={send}>

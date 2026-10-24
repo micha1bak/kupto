@@ -1,8 +1,9 @@
-"""Rozgłaszanie zmian listy przez Postgres LISTEN/NOTIFY.
+"""Rozgłaszanie zmian listy i czatu gospodarstwa przez Postgres LISTEN/NOTIFY.
 
-Publikacja (`list_changed`, `order_changed`, `member_left`) dokłada `pg_notify` do bieżącej
-transakcji serwisu: Postgres dostarcza powiadomienie dopiero po commicie, a przy rollbacku je
-odrzuca. Dzięki temu sygnał nigdy nie wyprzedza zmiany i działa przy wielu instancjach backendu.
+Publikacja (`list_changed`, `order_changed`, `member_left`, `chat_changed`) dokłada `pg_notify`
+do bieżącej transakcji serwisu: Postgres dostarcza powiadomienie dopiero po commicie, a przy
+rollbacku je odrzuca. Dzięki temu sygnał nigdy nie wyprzedza zmiany i działa przy wielu
+instancjach backendu.
 
 `ListEventBroker` trzyma w każdym procesie jedno połączenie `LISTEN` (poza pulą SQLAlchemy)
 i rozprowadza sygnały do subskrypcji strumieni SSE danego gospodarstwa.
@@ -24,7 +25,9 @@ from kupto.models import User
 CHANNEL = "kupto_list"
 logger = logging.getLogger(__name__)
 
-Kind = Literal["changed", "left"]
+Kind = Literal["changed", "left", "chat"]
+# Rodzaje sygnałów dostarczanych subskrypcji (zdarzenia SSE `list_changed` i `chat_changed`).
+Signal = Literal["list", "chat"]
 
 
 async def _notify(
@@ -45,6 +48,11 @@ async def order_changed(session: AsyncSession, user: User) -> None:
         await _notify(session, user.household_id, user.id, "changed")
 
 
+async def chat_changed(session: AsyncSession, household_id: int) -> None:
+    """W czacie gospodarstwa pojawiła się wiadomość — sygnał dla wszystkich jego członków (#78)."""
+    await _notify(session, household_id, None, "chat")
+
+
 async def member_left(session: AsyncSession, household_id: int, user_id: int) -> None:
     """Użytkownik przestał należeć do gospodarstwa — jego strumienie mają się zakończyć."""
     await _notify(session, household_id, user_id, "left")
@@ -55,24 +63,30 @@ class BrokerUnavailable(Exception):
 
 
 class Subscription:
-    """Subskrypcja jednego strumienia. Kolejne sygnały łączą się w jeden (bez kolejki)."""
+    """Subskrypcja jednego strumienia. Kolejne sygnały tego samego rodzaju łączą się w jeden
+    (bez kolejki); rodzaje (lista, czat) dostarczane są osobno."""
 
     def __init__(self, household_id: int, user_id: int):
         self.household_id = household_id
         self.user_id = user_id
         self.closed = False
         self._changed = asyncio.Event()
+        self._pending: set[Signal] = set()
 
-    async def wait(self, seconds: float) -> bool:
-        """Czeka na zmianę; False po `seconds` bez zmian. Sprawdź potem `closed`."""
+    async def wait(self, seconds: float) -> frozenset[Signal]:
+        """Czeka na zmianę i zwraca jej rodzaje; pusty zbiór po `seconds` bez zmian.
+        Sprawdź potem `closed`."""
         try:
             await asyncio.wait_for(self._changed.wait(), seconds)
         except TimeoutError:
-            return False
+            return frozenset()
         self._changed.clear()
-        return True
+        signals = frozenset(self._pending)
+        self._pending.clear()
+        return signals
 
-    def _signal(self) -> None:
+    def _signal(self, signal: Signal = "list") -> None:
+        self._pending.add(signal)
         self._changed.set()
 
     def _close(self) -> None:
@@ -186,8 +200,10 @@ class ListEventBroker:
                 if subscription.user_id == user_id:
                     subscription._close()
                     self.unsubscribe(subscription)
+            elif kind == "chat":
+                subscription._signal("chat")
             elif user_id is None or subscription.user_id == user_id:
-                subscription._signal()
+                subscription._signal("list")
 
     def _close_all(self) -> None:
         for subs in self._subscriptions.values():

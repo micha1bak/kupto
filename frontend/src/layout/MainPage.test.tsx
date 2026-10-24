@@ -5,7 +5,7 @@ import { FakeEventSource } from "../test/fakeEventSource";
 import { jsonResponse, mockFetch, renderWithProviders } from "../test/utils";
 import { MainPage } from "./MainPage";
 
-const profile: Profile = { id: 1, login: "ala", household: { id: 1, name: "Dom" } };
+const profile: Profile = { id: 1, login: "ala", name: "Ala", household: { id: 1, name: "Dom" } };
 const message = { id: 1, role: "user", content: "stara wiadomość", created_at: "" };
 
 function renderMain(routes: Record<string, unknown> = {}, who: Profile = profile) {
@@ -13,6 +13,7 @@ function renderMain(routes: Record<string, unknown> = {}, who: Profile = profile
   vi.stubGlobal("EventSource", FakeEventSource);
   const fetch = mockFetch({
     "GET /api/chat/messages": [message],
+    "GET /api/chat/archive": [],
     "GET /api/list": { id: 1, groups: [], shoppers: [] },
     ...routes,
   });
@@ -68,6 +69,26 @@ describe("opcje czatu", () => {
     expect(title).toHaveFocus();
   });
 
+  it("link do dawnych rozmów tylko przy niepustym archiwum (#78)", async () => {
+    renderMain({ "GET /api/chat/archive": [message] });
+    await userEvent.click(screen.getByRole("button", { name: "Dom" }));
+
+    expect(await screen.findByRole("link", { name: "Moje dawne rozmowy" })).toHaveAttribute(
+      "href",
+      "/chat-archive",
+    );
+  });
+
+  it("bez archiwum nie ma linku do dawnych rozmów", async () => {
+    const fetch = renderMain();
+    await userEvent.click(screen.getByRole("button", { name: "Dom" }));
+
+    await vi.waitFor(() =>
+      expect(fetch.mock.calls.some(([url]) => url === "/api/chat/archive")).toBe(true),
+    );
+    expect(screen.queryByRole("link", { name: "Moje dawne rozmowy" })).not.toBeInTheDocument();
+  });
+
   it("„Zamknij” zamyka opcje", async () => {
     renderMain();
     await userEvent.click(screen.getByRole("button", { name: "Dom" }));
@@ -75,15 +96,17 @@ describe("opcje czatu", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("po potwierdzeniu czyści historię czatu", async () => {
+  it("po potwierdzeniu ukrywa historię czatu u siebie", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const fetch = renderMain({ "DELETE /api/chat/messages": () => jsonResponse(null, 204) });
     expect(await screen.findByText("stara wiadomość")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Dom" }));
-    await userEvent.click(screen.getByRole("button", { name: "Wyczyść historię czatu" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ukryj historię u siebie" }));
 
     await waitFor(() => expect(screen.queryByText("stara wiadomość")).not.toBeInTheDocument());
+    // Czat jest wspólny (#78) — potwierdzenie mówi, że domownicy nadal widzą wiadomości.
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Domownicy nadal je zobaczą"));
     expect(fetch).toHaveBeenCalledWith(
       "/api/chat/messages",
       expect.objectContaining({ method: "DELETE" }),
@@ -97,17 +120,17 @@ describe("opcje czatu", () => {
     await screen.findByText("stara wiadomość");
 
     await userEvent.click(screen.getByRole("button", { name: "Dom" }));
-    await userEvent.click(screen.getByRole("button", { name: "Wyczyść historię czatu" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ukryj historię u siebie" }));
 
     expect(screen.getByText("stara wiadomość")).toBeInTheDocument();
     expect(fetch.mock.calls.every(([, init]) => init?.method !== "DELETE")).toBe(true);
   });
 
-  it("przy pustej historii nie ma czego czyścić", async () => {
+  it("przy pustej historii nie ma czego ukrywać", async () => {
     renderMain({ "GET /api/chat/messages": [] });
     await screen.findByText(/Napisz, czego potrzebujesz/);
 
     await userEvent.click(screen.getByRole("button", { name: "Dom" }));
-    expect(screen.getByRole("button", { name: "Wyczyść historię czatu" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ukryj historię u siebie" })).toBeDisabled();
   });
 });

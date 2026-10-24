@@ -17,6 +17,14 @@
   overflow-wrap: anywhere;
 }
 
+.name h3 {
+  margin: 0;
+}
+
+.name p {
+  margin: 0.25rem 0 0.5rem;
+}
+
 .links {
   list-style: none;
   margin: 0;

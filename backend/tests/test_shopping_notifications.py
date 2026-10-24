@@ -101,6 +101,15 @@ async def test_start_notifies_other_members_only(app, home, push_transport):
     assert urgency == "normal"
 
 
+async def test_notification_uses_name_instead_of_login(app, home, push_transport):
+    await home["ala"].patch("/api/users/me", json={"name": "Ala K."})
+
+    await home["ala"].post("/api/list/shopping")
+
+    sent = await received(app, push_transport)
+    assert sent[0][1]["title"] == "Ala K. idzie na zakupy"
+
+
 async def test_repeated_start_does_not_notify_again(app, home, push_transport):
     await home["ala"].post("/api/list/shopping")
     await received(app, push_transport)

@@ -2,7 +2,7 @@ from datetime import date
 
 from kupto.chat.prompt import PREFERENCES_RULE, SYSTEM_PROMPT, build_input, build_instructions
 from kupto.chat.tools import TOOL_DEFINITIONS
-from kupto.models import ChatMessage
+from kupto.models import ChatMessage, User
 
 
 def test_instructions_contain_rules_user_and_current_list():
@@ -13,6 +13,36 @@ def test_instructions_contain_rules_user_and_current_list():
     assert "asystentem zakupowym" in instructions
     assert "„ala”" in instructions and "„Dom”" in instructions
     assert '"name": "mleko"' in instructions
+
+
+def test_group_chat_rule_names_author_and_limits_confirmations_to_them():
+    instructions = build_instructions("Ala", "Dom", {"items": []})
+
+    assert "czacie gospodarstwa „Dom”" in instructions
+    assert "Ostatnią wiadomość napisał(a) „Ala”" in instructions
+    assert "zaczynają się od imienia autora" in SYSTEM_PROMPT
+    assert "Potwierdzeniem Twojej propozycji jest tylko odpowiedź osoby" in SYSTEM_PROMPT
+    assert "„shopping_now” to imiona" in SYSTEM_PROMPT
+
+
+def test_input_names_authors_and_addressees():
+    ala = User(login="ala", name="Ala")
+    ola = User(login="ola")  # konto bez imienia — login
+    history = [
+        ChatMessage(role="user", content="kup mleko", user=ala),
+        ChatMessage(role="assistant", content="Dodałem mleko.", user=ala),
+        ChatMessage(role="user", content="i chleb", user=ola),
+    ]
+
+    # Odpowiedź asystenta ze znacznikiem adresata — inaczej model nie wie, komu złożył
+    # propozycję (zasada 11).
+    assert build_input(history) == [
+        {"role": "user", "content": "Ala: kup mleko"},
+        {"role": "assistant", "content": "[do: Ala] Dodałem mleko."},
+        {"role": "user", "content": "ola: i chleb"},
+    ]
+    assert "znacznik adresata „[do: imię]”" in SYSTEM_PROMPT
+    assert "sam go nie pisz" in SYSTEM_PROMPT
 
 
 def test_pending_finish_shopping_is_stated_in_instructions():
@@ -82,22 +112,16 @@ def test_meal_plan_rule_saves_after_confirmation_and_asks_what_is_missing():
     assert "Tylko odczyt" in tools["get_meal_plan"]["description"]
 
 
-def test_input_is_trimmed_to_most_recent_messages():
+def test_input_keeps_given_history_without_trimming():
+    # Przycinanie jest w jednym miejscu — `_model_history` w routerze czatu.
     history = [
         ChatMessage(role="user" if i % 2 == 0 else "assistant", content=f"m{i}") for i in range(30)
     ]
 
-    result = build_input(history, limit=20)
+    result = build_input(history)
 
-    assert len(result) == 20
-    assert result[0] == {"role": "user", "content": "m10"}
-    assert result[-1] == {"role": "assistant", "content": "m29"}
-
-
-def test_input_keeps_everything_when_history_is_short():
-    history = [ChatMessage(role="user", content="cześć")]
-
-    assert build_input(history, limit=20) == [{"role": "user", "content": "cześć"}]
+    assert len(result) == 30
+    assert result[0] == {"role": "user", "content": "m0"}
 
 
 def test_saving_recipes_requires_request_and_reading_follows_recipe_rule():

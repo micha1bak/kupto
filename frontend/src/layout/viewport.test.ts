@@ -3,6 +3,8 @@ import globalCss from "../index.css?raw";
 import mainPageCss from "./MainPage.module.css?raw";
 import listCss from "../list/ListView.module.css?raw";
 import mealPlanCss from "../mealPlan/MealPlanPage.module.css?raw";
+import chatCss from "../chat/ChatView.module.css?raw";
+import nameFormCss from "../profile/NameForm.module.css?raw";
 
 // Regresja #76: na iPhonie (PWA i Safari) widok nie może wychodzić poza szerokość ekranu.
 // jsdom nie liczy układu, więc pilnujemy tu reguł, które do tego prowadziły; scrollWidth przy
@@ -72,6 +74,17 @@ describe("szerokość widoku na telefonie", () => {
     expect(css).toMatch(/\.name \{[^}]*overflow-wrap:\s*anywhere/);
     // Dni jako pionowa lista, nie siatka tygodnia.
     expect(css).not.toMatch(/grid-template-columns/);
+  });
+
+  it("dymki czatu grupowego nie poszerzają widoku: łamią słowa i skracają imię (#78)", () => {
+    const css = strip(chatCss);
+    expect(css).toMatch(/\.message \{[^}]*max-width:\s*85%/);
+    expect(css).toMatch(/\.message \{[^}]*min-width:\s*0/);
+    expect(css).toMatch(/\.bubble \{[^}]*overflow-wrap:\s*anywhere/);
+    expect(css).toMatch(/\.sender \{[^}]*text-overflow:\s*ellipsis/);
+    expect(css).toMatch(/\.sender \{[^}]*white-space:\s*nowrap/);
+    // Pole imienia może się zwęzić obok przycisku.
+    expect(strip(nameFormCss)).toMatch(/\.form input \{[^}]*min-width:\s*0/);
   });
 
   it("wiersz listy pozwala zawinąć długą nazwę produktu", () => {

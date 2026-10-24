@@ -482,3 +482,54 @@ async def test_meal_plan_migration_keeps_existing_data(empty_database):
 
     await migrate(empty_database, "up", "head")
     assert await snapshot(empty_database, plan) == {"meal_plan_entries": []}
+
+
+async def test_group_chat_migration_archives_private_history(empty_database):
+    await migrate(empty_database, "up", "0011")
+    await execute(
+        empty_database,
+        *SEED_STATEMENTS,
+        "INSERT INTO chat_messages (user_id, household_id, role, content, created_at) VALUES "
+        "(1, 1, 'assistant', 'Dodałem mleko.', now()), (2, 1, 'user', 'kup chleb', now())",
+    )
+    tables = (*EXISTING_TABLES, *HISTORY_TABLES, *RECIPE_TABLES, "household_preferences")
+    before = await snapshot(empty_database, tables)
+
+    await migrate(empty_database, "up", "0012")
+
+    engine = create_async_engine(empty_database)
+    async with engine.begin() as connection:
+        # Dotychczasowe prywatne rozmowy trafiają do archiwum; nic nie znika.
+        archived = (
+            await connection.execute(text("SELECT content, private FROM chat_messages ORDER BY id"))
+        ).all()
+        users = (
+            await connection.execute(
+                text("SELECT login, name, chat_hidden_before FROM users ORDER BY id")
+            )
+        ).all()
+        # Nowe wiadomości domyślnie należą do wątku gospodarstwa.
+        await connection.execute(
+            text(
+                "INSERT INTO chat_messages (user_id, household_id, role, content, created_at) "
+                "VALUES (1, 1, 'user', 'nowa', now())"
+            )
+        )
+        new_private = await connection.scalar(
+            text("SELECT private FROM chat_messages WHERE content = 'nowa'")
+        )
+        await connection.execute(text("DELETE FROM chat_messages WHERE content = 'nowa'"))
+        await connection.execute(text("UPDATE users SET name = 'Ala' WHERE id = 1"))
+    await engine.dispose()
+    assert archived == [("kup mleko", True), ("Dodałem mleko.", True), ("kup chleb", True)]
+    assert users == [("ala", None, None), ("ola", None, None)]
+    assert new_private is False
+
+    await migrate(empty_database, "down", "0011")
+
+    # Kolumny znikają (z imionami), wiadomości wracają do prywatnych wątków bez zmian.
+    assert await snapshot(empty_database, tables) == before
+
+    await migrate(empty_database, "up", "head")
+    rows = (await snapshot(empty_database, ("chat_messages",)))["chat_messages"]
+    assert [row[-1] for row in rows] == [True, True, True]

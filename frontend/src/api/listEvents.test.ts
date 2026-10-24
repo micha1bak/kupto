@@ -42,6 +42,23 @@ test("is live after ready and reports list changes", () => {
   expect(onChange).toHaveBeenCalledTimes(1);
 });
 
+test("reports chat changes separately and refreshes the chat after reconnecting (#78)", () => {
+  const onChatChange = vi.fn<() => void>();
+  connection = new ListEventsConnection({ onChange, onChatChange, onLiveChange });
+  connection.start();
+  const source = FakeEventSource.last;
+  source.emit("ready");
+
+  source.emit("chat_changed");
+  expect(onChatChange).toHaveBeenCalledTimes(1);
+  expect(onChange).not.toHaveBeenCalled();
+
+  source.fail();
+  source.emit("ready");
+  expect(onChatChange).toHaveBeenCalledTimes(2);
+  expect(onChange).toHaveBeenCalledTimes(1);
+});
+
 test("refetches the list after the browser reconnects a dropped stream", () => {
   connection.start();
   const source = FakeEventSource.last;

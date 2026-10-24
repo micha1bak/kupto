@@ -4,10 +4,12 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-route
 import { ApiError, post, setNoHouseholdHandler, setUnauthorizedHandler } from "./api/client";
 import { keys, useProfile } from "./api/queries";
 import { AuthForm } from "./auth/AuthForm";
+import { ChatArchivePage } from "./chat/ChatArchivePage";
 import { HistoryPage } from "./history/HistoryPage";
 import { HouseholdPage, HouseholdSetup } from "./household/HouseholdPage";
 import { MainPage } from "./layout/MainPage";
 import { MealPlanPage } from "./mealPlan/MealPlanPage";
+import { NameSetup } from "./profile/NameSetup";
 import { ProfilePage } from "./profile/ProfilePage";
 import { RecipesPage } from "./recipes/RecipesPage";
 import { disablePushOnLogout } from "./pwa/push";
@@ -20,7 +22,14 @@ const queryClient = new QueryClient({
   },
 });
 
-type Page = "main" | "household" | "history" | "recipes" | "meal-plan" | "profile";
+type Page =
+  | "main"
+  | "household"
+  | "history"
+  | "recipes"
+  | "meal-plan"
+  | "profile"
+  | "chat-archive";
 
 function Authenticated({ page }: { page: Page }) {
   const profile = useProfile();
@@ -39,11 +48,14 @@ function Authenticated({ page }: { page: Page }) {
     return <Navigate to="/login" replace />;
   }
   if (!profile.data) return <p className="muted">Ładowanie…</p>;
+  // Konto sprzed czatu grupowego (#78) najpierw uzupełnia imię — reszta aplikacji czeka.
+  if (!profile.data.name) return <NameSetup onLogout={logout} />;
   if (!profile.data.household) return <HouseholdSetup login={profile.data.login} />;
   if (page === "household") return <HouseholdPage />;
   if (page === "history") return <HistoryPage />;
   if (page === "recipes") return <RecipesPage />;
   if (page === "meal-plan") return <MealPlanPage />;
+  if (page === "chat-archive") return <ChatArchivePage />;
   if (page === "profile") return <ProfilePage profile={profile.data} onLogout={logout} />;
   return <MainPage profile={profile.data} />;
 }
@@ -80,6 +92,7 @@ function Routing() {
       <Route path="/recipes/*" element={<Authenticated page="recipes" />} />
       <Route path="/meal-plan" element={<Authenticated page="meal-plan" />} />
       <Route path="/profile" element={<Authenticated page="profile" />} />
+      <Route path="/chat-archive" element={<Authenticated page="chat-archive" />} />
       <Route path="*" element={<Authenticated page="main" />} />
     </Routes>
   );

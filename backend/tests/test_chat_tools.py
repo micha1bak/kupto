@@ -69,6 +69,20 @@ async def test_add_needs_then_get_list(home):
     assert item["needs"][0]["mine"] is False
 
 
+async def test_snapshot_names_members_by_name_with_login_fallback(home, session):
+    # Model zna domowników z czatu grupowego po imionach (#78); konto bez imienia — po loginie.
+    home["ala"].user.name = "Ala"
+    await session.commit()
+    await call(home["ala"], "add_needs", items=[need("mleko")])
+    await call(home["ola"], "add_needs", items=[need("mleko")])
+    await call(home["ala"], "start_shopping")
+
+    snapshot = (await call(home["ola"], "get_list")).output
+
+    assert [n["requested_by"] for n in snapshot["items"][0]["needs"]] == ["Ala", "ola"]
+    assert snapshot["shopping_now"] == ["Ala"]
+
+
 async def test_snapshot_formats_round_amounts_plainly(home):
     await call(
         home["ala"], "add_needs", items=[need("jajka", 10, "szt"), need("drożdże", 100, "g")]

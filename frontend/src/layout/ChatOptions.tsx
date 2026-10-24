@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError, del } from "../api/client";
-import { keys, useChatHistory } from "../api/queries";
+import { keys, useChatArchive, useChatHistory } from "../api/queries";
 import styles from "./ChatOptions.module.css";
 
 /**
@@ -16,11 +16,12 @@ export function ChatOptions({
 }: {
   title: string;
   onClose: () => void;
-  /** Po wyczyszczeniu historii — np. by usunąć lokalne dymki czatu. */
+  /** Po ukryciu historii — np. by usunąć lokalne dymki czatu. */
   onCleared: () => void;
 }) {
   const queryClient = useQueryClient();
   const history = useChatHistory();
+  const archive = useChatArchive();
   const panel = useRef<HTMLDivElement>(null);
 
   const clear = useMutation({
@@ -45,8 +46,13 @@ export function ChatOptions({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Czat jest wspólny (#78): wiadomości znikają tylko u siebie, domownicy i asystent widzą je dalej.
   function confirmClear() {
-    if (window.confirm("Usunąć całą historię rozmowy z asystentem? Lista zakupów się nie zmieni.")) {
+    if (
+      window.confirm(
+        "Ukryć dotychczasowe wiadomości czatu u siebie? Domownicy nadal je zobaczą, a lista zakupów się nie zmieni.",
+      )
+    ) {
       clear.mutate();
     }
   }
@@ -78,9 +84,15 @@ export function ChatOptions({
               onClick={confirmClear}
               disabled={empty || clear.isPending}
             >
-              Wyczyść historię czatu
+              Ukryj historię u siebie
             </button>
           </li>
+          {/* Prywatne rozmowy sprzed czatu grupowego (#78) — tylko gdy jakieś są. */}
+          {(archive.data ?? []).length > 0 && (
+            <li>
+              <Link to="/chat-archive">Moje dawne rozmowy</Link>
+            </li>
+          )}
           <li>
             <Link to="/household">Gospodarstwo i domownicy</Link>
           </li>
