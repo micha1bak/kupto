@@ -95,7 +95,7 @@ async def stored(app) -> dict[str, int]:
 
 async def user_id(app, login: str) -> int:
     async with app.state.sessionmaker() as session:
-        return await session.scalar(select(User.id).where(User.login == login))
+        return await session.scalar(select(User.id).where(User.name == login))
 
 
 def notification(**overrides) -> Notification:

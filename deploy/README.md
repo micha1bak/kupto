@@ -42,6 +42,9 @@ Wszystkie jako `SecureString` w regionie `eu-north-1`, nazwy = zmienne środowis
 | `/kupto/KUPTO_DOMAIN` | `kupto.bakweb.pl` — rekord A na Elastic IP z `infra/` (DNS w SEOHOST) |
 | `/kupto/VAPID_PUBLIC_KEY`, `/kupto/VAPID_PRIVATE_KEY` | para kluczy Web Push z `uv run python -m kupto.push.keys` (niżej); opcjonalne — bez nich powiadomienia są wyłączone |
 | `/kupto/VAPID_SUBJECT` | `https://kupto.bakweb.pl` (kontakt dla usług push; może być też `mailto:…`) |
+| `/kupto/MAIL_BACKEND` | `ses` — dopiero po weryfikacji domeny i wyjściu z sandboxa SES ([infra/README.md](../infra/README.md#wysyłka-maili--amazon-ses-77)); brak = `log` (bez wysyłki i bez wymogu potwierdzenia adresów) |
+| `/kupto/MAIL_FROM` | `Kupto <no-reply@kupto.bakweb.pl>` — nadawca maili z domeny tożsamości SES |
+| `/kupto/MAIL_SES_REGION` | opcjonalny, domyślnie `eu-north-1` |
 
 Wyjątek: `/kupto/BACKUP_BUCKET` (`String`, nazwa bucketu na zrzuty bazy) tworzy Terraform
 (`infra/storage.tf`) — nie ustawia się go ręcznie.

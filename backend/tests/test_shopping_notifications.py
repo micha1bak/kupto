@@ -205,7 +205,7 @@ async def test_additions_older_than_window_are_not_listed(app, home, push_transp
     # mleko dopisane w trakcie zakupów, ale dawniej niż okno grupowania
     await session.execute(
         update(User)
-        .where(User.login == "ola")
+        .where(User.name == "ola")
         .values(shopping_since=User.shopping_since - ITEMS_ADDED_WINDOW * 2)
     )
     await session.execute(

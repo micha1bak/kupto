@@ -16,7 +16,7 @@ QUIET = 0.3  # ile czekamy, by stwierdzić, że sygnał nie przyszedł
 
 
 async def user_ids(session, *logins):
-    rows = await session.execute(select(User.login, User.id, User.household_id))
+    rows = await session.execute(select(User.name, User.id, User.household_id))
     by_login = {login: (user_id, household_id) for login, user_id, household_id in rows}
     return [by_login[login] for login in logins]
 

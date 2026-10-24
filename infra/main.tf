@@ -57,8 +57,10 @@ resource "aws_instance" "app" {
   })
 
   metadata_options {
-    http_tokens                 = "required"
-    http_put_response_hop_limit = 1
+    http_tokens = "required"
+    # 2, nie 1: kontener backendu (most Dockera to dodatkowy skok) pobiera poświadczenia roli
+    # dla Amazon SES (#77). Zmiana w miejscu, bez restartu instancji.
+    http_put_response_hop_limit = 2
   }
 
   root_block_device {

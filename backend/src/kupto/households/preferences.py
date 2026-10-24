@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from kupto.db import utcnow
-from kupto.models import Household, HouseholdPreferences, User
+from kupto.models import Household, HouseholdPreferences, User, display_name
 
 MAX_ITEMS = 20
 ITEM_MAX_LENGTH = 50
@@ -74,7 +74,7 @@ class Preferences:
     disliked: list[str] = field(default_factory=list)
     max_cooking_minutes: int | None = None
     notes: str | None = None
-    updated_by: str | None = None  # login; None także po usunięciu konta
+    updated_by: str | None = None  # imię (`display_name`); None także po usunięciu konta
     updated_at: datetime | None = None
 
 
@@ -95,7 +95,7 @@ async def load(session: AsyncSession, household: Household) -> Preferences:
         disliked=list(row.disliked),
         max_cooking_minutes=row.max_cooking_minutes,
         notes=row.notes,
-        updated_by=row.updated_by.login if row.updated_by else None,
+        updated_by=display_name(row.updated_by) if row.updated_by else None,
         updated_at=row.updated_at,
     )
 

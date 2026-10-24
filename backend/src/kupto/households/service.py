@@ -1,6 +1,7 @@
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kupto.auth import accounts
 from kupto.db import utcnow
 from kupto.errors import Conflict, Forbidden, NotFound
 from kupto.lists import events, shopping_status
@@ -27,11 +28,22 @@ async def list_members(session: AsyncSession, household: Household) -> list[User
     return list(result)
 
 
-async def add_member(session: AsyncSession, actor: User, household: Household, login: str) -> User:
+async def add_member(
+    session: AsyncSession,
+    actor: User,
+    household: Household,
+    identifier: str,
+    *,
+    verified_only: bool = False,
+) -> User:
+    """Dodaje konto po adresie e-mail albo (konto bez adresu) po loginie."""
     _require_owner(actor, household)
-    user = await session.scalar(select(User).where(User.login == login))
+    user = await accounts.find_by_identifier(session, identifier, verified_only=verified_only)
     if user is None:
-        raise NotFound("Użytkownik o tym loginie nie istnieje.")
+        raise NotFound(
+            "Nie znaleziono konta o tym adresie e-mail"
+            + (" (adres musi być potwierdzony)." if verified_only else ".")
+        )
     if user.household_id is not None:
         raise Conflict("Ten użytkownik należy już do gospodarstwa.")
     _join(user, household)

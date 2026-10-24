@@ -70,7 +70,7 @@ async def test_trip_details(household_with):
     assert milk["bought_by"] == "ola"
     assert milk["bought_at"] is not None
     assert milk["quantities"] == [{"amount": 3.0, "unit": "l"}]
-    assert [(n["login"], n["amount"], n["unit"], n["note"]) for n in milk["needs"]] == [
+    assert [(n["name"], n["amount"], n["unit"], n["note"]) for n in milk["needs"]] == [
         ("ala", 2.0, "l", "bez laktozy"),
         ("ola", 1.0, "l", None),
     ]

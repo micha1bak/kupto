@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from kupto.models import MealPlanEntry
+from kupto.models import MealPlanEntry, display_name
 
 
 class PlanDayIn(BaseModel):
@@ -30,7 +30,7 @@ class PlanEntryOut(BaseModel):
     day: date
     name: str
     recipe_id: int | None
-    planned_by: str | None  # login; None także po usunięciu konta
+    planned_by: str | None  # imię (`display_name`); None także po usunięciu konta
     updated_at: datetime
 
 
@@ -40,6 +40,6 @@ def entry_out(entry: MealPlanEntry) -> PlanEntryOut:
         day=entry.day,
         name=entry.name,
         recipe_id=entry.recipe_id,
-        planned_by=entry.planned_by.login if entry.planned_by else None,
+        planned_by=display_name(entry.planned_by) if entry.planned_by else None,
         updated_at=entry.updated_at,
     )

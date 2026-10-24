@@ -41,7 +41,7 @@ async def test_add_need_with_amount_unit_and_note(household_with):
     assert response.status_code == 201
     milk = item(response.json(), "mleko")
     assert milk["quantities"] == [{"amount": 2.0, "unit": "l"}]
-    assert [(n["login"], n["note"]) for n in milk["needs"]] == [("ala", "bez laktozy")]
+    assert [(n["name"], n["note"]) for n in milk["needs"]] == [("ala", "bez laktozy")]
 
 
 async def test_needs_from_two_members_are_merged(household_with):
@@ -54,7 +54,7 @@ async def test_needs_from_two_members_are_merged(household_with):
 
     milk = item(body, "mleko")
     assert milk["quantities"] == [{"amount": 3.0, "unit": "l"}]
-    assert [n["login"] for n in milk["needs"]] == ["ala", "ola"]
+    assert [n["name"] for n in milk["needs"]] == ["ala", "ola"]
 
 
 async def test_different_units_are_shown_separately(household_with):
@@ -168,7 +168,7 @@ async def test_finish_shopping(household_with, session, purchase_history):
     assert response.status_code == 200
     assert groups(response.json()) == {"Inne": ["chleb"]}
     assert (await ala.get("/api/list")).json() == response.json()
-    users = {u.login: u.id for u in await session.scalars(select(User))}
+    users = {u.name: u.id for u in await session.scalars(select(User))}
     (trip,) = await purchase_history()
     assert trip.finished_by_id == users["ola"]
     (milk,) = trip.items

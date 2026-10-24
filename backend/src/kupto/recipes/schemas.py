@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
 
-from kupto.models import Category, Recipe, RecipeIngredient, Unit
+from kupto.models import Category, Recipe, RecipeIngredient, Unit, display_name
 
 # Tyle składników zwraca też ekstrakcja przepisu ze strony (`kupto.recipes.extract`).
 MAX_INGREDIENTS = 60
@@ -104,7 +104,7 @@ def recipe_out(recipe: Recipe) -> RecipeOut:
         source_url=recipe.source_url,
         instructions=recipe.instructions,
         ingredients=[ingredient_out(i) for i in recipe.ingredients],
-        created_by=recipe.created_by.login if recipe.created_by else None,
+        created_by=display_name(recipe.created_by) if recipe.created_by else None,
         created_at=recipe.created_at,
         updated_at=recipe.updated_at,
     )

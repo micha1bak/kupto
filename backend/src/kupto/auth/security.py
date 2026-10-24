@@ -1,3 +1,5 @@
+import math
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -31,9 +33,28 @@ def create_session_token(user_id: int, settings: Settings) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm=_ALGORITHM)
 
 
-def read_session_token(token: str, settings: Settings) -> int:
+@dataclass(frozen=True)
+class SessionClaims:
+    user_id: int
+    issued_at: int  # sekundy od epoki (`iat`) — do unieważniania sesji sprzed resetu hasła
+
+
+def read_session(token: str, settings: Settings) -> SessionClaims:
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[_ALGORITHM])
-        return int(payload["sub"])
-    except (jwt.PyJWTError, KeyError, ValueError) as exc:
+        payload = jwt.decode(
+            token, settings.jwt_secret, algorithms=[_ALGORITHM], options={"require": ["iat"]}
+        )
+        return SessionClaims(user_id=int(payload["sub"]), issued_at=int(payload["iat"]))
+    except (jwt.PyJWTError, KeyError, ValueError, TypeError) as exc:
         raise Unauthorized("Sesja jest nieprawidłowa lub wygasła.") from exc
+
+
+def read_session_token(token: str, settings: Settings) -> int:
+    return read_session(token, settings).user_id
+
+
+def session_is_revoked(claims: SessionClaims, valid_after: datetime | None) -> bool:
+    """Czy sesję wydano przed `valid_after` (reset hasła). `iat` ma dokładność sekundy, więc
+    sesja z tej samej sekundy co reset przeżywa — inaczej nowe logowanie zaraz po resecie
+    mogłoby zostać odrzucone."""
+    return valid_after is not None and claims.issued_at < math.floor(valid_after.timestamp())

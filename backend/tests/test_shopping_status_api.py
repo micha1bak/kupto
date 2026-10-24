@@ -6,7 +6,7 @@ from kupto.models import User
 
 
 def shopper_logins(body):
-    return [s["login"] for s in body["shoppers"]]
+    return [s["name"] for s in body["shoppers"]]
 
 
 async def test_list_has_no_shoppers_by_default(household_with):
@@ -23,7 +23,7 @@ async def test_start_is_visible_to_household_members(household_with):
 
     assert response.status_code == 200
     (shopper,) = response.json()["shoppers"]
-    assert shopper["login"] == "ala"
+    assert shopper["name"] == "ala"
     since = datetime.fromisoformat(shopper["since"])
     assert datetime.fromisoformat(shopper["expires_at"]) - since == timedelta(hours=3)
     assert shopper_logins((await ola.get("/api/list")).json()) == ["ala"]

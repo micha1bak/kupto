@@ -195,13 +195,13 @@ async def test_selected_ingredients_are_added_with_dish_note(household_with):
     items = list_items((await ola.get("/api/list")).json())
     assert set(items) == {"mąka pszenna", "Mleko"}
     flour_need = items["mąka pszenna"]["needs"][0]
-    assert (flour_need["login"], flour_need["amount"], flour_need["note"]) == (
+    assert (flour_need["name"], flour_need["amount"], flour_need["note"]) == (
         "ala",
         None,
         "na: Naleśniki (2 szklanki)",
     )
     milk_needs = items["Mleko"]["needs"]
-    assert [(n["login"], n["amount"], n["unit"], n["note"]) for n in milk_needs] == [
+    assert [(n["name"], n["amount"], n["unit"], n["note"]) for n in milk_needs] == [
         ("ala", None, None, None),
         ("ala", 0.5, "l", "na: Naleśniki"),
     ]

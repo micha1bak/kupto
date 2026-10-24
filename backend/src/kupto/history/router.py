@@ -27,7 +27,7 @@ async def list_trips(
 ) -> TripPageOut:
     """Zakończenia zakupów gospodarstwa od najnowszych, stronicowane kursorem."""
     page = await service.list_trips(session, household, before, limit)
-    logins = await service.logins(
+    names = await service.names(
         session,
         [trip.finished_by_id for trip in page.trips]
         + [item.bought_by_id for trip in page.trips for item in trip.items]
@@ -35,7 +35,7 @@ async def list_trips(
     )
     order = await category_order.get_order(session, user)
     return TripPageOut(
-        trips=[trip_out(trip, order, logins) for trip in page.trips],
+        trips=[trip_out(trip, order, names) for trip in page.trips],
         next_cursor=page.next_cursor,
     )
 
@@ -49,8 +49,8 @@ async def search_products(
 ) -> list[ProductOut]:
     """Kiedy i kto ostatnio kupił produkty pasujące do frazy (bez wielkości liter i ogonków)."""
     matches = await service.search_products(session, household, q)
-    logins = await service.logins(session, [m.last.bought_by_id for m in matches])
-    return [product_out(m.last, m.times_bought, logins) for m in matches]
+    names = await service.names(session, [m.last.bought_by_id for m in matches])
+    return [product_out(m.last, m.times_bought, names) for m in matches]
 
 
 @router.get("/usual")

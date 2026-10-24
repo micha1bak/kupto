@@ -5,9 +5,11 @@ import pytest
 from pydantic import ValidationError
 
 from kupto.auth.security import (
+    SessionClaims,
     create_session_token,
     hash_password,
     read_session_token,
+    session_is_revoked,
     verify_password,
 )
 from kupto.config import Settings
@@ -55,3 +57,27 @@ def test_forged_token_is_rejected():
 
     with pytest.raises(Unauthorized):
         read_session_token(token, SETTINGS)
+
+
+def test_token_without_issue_time_is_rejected():
+    token = jwt.encode(
+        {"sub": "42", "exp": datetime.now(UTC) + timedelta(days=1)},
+        SETTINGS.jwt_secret,
+        algorithm="HS256",
+    )
+
+    with pytest.raises(Unauthorized):
+        read_session_token(token, SETTINGS)
+
+
+@pytest.mark.parametrize(
+    "issued_at, revoked",
+    [(99, True), (100, False), (101, False)],
+)
+def test_sessions_issued_before_password_reset_are_revoked(issued_at, revoked):
+    # Reset w chwili 100,7 s: `iat` ma dokładność sekundy, więc sesja z sekundy 100 przeżywa
+    # (inaczej logowanie tuż po resecie mogłoby zostać odrzucone).
+    reset_at = datetime.fromtimestamp(100.7, UTC)
+
+    assert session_is_revoked(SessionClaims(42, issued_at), reset_at) is revoked
+    assert session_is_revoked(SessionClaims(42, issued_at), None) is False

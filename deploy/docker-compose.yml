@@ -41,6 +41,13 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      # Linki w mailach (#77) prowadzą do https://KUPTO_DOMAIN/…
+      KUPTO_DOMAIN: ${KUPTO_DOMAIN}
+      # Wysyłka maili (#77): bez parametrów SSM `log` — nic nie jest wysyłane ani wymagane.
+      # `ses` używa poświadczeń roli instancji (infra/ses.tf, infra/README.md).
+      MAIL_BACKEND: ${MAIL_BACKEND:-log}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_SES_REGION: ${MAIL_SES_REGION:-eu-north-1}
     depends_on:
       db:
         condition: service_healthy

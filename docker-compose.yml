@@ -31,6 +31,11 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      # Maile (#77): lokalnie bez wysyłki; MAIL_LOG_LINKS=true wypisuje linki do logów backendu.
+      KUPTO_DOMAIN: ${KUPTO_DOMAIN:-}
+      MAIL_BACKEND: ${MAIL_BACKEND:-log}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_LOG_LINKS: ${MAIL_LOG_LINKS:-false}
     depends_on:
       db:
         condition: service_healthy

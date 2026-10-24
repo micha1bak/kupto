@@ -70,7 +70,7 @@ async def test_products_are_added_as_authors_needs(household_with, fake_llm):
         "chleb": "Pieczywo",
         "płyn do naczyń": "Chemia i higiena",
     }
-    assert all(i["needs"][0]["login"] == "ala" for i in items.values())
+    assert all(i["needs"][0]["name"] == "ala" for i in items.values())
     # wynik narzędzia wraca do modelu w drugiej rundzie
     second_input = fake_llm.calls[1]["input"]
     assert second_input[-2]["type"] == "function_call"
@@ -91,7 +91,7 @@ async def test_merge_with_existing_item_is_reported_to_model(household_with, fak
     output = json.loads(fake_llm.calls[1]["input"][-1]["output"])
     assert output["added"][0]["already_on_list"] is True
     assert [
-        n["login"] for n in list_items((await ala.get("/api/list")).json())["mleko"]["needs"]
+        n["name"] for n in list_items((await ala.get("/api/list")).json())["mleko"]["needs"]
     ] == [
         "ala",
         "ola",
@@ -526,7 +526,7 @@ async def test_going_shopping_via_chat_sets_status_for_household(household_with,
 
     assert ("list_changed", {}) in events
     body = (await ola.get("/api/list")).json()
-    assert [s["login"] for s in body["shoppers"]] == ["ala"]
+    assert [s["name"] for s in body["shoppers"]] == ["ala"]
     assert set(list_items(body)) == {"mleko"}
     assert "start_shopping" in {t["name"] for t in fake_llm.calls[0]["tools"]}
 
