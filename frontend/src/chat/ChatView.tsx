@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ApiError, del } from "../api/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "../api/client";
 import { keys, useChatHistory } from "../api/queries";
 import { streamChat } from "../api/sse";
 import styles from "./ChatView.module.css";
@@ -20,14 +20,6 @@ export function ChatView() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
-
-  const clear = useMutation({
-    mutationFn: () => del("/api/chat/messages"),
-    onSuccess: () => {
-      setLocal([]);
-      queryClient.setQueryData(keys.chat, []);
-    },
-  });
 
   const stored: Bubble[] = (history.data ?? []).map((m) => ({
     key: `h${m.id}`,
@@ -97,12 +89,8 @@ export function ChatView() {
   return (
     <section className={styles.view} aria-label="Czat">
       <div className={styles.header}>
+        {/* Wyczyszczenie historii jest w opcjach czatu (tytuł czatu w pasku, layout/ChatOptions). */}
         <h2>Asystent</h2>
-        {bubbles.length > 0 && (
-          <button onClick={() => clear.mutate()} disabled={clear.isPending || sending}>
-            Wyczyść historię
-          </button>
-        )}
       </div>
       <div className={styles.messages} role="log" aria-live="polite">
         {bubbles.length === 0 && !history.isLoading && (

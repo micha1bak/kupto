@@ -7,6 +7,7 @@ import { AuthForm } from "./auth/AuthForm";
 import { HistoryPage } from "./history/HistoryPage";
 import { HouseholdPage, HouseholdSetup } from "./household/HouseholdPage";
 import { MainPage } from "./layout/MainPage";
+import { ProfilePage } from "./profile/ProfilePage";
 import { RecipesPage } from "./recipes/RecipesPage";
 import { disablePushOnLogout } from "./pwa/push";
 
@@ -18,7 +19,7 @@ const queryClient = new QueryClient({
   },
 });
 
-function Authenticated({ page }: { page: "main" | "household" | "history" | "recipes" }) {
+function Authenticated({ page }: { page: "main" | "household" | "history" | "recipes" | "profile" }) {
   const profile = useProfile();
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -39,7 +40,8 @@ function Authenticated({ page }: { page: "main" | "household" | "history" | "rec
   if (page === "household") return <HouseholdPage />;
   if (page === "history") return <HistoryPage />;
   if (page === "recipes") return <RecipesPage />;
-  return <MainPage profile={profile.data} onLogout={logout} />;
+  if (page === "profile") return <ProfilePage profile={profile.data} onLogout={logout} />;
+  return <MainPage profile={profile.data} />;
 }
 
 function Routing() {
@@ -71,6 +73,7 @@ function Routing() {
       <Route path="/household" element={<Authenticated page="household" />} />
       <Route path="/history" element={<Authenticated page="history" />} />
       <Route path="/recipes/*" element={<Authenticated page="recipes" />} />
+      <Route path="/profile" element={<Authenticated page="profile" />} />
       <Route path="*" element={<Authenticated page="main" />} />
     </Routes>
   );
