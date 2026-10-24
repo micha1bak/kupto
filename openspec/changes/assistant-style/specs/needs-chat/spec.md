@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Odpowiedź po wykonanej akcji
-Po zmianie listy, statusu zakupów, przepisów, preferencji lub planu obiadów asystent MUST krótko napisać, co zrobił, i MUST NOT kończyć odpowiedzi pytaniem zamykającym ani ofertą dalszej pomocy (np. „Czy potrzebujesz czegoś jeszcze?”). Pytania MUST pozostać tam, gdzie są potrzebne: potwierdzenie przed akcją wymagającą zgody (propozycja przy ogólnej potrzebie, składniki przepisu, plan obiadów, zakończenie zakupów) oraz rozstrzygnięcie niejasnej prośby.
+Po zmianie listy, statusu zakupów, przepisów, preferencji lub planu obiadów asystent MUST krótko napisać, co zrobił, i MUST NOT kończyć odpowiedzi pytaniem zamykającym ani ofertą dalszej pomocy (np. „Czy potrzebujesz czegoś jeszcze?”). Pytania MUST pozostać tam, gdzie są potrzebne: potwierdzenie przed akcją wymagającą zgody (propozycja przy ogólnej potrzebie, składniki przepisu, plan obiadów, zakończenie zakupów) oraz pytanie, bez odpowiedzi na które nie da się wykonać prośby.
 
 #### Scenario: Dodanie produktów
 - **WHEN** członek pisze „kup 2 mleka, chleb i płyn do naczyń”

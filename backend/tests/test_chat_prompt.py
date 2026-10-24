@@ -115,7 +115,10 @@ def test_reply_states_what_was_done_without_closing_question():
     assert "Nie kończ pytaniem typu „Czy potrzebujesz czegoś jeszcze?”" in SYSTEM_PROMPT
     assert "zaproponuj pomoc w zakupach" not in SYSTEM_PROMPT
     # Pytania o potwierdzenie przed akcjami wymagającymi zgody zostają.
-    assert "pytaj tylko o potwierdzenie wymagane przez te zasady" in SYSTEM_PROMPT
+    assert (
+        "pytaj tylko o potwierdzenie wymagane przez te zasady albo gdy bez odpowiedzi nie da się "
+        "wykonać prośby" in SYSTEM_PROMPT
+    )
     assert "Zaproponuj konkretne pozycje i zapytaj o potwierdzenie" in SYSTEM_PROMPT
     assert "zapytaj, czego z tego brakuje w domu" in SYSTEM_PROMPT
     assert "request_finish_shopping i zapytaj o potwierdzenie" in SYSTEM_PROMPT

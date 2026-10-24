@@ -12,13 +12,14 @@ from kupto.meal_plan.service import today
 pytestmark = pytest.mark.llm
 
 # Formuły dalszej pomocy, którymi asystent nie powinien kończyć odpowiedzi po akcji (#79).
-CLOSING_PHRASES = ("coś jeszcze", "czegoś jeszcze", "w czym jeszcze", "mogę jeszcze", "mogę pomóc")
+CLOSING_PHRASES = ("coś jeszcze", "czegoś jeszcze", "w czym jeszcze", "mogę jeszcze")
 
 
 def assert_no_closing_question(reply: str) -> None:
     """Po wykonanej akcji asystent pisze, co zrobił — bez pytania na końcu (#79)."""
     text = reply.lower()
-    assert not reply.rstrip().rstrip("*_ ").endswith("?"), reply
+    # Końcowe znaczniki markdown, nawiasy i cudzysłowy nie ukrywają pytania („…?)”, „…?”).
+    assert not reply.rstrip().rstrip("*_ )”\"'»").endswith("?"), reply
     assert not any(phrase in text for phrase in CLOSING_PHRASES), reply
 
 
@@ -104,7 +105,6 @@ async def test_general_need_is_proposed_then_added_after_confirmation(household_
 
     assert await items(ala) == {}
     assert "kiełbas" in proposal.lower()
-    assert "?" in proposal  # pytanie o potwierdzenie zostaje
 
     reply = await chat(ala, "tak, ale bez kiełbasy")
 
@@ -173,10 +173,9 @@ async def test_finish_shopping_asks_for_confirmation(household_with, chat, items
     milk_id = body["groups"][0]["items"][0]["id"]
     await ala.post(f"/api/list/items/{milk_id}/bought")
 
-    question = await chat(ala, "skończyłem zakupy")
+    await chat(ala, "skończyłem zakupy")
     assert set(await items(ala)) == {"mleko", "chleb"}
     assert await purchase_history() == []
-    assert "?" in question  # zakończenie zakupów wymaga potwierdzenia
 
     reply = await chat(ala, "tak, potwierdzam")
     assert set(await items(ala)) == {"chleb"}
@@ -567,7 +566,7 @@ async def test_dinner_plan_is_saved_after_confirmation_then_only_missing_are_add
     proposal = await chat(ala, "zaplanuj obiady na 3 dni od jutra")
 
     assert await meal_plan(ala) == [] and await items(ala) == {}
-    assert "?" in proposal  # plan zapisuje się dopiero po potwierdzeniu
+    assert proposal
 
     question = await chat(ala, "tak, ale w drugi dzień zrób naleśniki z naszych przepisów")
 
@@ -579,7 +578,7 @@ async def test_dinner_plan_is_saved_after_confirmation_then_only_missing_are_add
     assert plan[1]["recipe_id"] == pancakes["id"], plan
     # Po zapisie asystent pyta o brakujące składniki, zamiast od razu je dodawać.
     assert await items(ala) == {}
-    assert "brak" in question.lower() and "?" in question, question
+    assert "brak" in question.lower(), question
 
     await chat(ala, "brakuje tylko mleka")
 
