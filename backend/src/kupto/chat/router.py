@@ -21,6 +21,7 @@ from kupto.db import utcnow
 from kupto.deps import CurrentHousehold, CurrentUser, SessionDep, SettingsDep
 from kupto.errors import TooManyRequests
 from kupto.households import preferences
+from kupto.meal_plan import service as meal_plan
 from kupto.models import ChatMessage, ChatPendingAction, Household, User
 from kupto.push.notifier import Notifier
 
@@ -162,6 +163,7 @@ async def _stream_reply(
             await list_snapshot(ctx),
             ctx.pending_action,
             preferences.for_model(await preferences.load(session, household)),
+            meal_plan.today(),
         )
         conversation = build_input(
             await _history(session, user, household), settings.chat_history_limit

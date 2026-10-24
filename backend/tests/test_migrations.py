@@ -427,3 +427,58 @@ async def test_household_preferences_migration_keeps_existing_data(empty_databas
 
     await migrate(empty_database, "up", "head")
     assert await snapshot(empty_database, preferences) == {"household_preferences": []}
+
+
+async def test_meal_plan_migration_keeps_existing_data(empty_database):
+    await migrate(empty_database, "up", "0010")
+    recipe = (
+        "INSERT INTO recipes (id, household_id, name, normalized_name, created_by_id, "
+        "created_at, updated_at) VALUES "
+    )
+    await execute(
+        empty_database,
+        *SEED_STATEMENTS,
+        recipe + "(1, 1, 'Naleśniki', 'naleśniki', 1, now(), now())",
+        "INSERT INTO household_preferences (household_id, people, updated_at) VALUES (1, 4, now())",
+    )
+    tables = (*EXISTING_TABLES, *HISTORY_TABLES, *RECIPE_TABLES, "household_preferences")
+    before = await snapshot(empty_database, tables)
+
+    await migrate(empty_database, "up", "0011")
+
+    assert await snapshot(empty_database, tables) == before
+    plan = ("meal_plan_entries",)
+    assert await snapshot(empty_database, plan) == {"meal_plan_entries": []}
+    insert = (
+        "INSERT INTO meal_plan_entries (household_id, day, name, recipe_id, planned_by_id, "
+        "created_at, updated_at) VALUES "
+    )
+    await execute(
+        empty_database,
+        recipe + "(2, 1, 'Bigos', 'bigos', 1, now(), now())",
+        insert + "(1, '2026-10-26', 'Naleśniki', 1, 1, now(), now())",
+        insert + "(1, '2026-10-27', 'Bigos', 2, 2, now(), now())",
+    )
+    # Jeden obiad na dzień w gospodarstwie; gospodarstwo i przepis muszą istnieć.
+    for values in (
+        "(1, '2026-10-26', 'Pierogi', NULL, 1, now(), now())",
+        "(99, '2026-10-28', 'Pierogi', NULL, 1, now(), now())",
+        "(1, '2026-10-28', 'Pierogi', 99, 1, now(), now())",
+    ):
+        with pytest.raises(IntegrityError):
+            await execute(empty_database, insert + values)
+    # Usunięcie przepisu zostawia danie w planie bez odwołania do przepisu.
+    await execute(empty_database, "DELETE FROM recipes WHERE id = 2")
+    rows = (await snapshot(empty_database, plan))["meal_plan_entries"]
+    assert [(r[2].isoformat(), r[3], r[4]) for r in rows] == [
+        ("2026-10-26", "Naleśniki", 1),
+        ("2026-10-27", "Bigos", None),
+    ]
+
+    await migrate(empty_database, "down", "0010")
+
+    assert not await table_exists(empty_database, "meal_plan_entries")
+    assert await snapshot(empty_database, tables) == before
+
+    await migrate(empty_database, "up", "head")
+    assert await snapshot(empty_database, plan) == {"meal_plan_entries": []}

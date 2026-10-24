@@ -14,6 +14,7 @@ from kupto.households.router import router as households_router
 from kupto.lists.events import ListEventBroker
 from kupto.lists.router import router as list_router
 from kupto.logs import configure_logging
+from kupto.meal_plan.router import router as meal_plan_router
 from kupto.push.notifier import Notifier, PushTransport
 from kupto.push.router import router as push_router
 from kupto.recipes.router import router as recipes_router
@@ -58,6 +59,7 @@ def create_app(
     app.include_router(chat_router)
     app.include_router(push_router)
     app.include_router(recipes_router)
+    app.include_router(meal_plan_router)
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:

@@ -7,10 +7,10 @@ autora wiadomości. Błędy reguł wracają do modelu jako `{"error": ...}`, a n
 
 import json
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any
 
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,7 +21,17 @@ from kupto.households.preferences import PreferencesIn
 from kupto.lists import notifications, service, shopping_status
 from kupto.lists.schemas import NeedCreate, NeedUpdate, list_out
 from kupto.lists.service import NeedInput
-from kupto.models import Category, ChatPendingAction, Household, Unit, User
+from kupto.meal_plan import service as meal_plan
+from kupto.meal_plan.schemas import PlanDayIn
+from kupto.models import (
+    Category,
+    ChatPendingAction,
+    Household,
+    MealPlanEntry,
+    RecipeIngredient,
+    Unit,
+    User,
+)
 from kupto.push.notifier import Notifier
 from kupto.recipes import library
 from kupto.recipes.schemas import RecipeIn
@@ -30,6 +40,9 @@ from kupto.recipes.service import recipe_from_url
 FINISH_SHOPPING = "finish_shopping"
 MAX_USUAL_SUGGESTIONS = 10
 MAX_LISTED_RECIPES = 100
+MAX_PLAN_DAYS = 14
+# Okno dat planu z czatu — chroni przed pomyłką roku albo miesiąca przez model.
+PLAN_HORIZON = timedelta(days=60)
 
 _CATEGORIES = [c.value for c in Category]
 _UNITS = [u.value for u in Unit]
@@ -60,6 +73,21 @@ def _function(name: str, description: str, properties: dict[str, Any]) -> dict[s
 _ID_LIST = {"type": "array", "items": {"type": "integer"}}
 
 _TEXT_LIST = {"type": "array", "items": {"type": "string"}}
+
+_DATE = {"type": "string", "description": "RRRR-MM-DD"}
+
+_PLAN_DAY = {
+    "type": "object",
+    "properties": {
+        "date": _DATE,
+        "name": {"type": "string", "description": "Krótka nazwa dania, np. 'Pierogi ruskie'."},
+        "recipe_id": _nullable(
+            {"type": "integer", "description": "Gdy danie jest z przepisów gospodarstwa."}
+        ),
+    },
+    "required": ["date", "name", "recipe_id"],
+    "additionalProperties": False,
+}
 
 _RECIPE_INGREDIENT = {
     "type": "object",
@@ -175,6 +203,18 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "get_recipe",
         "Zwraca zapisany przepis gospodarstwa ze składnikami. Tylko odczyt — niczego nie dodaje.",
         {"recipe_id": {"type": "integer"}},
+    ),
+    _function(
+        "save_meal_plan",
+        "Zapisuje plan obiadów gospodarstwa: jedno danie na dzień, nadpisuje danie zapisane "
+        "na ten dzień. Tylko po potwierdzeniu propozycji planu. Zwraca składniki dań "
+        "z przepisów. Nie zmienia listy zakupów.",
+        {"days": {"type": "array", "items": _PLAN_DAY}},
+    ),
+    _function(
+        "get_meal_plan",
+        "Zwraca zapisany plan obiadów z zakresu dat (włącznie). Tylko odczyt.",
+        {"date_from": _DATE, "date_to": _DATE},
     ),
     _function(
         "update_preferences",
@@ -429,18 +469,64 @@ async def _get_recipe(ctx: ToolContext, recipe_id: int) -> dict[str, Any]:
         "name": recipe.name,
         "servings": recipe.servings,
         "source_url": recipe.source_url,
-        "ingredients": [
-            {
-                "name": i.name,
-                "amount": float(i.amount) if i.amount is not None else None,
-                "unit": i.unit.value if i.unit else None,
-                "note": i.note,
-                "category": i.category.value if i.category else None,
-            }
-            for i in recipe.ingredients
-        ],
+        "ingredients": [_ingredient(i) for i in recipe.ingredients],
         "instructions": recipe.instructions,
     }
+
+
+def _ingredient(ingredient: RecipeIngredient) -> dict[str, Any]:
+    return {
+        "name": ingredient.name,
+        "amount": float(ingredient.amount) if ingredient.amount is not None else None,
+        "unit": ingredient.unit.value if ingredient.unit else None,
+        "note": ingredient.note,
+        "category": ingredient.category.value if ingredient.category else None,
+    }
+
+
+class _PlanDay(PlanDayIn):
+    day: date = Field(alias="date")
+
+
+class _MealPlanIn(BaseModel):
+    days: list[_PlanDay] = Field(min_length=1, max_length=MAX_PLAN_DAYS)
+
+
+_DATE_ADAPTER = TypeAdapter(date)
+
+
+async def _save_meal_plan(ctx: ToolContext, days: list[dict[str, Any]]) -> dict[str, Any]:
+    data = _MealPlanIn.model_validate({"days": days}).days
+    first = meal_plan.today()
+    last = first + PLAN_HORIZON
+    if outside := [d.day.isoformat() for d in data if not first <= d.day <= last]:
+        return {
+            "error": f"Daty {', '.join(outside)} są poza oknem planu "
+            f"{first.isoformat()}–{last.isoformat()}. Sprawdź daty."
+        }
+    by_day = {d.day: PlanDayIn(name=d.name, recipe_id=d.recipe_id) for d in data}
+    if len(by_day) < len(data):
+        return {"error": "Każdy dzień może mieć tylko jedno danie."}
+    entries = await meal_plan.save_days(ctx.session, ctx.household, ctx.user, by_day)
+    return {"saved": [_plan_entry(e, with_ingredients=True) for e in entries]}
+
+
+async def _get_meal_plan(ctx: ToolContext, date_from: str, date_to: str) -> dict[str, Any]:
+    start, end = _DATE_ADAPTER.validate_python(date_from), _DATE_ADAPTER.validate_python(date_to)
+    entries = await meal_plan.list_entries(ctx.session, ctx.household, start, end)
+    return {"meal_plan": [_plan_entry(e) for e in entries]}
+
+
+def _plan_entry(entry: MealPlanEntry, with_ingredients: bool = False) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "date": entry.day.isoformat(),
+        "weekday": meal_plan.weekday(entry.day),
+        "name": entry.name,
+        "recipe_id": entry.recipe_id,
+    }
+    if with_ingredients and entry.recipe is not None:
+        out["ingredients"] = [_ingredient(i) for i in entry.recipe.ingredients]
+    return out
 
 
 async def _update_preferences(
@@ -520,6 +606,8 @@ _HANDLERS = {
     "save_recipe": _save_recipe,
     "list_recipes": _list_recipes,
     "get_recipe": _get_recipe,
+    "save_meal_plan": _save_meal_plan,
+    "get_meal_plan": _get_meal_plan,
     "update_preferences": _update_preferences,
     "start_shopping": _start_shopping,
     "stop_shopping": _stop_shopping,

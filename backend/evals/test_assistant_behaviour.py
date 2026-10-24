@@ -3,7 +3,11 @@
 Uruchomienie: OPENAI_API_KEY=... [OPENAI_MODEL=...] uv run pytest -m llm
 """
 
+from datetime import timedelta
+
 import pytest
+
+from kupto.meal_plan.service import today
 
 pytestmark = pytest.mark.llm
 
@@ -527,3 +531,69 @@ async def test_mention_without_request_does_not_change_preferences(household_wit
     assert "mleko" in await items(ala)
     saved = (await ala.get(PREFERENCES_URL)).json()
     assert saved["updated_at"] is None, saved
+
+
+async def meal_plan(client) -> list[dict]:
+    start = today()
+    params = {"from": start.isoformat(), "to": (start + timedelta(days=14)).isoformat()}
+    response = await client.get("/api/meal-plan", params=params)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def test_dinner_plan_is_saved_after_confirmation_then_only_missing_are_added(
+    household_with, chat, items
+):
+    ala, ola = await household_with("ala", "ola")
+    pancakes = (await ola.post("/api/recipes", json=SAVED_PANCAKES)).json()
+
+    proposal = await chat(ala, "zaplanuj obiady na 3 dni od jutra")
+
+    assert await meal_plan(ala) == [] and await items(ala) == {}
+    assert proposal
+
+    question = await chat(ala, "tak, ale w drugi dzień zrób naleśniki z naszych przepisów")
+
+    plan = await meal_plan(ala)
+    tomorrow = today() + timedelta(days=1)
+    assert [e["day"] for e in plan] == [
+        (tomorrow + timedelta(days=n)).isoformat() for n in range(3)
+    ], plan
+    assert plan[1]["recipe_id"] == pancakes["id"], plan
+    # Po zapisie asystent pyta o brakujące składniki, zamiast od razu je dodawać.
+    assert await items(ala) == {}
+    assert "brak" in question.lower(), question
+
+    await chat(ala, "brakuje tylko mleka")
+
+    found = await items(ala)
+    assert set(found) == {"mleko"}, found
+    assert "na:" in (found["mleko"]["needs"][0]["note"] or ""), found
+
+
+async def test_dinner_plan_follows_vegetarian_diet(household_with, chat):
+    (ala,) = await household_with("ala")
+    await ala.put(PREFERENCES_URL, json={"people": 4, "diets": ["wegetariańska"]})
+
+    await chat(ala, "zaproponuj obiady na 4 dni od jutra")
+    assert await meal_plan(ala) == []
+
+    await chat(ala, "tak, zapisz")
+
+    names = " ".join(e["name"].lower() for e in await meal_plan(ala))
+    assert names
+    meat = ("mięs", "kurczak", "schab", "wołow", "wieprz", "boczek", "kiełbas", "indyk", "ryb")
+    assert not [stem for stem in meat if stem in names], names
+
+
+async def test_dinner_plan_question_reads_saved_plan(household_with, chat, items):
+    ala, ola = await household_with("ala", "ola")
+    tomorrow = (today() + timedelta(days=1)).isoformat()
+    await ola.put(f"/api/meal-plan/{tomorrow}", json={"name": "Pierogi ruskie"})
+    before = await meal_plan(ala)
+
+    reply = await chat(ala, "co jutro na obiad?")
+
+    assert "pierog" in reply.lower(), reply
+    assert await meal_plan(ala) == before
+    assert await items(ala) == {}

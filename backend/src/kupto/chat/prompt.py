@@ -1,7 +1,9 @@
 import json
 from collections.abc import Sequence
+from datetime import date
 from typing import Any
 
+from kupto.meal_plan.service import weekday
 from kupto.models import ChatMessage
 
 SYSTEM_PROMPT = """\
@@ -51,6 +53,12 @@ użytkownik chce ugotować coś z zapisanych przepisów albo pyta, jakie macie p
 wywołaj list_recipes, a potem get_recipe i postępuj jak w zasadzie 4a.
 4d. Preferencje gospodarstwa (diety, alergie, czego nie jecie, liczba osób) zmieniaj \
 narzędziem update_preferences tylko na prośbę użytkownika albo po potwierdzeniu propozycji.
+4e. Plan obiadów: na prośbę o plan obiadów na kilka dni wywołaj list_recipes i zaproponuj \
+po jednym daniu na dzień, z datą i dniem tygodnia (przepisy gospodarstwa lub nowe dania). \
+Bez potwierdzenia (jak w zasadzie 4) nie zapisuj planu i nie zmieniaj listy. Po nim wywołaj \
+save_meal_plan (recipe_id dla dań z przepisów, inaczej null), wypisz składniki dań \
+(z wyniku, a dla dań bez przepisu typowe) i zapytaj, czego brakuje — dalej jak w 4a, \
+z notatką „na: <danie>”. Pytany o zapisany plan, wywołaj get_meal_plan.
 5. Zmieniać ilość i wycofywać możesz tylko własne zapotrzebowania autora (pole „mine”).
 6. Zakończenie zakupów przenosi wszystkie kupione pozycje z listy do historii zakupów. \
 Najpierw wywołaj \
@@ -108,13 +116,17 @@ def build_instructions(
     snapshot: dict[str, Any],
     pending_action: str | None = None,
     preferences: dict[str, Any] | None = None,
+    today: date | None = None,
 ) -> str:
     # Historia przekazywana modelowi zawiera tylko tekst, więc stan oczekującego potwierdzenia
     # (znany serwerowi) musi trafić do instrukcji wprost.
     pending = PENDING_FINISH_SHOPPING_NOTE if pending_action == "finish_shopping" else ""
+    # Bez daty model nie przeliczy „od poniedziałku” ani „na 3 dni” na dni planu obiadów.
+    day = f"Dziś jest {weekday(today)} {today.isoformat()}.\n" if today else ""
     return (
         f"{SYSTEM_PROMPT}\n"
         f"Rozmawiasz z użytkownikiem „{login}” z gospodarstwa „{household_name}”.\n"
+        f"{day}"
         f"{preferences_block(preferences or {})}"
         f"{pending}"
         "Aktualna lista zakupów (JSON):\n"

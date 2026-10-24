@@ -1,3 +1,5 @@
+from datetime import date
+
 from kupto.chat.prompt import PREFERENCES_RULE, SYSTEM_PROMPT, build_input, build_instructions
 from kupto.chat.tools import TOOL_DEFINITIONS
 from kupto.models import ChatMessage
@@ -58,6 +60,26 @@ def test_preferences_are_stated_only_when_set():
     assert '{"people": 4, "excluded": ["orzechy"]}' in with_preferences
     assert PREFERENCES_RULE in with_preferences
     assert "update_preferences tylko na prośbę" in SYSTEM_PROMPT
+
+
+def test_today_is_stated_with_weekday_when_given():
+    without = build_instructions("ala", "Dom", {"items": []})
+    with_today = build_instructions("ala", "Dom", {"items": []}, today=date(2026, 10, 24))
+
+    assert "Dziś jest" not in without
+    assert "Dziś jest sobota 2026-10-24." in with_today
+
+
+def test_meal_plan_rule_saves_after_confirmation_and_asks_what_is_missing():
+    tools = {t["name"]: t for t in TOOL_DEFINITIONS}
+
+    assert "4e. Plan obiadów" in SYSTEM_PROMPT
+    assert "Bez potwierdzenia (jak w zasadzie 4) nie zapisuj planu" in SYSTEM_PROMPT
+    assert "zapytaj, czego brakuje — dalej jak w 4a" in SYSTEM_PROMPT
+    assert "wywołaj get_meal_plan" in SYSTEM_PROMPT
+    assert "Tylko po potwierdzeniu" in tools["save_meal_plan"]["description"]
+    assert "Nie zmienia listy" in tools["save_meal_plan"]["description"]
+    assert "Tylko odczyt" in tools["get_meal_plan"]["description"]
 
 
 def test_input_is_trimmed_to_most_recent_messages():
