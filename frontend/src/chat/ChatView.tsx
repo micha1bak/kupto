@@ -5,7 +5,7 @@ import { keys, useChatHistory } from "../api/queries";
 import { streamChat } from "../api/sse";
 import styles from "./ChatView.module.css";
 
-const MAX_LENGTH = 2000;
+const MAX_LENGTH = 8000; // mieści wklejony przepis
 
 interface Bubble {
   key: string;
@@ -104,7 +104,7 @@ export function ChatView() {
         {bubbles.length === 0 && !history.isLoading && (
           <p className={`muted ${styles.hint}`}>
             Napisz, czego potrzebujesz — np. „skończyło się mleko i chleb” albo „coś na grilla w
-            sobotę”.
+            sobotę”. Możesz też wkleić przepis — zapytam, czego brakuje.
           </p>
         )}
         {bubbles.map((b) => (

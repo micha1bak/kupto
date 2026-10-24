@@ -231,10 +231,52 @@ async def test_finish_shopping_via_chat_requires_confirmation(
 async def test_too_long_message_is_rejected_without_calling_model(household_with, fake_llm):
     (ala,) = await household_with("ala")
 
-    response, _ = await send(ala, "x" * 2001)
+    response, _ = await send(ala, "x" * 8001)
 
     assert response.status_code == 422
     assert fake_llm.calls == []
+
+
+RECIPE = "Naleśniki\nSkładniki: 2 szklanki mąki, 0,5 l mleka, 2 jajka, woda, sól.\n" + (
+    "Wszystkie składniki zmiksuj na gładkie ciasto i odstaw na 15 minut. " * 60
+)
+
+
+async def test_pasted_recipe_is_proposed_then_missing_ingredients_are_added(
+    household_with, fake_llm
+):
+    (ala,) = await household_with("ala")
+    assert 2000 < len(RECIPE) <= 8000
+    proposal = "Naleśniki: mąka (2 szklanki), mleko 0,5 l, jajka 2 szt. Czego brakuje?"
+    added = [
+        {"name": "mleko", "amount": 0.5, "unit": "l", "note": "na: naleśniki"},
+        {"name": "jajka", "amount": 2, "unit": "szt", "note": "na: naleśniki"},
+    ]
+    fake_llm.rounds += [
+        [TextDelta(proposal)],
+        [
+            ToolCall(
+                "call_1",
+                "add_needs",
+                json.dumps({"items": [{**i, "category": "Nabiał"} for i in added]}),
+            )
+        ],
+        [TextDelta("Dodałem mleko i jajka na naleśniki.")],
+    ]
+
+    response, _ = await send(ala, RECIPE)
+    assert response.status_code == 200
+    assert list_items((await ala.get("/api/list")).json()) == {}
+    # Cały przepis trafia do modelu, a przy potwierdzeniu model widzi też swoją propozycję.
+    assert fake_llm.calls[0]["input"][-1] == {"role": "user", "content": RECIPE}
+
+    _, events = await send(ala, "brakuje mi tylko mleka i jajek")
+
+    assert ("list_changed", {}) in events
+    assert fake_llm.calls[1]["input"][-2] == {"role": "assistant", "content": proposal}
+    items = list_items((await ala.get("/api/list")).json())
+    assert set(items) == {"mleko", "jajka"}
+    assert [n["note"] for i in items.values() for n in i["needs"]] == ["na: naleśniki"] * 2
 
 
 async def test_empty_message_is_rejected(household_with, fake_llm):

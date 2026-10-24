@@ -30,6 +30,14 @@ def test_finishing_shopping_is_described_as_moving_to_history():
     assert "usunięcia kupionych" not in request_tool["description"]
 
 
+def test_recipe_rule_asks_before_adding_and_marks_the_dish():
+    instructions = build_instructions("ala", "Dom", {"items": []})
+
+    assert "wkleja przepis" in instructions
+    assert "„na: <danie>”" in instructions
+    assert "Pomiń wodę, sól i pieprz" in instructions
+
+
 def test_input_is_trimmed_to_most_recent_messages():
     history = [
         ChatMessage(role="user" if i % 2 == 0 else "assistant", content=f"m{i}") for i in range(30)

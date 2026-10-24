@@ -248,3 +248,60 @@ async def test_usual_products_without_history(household_with, chat, items):
     await chat(ala, "co zwykle kupujemy?")
 
     assert await items(ala) == {}
+
+
+PANCAKES = """\
+Naleśniki na mleku (ok. 10 sztuk)
+
+Składniki:
+- 2 szklanki mąki pszennej
+- 0,5 l mleka
+- 2 jajka
+- 1 szklanka wody
+- szczypta soli
+- 2 łyżki oleju
+
+Przygotowanie:
+Mąkę przesiej do miski, dodaj jajka, mleko, wodę i sól. Zmiksuj na gładkie ciasto bez grudek, \
+na końcu wmieszaj olej. Odstaw na 15 minut. Smaż cienkie naleśniki na rozgrzanej patelni \
+z obu stron na złoty kolor. Podawaj z dżemem, twarożkiem albo owocami.
+"""
+
+
+async def test_pasted_recipe_is_proposed_without_changing_the_list(household_with, chat, items):
+    (ala,) = await household_with("ala")
+
+    proposal = await chat(ala, PANCAKES)
+
+    assert await items(ala) == {}
+    text = proposal.lower()
+    assert all(stem in text for stem in ("mąk", "mlek", "jaj", "olej"))
+    assert "?" in proposal  # pyta, czego brakuje
+
+
+async def test_only_missing_recipe_ingredients_are_added_with_dish_note(
+    household_with, chat, items
+):
+    (ala,) = await household_with("ala")
+
+    await chat(ala, PANCAKES)
+    await chat(ala, "brakuje mi tylko mleka i jajek")
+
+    found = await items(ala)
+    assert set(found) == {"mleko", "jajka"}
+    notes = [(n["note"] or "").lower() for i in found.values() for n in i["needs"]]
+    assert all("naleśnik" in note for note in notes), notes
+    assert found["mleko"]["quantities"] == [{"amount": 0.5, "unit": "l"}]
+
+
+async def test_recipe_rest_is_added_except_what_user_has(household_with, chat, items):
+    (ala,) = await household_with("ala")
+
+    await chat(ala, PANCAKES)
+    await chat(ala, "mąkę i olej mam, resztę dodaj")
+
+    found = await items(ala)
+    assert {"mleko", "jajka"} <= set(found)
+    assert not any(name.startswith(("mąk", "olej")) for name in found)
+    # Woda i sól są pominięte w propozycji, więc nie trafiają na listę.
+    assert not any(name.startswith(("wod", "sól", "sol")) for name in found)
