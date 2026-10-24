@@ -107,3 +107,15 @@ def test_saving_recipes_requires_request_and_reading_follows_recipe_rule():
     assert "zapisz ten przepis" in SYSTEM_PROMPT
     assert "Bez prośby nie zapisuj" in SYSTEM_PROMPT
     assert "list_recipes, a potem get_recipe i postępuj jak w zasadzie 4a" in SYSTEM_PROMPT
+
+
+def test_reply_states_what_was_done_without_closing_question():
+    # #79: po akcji krótko, co zrobiono — bez pytania zamykającego ani oferty dalszej pomocy.
+    assert "napisz krótko, co zrobiłeś" in SYSTEM_PROMPT
+    assert "Nie kończ pytaniem typu „Czy potrzebujesz czegoś jeszcze?”" in SYSTEM_PROMPT
+    assert "zaproponuj pomoc w zakupach" not in SYSTEM_PROMPT
+    # Pytania o potwierdzenie przed akcjami wymagającymi zgody zostają.
+    assert "pytaj tylko o potwierdzenie wymagane przez te zasady" in SYSTEM_PROMPT
+    assert "Zaproponuj konkretne pozycje i zapytaj o potwierdzenie" in SYSTEM_PROMPT
+    assert "zapytaj, czego z tego brakuje w domu" in SYSTEM_PROMPT
+    assert "request_finish_shopping i zapytaj o potwierdzenie" in SYSTEM_PROMPT
