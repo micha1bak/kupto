@@ -16,7 +16,7 @@ export function ChatOptions({
 }: {
   title: string;
   onClose: () => void;
-  /** Po wyczyszczeniu historii — np. by usunąć lokalne dymki czatu. */
+  /** Po ukryciu historii — np. by usunąć lokalne dymki czatu. */
   onCleared: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -45,8 +45,13 @@ export function ChatOptions({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Czat jest wspólny (#78): wiadomości znikają tylko u siebie, domownicy i asystent widzą je dalej.
   function confirmClear() {
-    if (window.confirm("Usunąć całą historię rozmowy z asystentem? Lista zakupów się nie zmieni.")) {
+    if (
+      window.confirm(
+        "Ukryć dotychczasowe wiadomości czatu u siebie? Domownicy nadal je zobaczą, a lista zakupów się nie zmieni.",
+      )
+    ) {
       clear.mutate();
     }
   }
@@ -78,7 +83,7 @@ export function ChatOptions({
               onClick={confirmClear}
               disabled={empty || clear.isPending}
             >
-              Wyczyść historię czatu
+              Ukryj historię u siebie
             </button>
           </li>
           <li>

@@ -98,8 +98,9 @@ export const useNotificationPreferences = () =>
     queryFn: () => api<NotificationPreferences>("/api/push/preferences"),
   });
 
-// Historię odświeżamy tylko jawnie po każdej wymianie (ChatView), nie np. przy powrocie do karty —
-// inaczej wiadomości z bieżącej wymiany pojawiałyby się podwójnie (lokalnie i z serwera).
+// Wątek czatu gospodarstwa odświeżamy tylko jawnie: po każdej wymianie i na sygnał `chat_changed`
+// ze strumienia zmian (ChatView), nie np. przy powrocie do karty — inaczej wiadomości z bieżącej
+// wymiany pojawiałyby się podwójnie (lokalnie i z serwera).
 export const useChatHistory = () =>
   useQuery({
     queryKey: keys.chat,

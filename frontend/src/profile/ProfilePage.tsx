@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { Profile } from "../api/types";
+import { NameForm } from "./NameForm";
 import styles from "./ProfilePage.module.css";
 
 /** Linki przeniesione z paska nawigacji (spec: app-navigation — „Strona profilu”). */
@@ -27,8 +28,14 @@ export function ProfilePage({ profile, onLogout }: { profile: Profile; onLogout:
     <main className={styles.page}>
       <Link to="/">← Wróć do listy</Link>
       <section className={`card ${styles.who}`}>
-        <h2>{profile.login}</h2>
+        <h2>{profile.name ?? profile.login}</h2>
+        <p className="muted">Login: {profile.login}</p>
         {profile.household && <p className="muted">Gospodarstwo „{profile.household.name}”</p>}
+      </section>
+      <section className={`card ${styles.name}`}>
+        <h3>Imię</h3>
+        <p className="muted">Widzą je domownicy w czacie i w powiadomieniach.</p>
+        <NameForm initial={profile.name ?? ""} submitLabel="Zmień imię" />
       </section>
       <nav aria-label="Profil">
         <ul className={styles.links}>

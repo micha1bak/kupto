@@ -1,0 +1,16 @@
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Pole bierze resztę wiersza, ale może się zwęzić — bez przewijania w bok przy 375 px. */
+.form input {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.error {
+  flex-basis: 100%;
+  margin: 0;
+}

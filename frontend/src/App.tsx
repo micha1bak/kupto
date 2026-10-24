@@ -8,6 +8,7 @@ import { HistoryPage } from "./history/HistoryPage";
 import { HouseholdPage, HouseholdSetup } from "./household/HouseholdPage";
 import { MainPage } from "./layout/MainPage";
 import { MealPlanPage } from "./mealPlan/MealPlanPage";
+import { NameSetup } from "./profile/NameSetup";
 import { ProfilePage } from "./profile/ProfilePage";
 import { RecipesPage } from "./recipes/RecipesPage";
 import { disablePushOnLogout } from "./pwa/push";
@@ -39,6 +40,8 @@ function Authenticated({ page }: { page: Page }) {
     return <Navigate to="/login" replace />;
   }
   if (!profile.data) return <p className="muted">Ładowanie…</p>;
+  // Konto sprzed czatu grupowego (#78) najpierw uzupełnia imię — reszta aplikacji czeka.
+  if (!profile.data.name) return <NameSetup onLogout={logout} />;
   if (!profile.data.household) return <HouseholdSetup login={profile.data.login} />;
   if (page === "household") return <HouseholdPage />;
   if (page === "history") return <HistoryPage />;

@@ -5,7 +5,9 @@ import { jsonResponse, mockFetch, renderWithProviders } from "../test/utils";
 
 afterEach(() => vi.unstubAllGlobals());
 
-async function fill(login: string, password: string) {
+async function fill(login: string, password: string, name = "Ala") {
+  const nameField = screen.queryByLabelText("Imię");
+  if (nameField && name) await userEvent.type(nameField, name);
   await userEvent.type(screen.getByLabelText("Login"), login);
   await userEvent.type(screen.getByLabelText("Hasło"), password);
 }
@@ -57,8 +59,30 @@ test("successful register logs the user in", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Zarejestruj" }));
 
   await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+  expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({
+    login: "ala",
+    password: "haslo1234",
+    name: "Ala",
+  });
   expect(JSON.parse(fetch.mock.calls[1][1]!.body as string)).toEqual({
     login: "ala",
     password: "haslo1234",
   });
+});
+
+test("register requires a name", async () => {
+  const fetch = mockFetch({});
+  renderWithProviders(<AuthForm mode="register" />);
+
+  await fill("ala", "haslo1234", "");
+  await userEvent.click(screen.getByRole("button", { name: "Zarejestruj" }));
+
+  expect(screen.getByRole("alert")).toHaveTextContent("Podaj imię.");
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+test("login form does not ask for a name", () => {
+  renderWithProviders(<AuthForm mode="login" />);
+
+  expect(screen.queryByLabelText("Imię")).not.toBeInTheDocument();
 });
