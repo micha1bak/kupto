@@ -310,3 +310,28 @@ async def test_get_usual_missing_is_read_only(home):
     assert milk["days_since_last"] == 7.0
     assert other.output == {"usual_missing": []}
     assert (await call(ctx, "get_list")).output["items"] == []
+
+
+async def test_fetch_recipe_is_read_only_and_returns_page_result(home, monkeypatch):
+    requested = []
+
+    async def fake_recipe_from_url(url):
+        requested.append(url)
+        return {"source": "schema.org", "url": url, "name": "Naleśniki", "ingredients": ["mąka"]}
+
+    monkeypatch.setattr("kupto.chat.tools.recipe_from_url", fake_recipe_from_url)
+    ctx = home["ala"]
+
+    result = await call(ctx, "fetch_recipe", url="https://przepisy.example/nalesniki")
+
+    assert requested == ["https://przepisy.example/nalesniki"]
+    assert result.list_changed is False
+    assert result.output["ingredients"] == ["mąka"]
+    assert (await call(ctx, "get_list")).output["items"] == []
+
+
+async def test_fetch_recipe_blocks_private_address_without_mocks(home):
+    result = await call(home["ala"], "fetch_recipe", url="http://169.254.169.254/latest/")
+
+    assert result.list_changed is False
+    assert "sieci prywatnej" in result.output["error"]
