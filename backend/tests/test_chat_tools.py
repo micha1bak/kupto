@@ -335,3 +335,66 @@ async def test_fetch_recipe_blocks_private_address_without_mocks(home):
 
     assert result.list_changed is False
     assert "sieci prywatnej" in result.output["error"]
+
+
+def ingredient(name, amount=None, unit=None, note=None, category="Inne"):
+    return {"name": name, "amount": amount, "unit": unit, "note": note, "category": category}
+
+
+PANCAKES = {
+    "name": "Naleśniki",
+    "servings": "10 sztuk",
+    "source_url": None,
+    "instructions": "Zmiksuj i smaż.",
+    "ingredients": [
+        ingredient("mąka pszenna", note="2 szklanki", category="Produkty suche"),
+        ingredient("mleko", 0.5, "l", category="Nabiał"),
+        ingredient("sól", note="szczypta"),
+    ],
+}
+
+
+async def save_recipe(ctx, recipe):
+    return await execute_tool(ctx, "save_recipe", json.dumps(recipe))
+
+
+async def test_saved_recipe_is_shared_and_does_not_change_list(home):
+    result = await save_recipe(home["ala"], PANCAKES)
+
+    assert result.list_changed is False
+    saved = result.output["saved"]
+    assert saved["name"] == "Naleśniki"
+    assert saved["ingredients"] == ["mąka pszenna", "mleko", "sól"]
+    assert (await call(home["ala"], "get_list")).output["items"] == []
+
+    listed = (await call(home["ola"], "list_recipes")).output
+    assert listed == {
+        "recipes": [{"recipe_id": saved["recipe_id"], "name": "Naleśniki", "servings": "10 sztuk"}]
+    }
+    recipe = (await call(home["ola"], "get_recipe", recipe_id=saved["recipe_id"])).output
+    assert recipe["ingredients"] == [
+        {
+            "name": "mąka pszenna",
+            "amount": None,
+            "unit": None,
+            "note": "2 szklanki",
+            "category": "Produkty suche",
+        },
+        {"name": "mleko", "amount": 0.5, "unit": "l", "note": None, "category": "Nabiał"},
+        {"name": "sól", "amount": None, "unit": None, "note": "szczypta", "category": "Inne"},
+    ]
+    assert recipe["instructions"] == "Zmiksuj i smaż."
+
+
+async def test_recipe_tools_respect_household_and_report_errors(home):
+    saved = (await save_recipe(home["ala"], PANCAKES)).output["saved"]
+
+    assert (await call(home["ewa"], "list_recipes")).output == {"recipes": []}
+    foreign = await call(home["ewa"], "get_recipe", recipe_id=saved["recipe_id"])
+    assert foreign.output == {"error": "Nie ma takiego przepisu."}
+
+    duplicate = await save_recipe(home["ola"], {**PANCAKES, "name": "NALEŚNIKI"})
+    assert "już zapisany" in duplicate.output["error"]
+    invalid = await save_recipe(home["ala"], {**PANCAKES, "ingredients": []})
+    assert invalid.output["error"].startswith("Nieprawidłowe dane")
+    assert len((await call(home["ala"], "list_recipes")).output["recipes"]) == 1

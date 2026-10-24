@@ -16,6 +16,7 @@ from kupto.lists.router import router as list_router
 from kupto.logs import configure_logging
 from kupto.push.notifier import Notifier, PushTransport
 from kupto.push.router import router as push_router
+from kupto.recipes.router import router as recipes_router
 
 
 @asynccontextmanager
@@ -56,6 +57,7 @@ def create_app(
     app.include_router(history_router)
     app.include_router(chat_router)
     app.include_router(push_router)
+    app.include_router(recipes_router)
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:
