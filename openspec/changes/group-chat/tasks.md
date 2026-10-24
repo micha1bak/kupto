@@ -25,6 +25,13 @@
 
 - [x] 5.1 Scenariusze `-m llm`: kontekst wiadomości innego domownika, „tak” od innej osoby nie potwierdza propozycji (dopisane; przebieg do wykonania przed merge — limit Groq wyczerpany)
 
-## 6. Integracja
+## 6. Poprawki po przeglądzie
 
-- [x] 6.1 Kroki CI lokalnie: backend `uv sync --locked`, `ruff check`, `ruff format --check`, `pytest`; frontend `npm ci`, `npx tsc -b`, `npm test`, `npx vite build`
+- [x] 6.1 Znacznik adresata `[do: imię]` w odpowiedziach asystenta w historii, zasada 11 (D5, D6); test promptu
+- [x] 6.2 Historia modelu kończy się na bieżącej wiadomości autora; jedno miejsce przycinania, bieżąca wiadomość także przy limicie 0 (D5); testy API
+- [x] 6.3 `GET /api/chat/archive` i strona „Moje dawne rozmowy” z linkiem w opcjach czatu (D2); testy API i Vitest
+- [x] 6.4 Ryzyko limitu Groq i follow-up „tylko na @Kupto” w design (D7)
+
+## 7. Integracja
+
+- [x] 7.1 Kroki CI lokalnie: backend `uv sync --locked`, `ruff check`, `ruff format --check`, `pytest`; frontend `npm ci`, `npx tsc -b`, `npm test`, `npx vite build`

@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import Select, delete, func, select
+from sqlalchemy import Select, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -114,12 +114,19 @@ def _thread(household: Household, limit: int) -> Select[tuple[ChatMessage]]:
 
 
 async def _model_history(
-    session: AsyncSession, household: Household, settings: Settings
+    session: AsyncSession, household: Household, settings: Settings, message_id: int
 ) -> list[ChatMessage]:
-    """Kontekst modelu: ostatnie wiadomości wątku z ostatnich `chat_history_max_age_hours` (D5)."""
+    """Kontekst modelu (D5) — jedyne miejsce przycinania historii.
+
+    Ostatnie `chat_history_limit` wiadomości wątku z ostatnich `chat_history_max_age_hours`,
+    kończące się na bieżącej wiadomości autora (`message_id`): wiadomości wysłane przez innych
+    w trakcie tej tury nie trafiają do modelu, więc „ostatnią wiadomość napisał(a) X” jest
+    prawdą. Bieżąca wiadomość jest zawsze w środku, także przy limicie 0.
+    """
     since = utcnow() - timedelta(hours=settings.chat_history_max_age_hours)
     statement = _thread(household, max(settings.chat_history_limit, 1)).where(
-        ChatMessage.created_at > since
+        ChatMessage.id <= message_id,
+        or_(ChatMessage.created_at > since, ChatMessage.id == message_id),
     )
     return list(reversed((await session.scalars(statement)).all()))
 
@@ -132,6 +139,22 @@ async def get_messages(
     if user.chat_hidden_before is not None:
         statement = statement.where(ChatMessage.created_at > user.chat_hidden_before)
     messages = reversed((await session.scalars(statement)).all())
+    return [message_out(m, user) for m in messages]
+
+
+@router.get("/archive")
+async def get_archive(user: CurrentUser, session: SessionDep) -> list[MessageOut]:
+    """Dawna prywatna rozmowa użytkownika sprzed czatu grupowego (D2) — tylko do odczytu.
+
+    Wiadomości archiwum mają `user_id` autora, a odpowiedzi asystenta — autora prośby, więc
+    filtr po `user_id` zwraca całą jego rozmowę i nic cudzego.
+    """
+    messages = await session.scalars(
+        select(ChatMessage)
+        .options(selectinload(ChatMessage.user))
+        .where(ChatMessage.user_id == user.id, ChatMessage.private.is_(True))
+        .order_by(ChatMessage.created_at, ChatMessage.id)
+    )
     return [message_out(m, user) for m in messages]
 
 
@@ -158,11 +181,10 @@ async def send_message(
 ) -> StreamingResponse:
     # Walidacja i limit przed otwarciem strumienia, by zwrócić zwykłe kody 422/429.
     await check_rate_limit(session, user, settings)
-    session.add(
-        ChatMessage(
-            user_id=user.id, household_id=household.id, role="user", content=payload.content
-        )
+    message = ChatMessage(
+        user_id=user.id, household_id=household.id, role="user", content=payload.content
     )
+    session.add(message)
     await events.chat_changed(session, household.id)
     await session.commit()
     reply = _stream_reply(
@@ -172,6 +194,7 @@ async def send_message(
         request.app.state.notifier,
         user.id,
         household.id,
+        message.id,
     )
     return StreamingResponse(
         reply,
@@ -187,6 +210,7 @@ async def _stream_reply(
     notifier: Notifier,
     user_id: int,
     household_id: int,
+    message_id: int,
 ) -> AsyncIterator[str]:
     # Strumień żyje dłużej niż żądanie, więc używa własnej sesji bazy.
     async with sessionmaker() as session:
@@ -202,9 +226,7 @@ async def _stream_reply(
             preferences.for_model(await preferences.load(session, household)),
             meal_plan.today(),
         )
-        conversation = build_input(
-            await _model_history(session, household, settings), settings.chat_history_limit
-        )
+        conversation = build_input(await _model_history(session, household, settings, message_id))
         reply: list[str] = []
         stats = AgentStats()
         started = time.monotonic()

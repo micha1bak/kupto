@@ -19,14 +19,29 @@ Każde gospodarstwo MUST mieć jeden wspólny, trwały wątek czatu, w którym w
 
 #### Scenario: Archiwum prywatnych rozmów
 - **WHEN** po wdrożeniu czatu grupowego członek pobiera wątek
-- **THEN** nie widzi wiadomości ze swojej ani cudzej prywatnej rozmowy sprzed zmiany, a model ich nie dostaje
+- **THEN** nie widzi w wątku wiadomości ze swojej ani cudzej prywatnej rozmowy sprzed zmiany, a model ich nie dostaje
 
 ### Requirement: Asystent w czacie grupowym
 Asystent MUST odpowiadać na każdą wiadomość członka, uwzględniając ostatnie wiadomości wątku z imionami autorów oraz aktualny stan listy. Zmiany listy MUST zapisywać się jako zmiany autora wiadomości, na którą asystent odpowiada.
 
+#### Scenario: Równoczesne wiadomości
+- **WHEN** ala wysyła wiadomość, a ola wysyła swoją, zanim asystent zacznie odpowiadać ali
+- **THEN** model w turze ali dostaje historię kończącą się wiadomością ali
+
 #### Scenario: Kontekst rozmowy grupy
 - **WHEN** ala napisała „robię naleśniki w sobotę”, a ola pisze „dodaj do tego mleko”
 - **THEN** model dostaje obie wiadomości z imionami autorów, a mleko trafia na listę jako zapotrzebowanie oli
+
+### Requirement: Wgląd w dawną prywatną rozmowę
+Członek MUST móc przejrzeć tylko do odczytu własną prywatną rozmowę z asystentem sprzed czatu grupowego (swoje wiadomości i odpowiedzi asystenta na nie). MUST NOT widzieć cudzych prywatnych rozmów. Gdy nie ma dawnej rozmowy, aplikacja MUST NOT pokazywać odnośnika do niej.
+
+#### Scenario: Własna dawna rozmowa
+- **WHEN** ala z dawną prywatną rozmową otwiera „Moje dawne rozmowy”
+- **THEN** widzi swoje dawne wiadomości i odpowiedzi asystenta, bez możliwości pisania, i nie widzi dawnej rozmowy oli
+
+#### Scenario: Brak dawnej rozmowy
+- **WHEN** członek bez dawnej prywatnej rozmowy otwiera opcje czatu
+- **THEN** nie widzi odnośnika „Moje dawne rozmowy”
 
 ### Requirement: Wiadomości czatu na żywo
 Zapisanie wiadomości członka i odpowiedzi asystenta MUST powodować sygnał `chat_changed` w strumieniu zmian gospodarstwa, tak by pozostali członkowie z otwartą aplikacją zobaczyli nową wiadomość bez odświeżania strony. Sygnał MUST NOT zawierać treści wiadomości.

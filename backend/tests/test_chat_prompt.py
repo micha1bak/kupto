@@ -25,7 +25,7 @@ def test_group_chat_rule_names_author_and_limits_confirmations_to_them():
     assert "„shopping_now” to imiona" in SYSTEM_PROMPT
 
 
-def test_input_prefixes_members_messages_with_author_name():
+def test_input_names_authors_and_addressees():
     ala = User(login="ala", name="Ala")
     ola = User(login="ola")  # konto bez imienia — login
     history = [
@@ -34,11 +34,15 @@ def test_input_prefixes_members_messages_with_author_name():
         ChatMessage(role="user", content="i chleb", user=ola),
     ]
 
-    assert build_input(history, limit=20) == [
+    # Odpowiedź asystenta ze znacznikiem adresata — inaczej model nie wie, komu złożył
+    # propozycję (zasada 11).
+    assert build_input(history) == [
         {"role": "user", "content": "Ala: kup mleko"},
-        {"role": "assistant", "content": "Dodałem mleko."},
+        {"role": "assistant", "content": "[do: Ala] Dodałem mleko."},
         {"role": "user", "content": "ola: i chleb"},
     ]
+    assert "znacznik adresata „[do: imię]”" in SYSTEM_PROMPT
+    assert "sam go nie pisz" in SYSTEM_PROMPT
 
 
 def test_pending_finish_shopping_is_stated_in_instructions():
@@ -108,22 +112,16 @@ def test_meal_plan_rule_saves_after_confirmation_and_asks_what_is_missing():
     assert "Tylko odczyt" in tools["get_meal_plan"]["description"]
 
 
-def test_input_is_trimmed_to_most_recent_messages():
+def test_input_keeps_given_history_without_trimming():
+    # Przycinanie jest w jednym miejscu — `_model_history` w routerze czatu.
     history = [
         ChatMessage(role="user" if i % 2 == 0 else "assistant", content=f"m{i}") for i in range(30)
     ]
 
-    result = build_input(history, limit=20)
+    result = build_input(history)
 
-    assert len(result) == 20
-    assert result[0] == {"role": "user", "content": "m10"}
-    assert result[-1] == {"role": "assistant", "content": "m29"}
-
-
-def test_input_keeps_everything_when_history_is_short():
-    history = [ChatMessage(role="user", content="cześć")]
-
-    assert build_input(history, limit=20) == [{"role": "user", "content": "cześć"}]
+    assert len(result) == 30
+    assert result[0] == {"role": "user", "content": "m0"}
 
 
 def test_saving_recipes_requires_request_and_reading_follows_recipe_rule():

@@ -8,15 +8,15 @@ Dziś każdy domownik rozmawia z asystentem we własnym, prywatnym wątku — ni
 
 - **Imię użytkownika**: nowe pole `name` (1–40 znaków po przycięciu spacji), wymagane przy rejestracji, edytowalne na stronie profilu (`PATCH /api/users/me`), zwracane w profilu. Istniejące konta bez imienia po zalogowaniu widzą blokujący ekran „Jak masz na imię?” — reszta aplikacji jest niedostępna, dopóki go nie uzupełnią. Login bez zmian (zmieni go #77).
 - **Jeden wątek gospodarstwa**: `GET /api/chat/messages` zwraca wiadomości wszystkich domowników i odpowiedzi asystenta (ostatnie 200), każda z autorem (`author: {id, name}` dla wiadomości członka, `null` dla asystenta), flagą `mine` i czasem utworzenia.
-- **Dotychczasowe prywatne historie** trafiają do archiwum: zostają w bazie, oznaczone `private = true`, nie są widoczne w wątku gospodarstwa ani w kontekście modelu (decyzja D2). Cofnięcie migracji przywraca prywatne wątki bez utraty danych.
+- **Dotychczasowe prywatne historie** trafiają do archiwum: zostają w bazie, oznaczone `private = true`, nie są widoczne w wątku gospodarstwa ani w kontekście modelu (decyzja D2). Autor może je przejrzeć tylko do odczytu: `GET /api/chat/archive` i link „Moje dawne rozmowy” w opcjach czatu (ukryty przy pustym archiwum). Cofnięcie migracji przywraca prywatne wątki bez utraty danych.
 - **Na żywo**: zapis wiadomości członka i odpowiedzi asystenta publikuje sygnał `chat_changed` w istniejącym strumieniu `/api/list/events` (LISTEN/NOTIFY) — pozostali domownicy pobierają wątek od razu.
-- **Kontekst modelu**: ostatnie wiadomości wątku gospodarstwa (te same 20, najwyżej z ostatnich 24 h), wiadomości członków z imieniem autora („Ala: kup mleko”). Imiona zamiast loginów także w liście przekazywanej modelowi (`requested_by`, `shopping_now`).
+- **Kontekst modelu**: ostatnie wiadomości wątku gospodarstwa (te same 20, najwyżej z ostatnich 24 h), wiadomości członków z imieniem autora („Ala: kup mleko”), odpowiedzi asystenta ze znacznikiem adresata („[do: Ala] …”); historia kończy się na bieżącej wiadomości autora. Imiona zamiast loginów także w liście przekazywanej modelowi (`requested_by`, `shopping_now`).
 - **Potwierdzenia** („czy mam dodać?”, „zakończyć zakupy?”) może dać tylko autor prośby; oczekująca akcja dalej jest przypisana do autora, a wiadomości innych domowników jej nie zużywają.
-- **Asystent odpowiada na każdą wiadomość** (MVP); akcje na liście są przypisane do autora wiadomości, jak dotąd.
+- **Asystent odpowiada na każdą wiadomość** (MVP); akcje na liście są przypisane do autora wiadomości, jak dotąd. Ryzyko limitu Groq (ok. 7k tokenów na wymianę, 200k dziennie) — follow-up „tylko na @Kupto”.
 - **„Wyczyść historię czatu” → „Ukryj historię u siebie”**: `DELETE /api/chat/messages` nie usuwa już wiadomości, tylko ukrywa dotychczasowe u wywołującego; pozostali domownicy i model widzą je dalej.
 - **UI**: dymki z imieniem autora i godziną (strefa przeglądarki), własne po prawej, odpowiedzi asystenta oznaczone „Asystent”; tytuł czatu = nazwa gospodarstwa; pole „Imię” w rejestracji i na profilu.
 - **Push** („X idzie na zakupy”, „X: zakupy zakończone”) używa imienia zamiast loginu.
-- Poza zakresem: logowanie e-mailem (#77), imiona w pozostałych widokach (lista, historia, przepisy — przejdą na imię razem z #77), adresowanie asystenta („@Kupto”), strumieniowanie cudzej odpowiedzi asystenta na żywo, wgląd w zarchiwizowane prywatne historie.
+- Poza zakresem: logowanie e-mailem (#77), imiona w pozostałych widokach (lista, historia, przepisy — przejdą na imię razem z #77), adresowanie asystenta („@Kupto”), strumieniowanie cudzej odpowiedzi asystenta na żywo.
 
 ## Capabilities
 

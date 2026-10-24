@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError, del } from "../api/client";
-import { keys, useChatHistory } from "../api/queries";
+import { keys, useChatArchive, useChatHistory } from "../api/queries";
 import styles from "./ChatOptions.module.css";
 
 /**
@@ -21,6 +21,7 @@ export function ChatOptions({
 }) {
   const queryClient = useQueryClient();
   const history = useChatHistory();
+  const archive = useChatArchive();
   const panel = useRef<HTMLDivElement>(null);
 
   const clear = useMutation({
@@ -86,6 +87,12 @@ export function ChatOptions({
               Ukryj historię u siebie
             </button>
           </li>
+          {/* Prywatne rozmowy sprzed czatu grupowego (#78) — tylko gdy jakieś są. */}
+          {(archive.data ?? []).length > 0 && (
+            <li>
+              <Link to="/chat-archive">Moje dawne rozmowy</Link>
+            </li>
+          )}
           <li>
             <Link to="/household">Gospodarstwo i domownicy</Link>
           </li>

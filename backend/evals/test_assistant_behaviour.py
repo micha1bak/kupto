@@ -635,7 +635,8 @@ async def test_group_context_is_used_and_change_belongs_to_author(household_with
     found = await items(ola)
     assert "mleko" in found, reply
     assert "ola" in [n["login"] for n in found["mleko"]["needs"]]
-    assert not reply.lstrip().startswith("Asystent:"), reply
+    # Bez przedrostka imienia ani znacznika adresata, który w historii dopisuje serwer.
+    assert not reply.lstrip().startswith(("Asystent:", "[do:")), reply
 
 
 async def test_confirmation_from_other_member_does_not_accept_proposal(household_with, chat, items):

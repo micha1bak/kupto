@@ -13,6 +13,7 @@ function renderMain(routes: Record<string, unknown> = {}, who: Profile = profile
   vi.stubGlobal("EventSource", FakeEventSource);
   const fetch = mockFetch({
     "GET /api/chat/messages": [message],
+    "GET /api/chat/archive": [],
     "GET /api/list": { id: 1, groups: [], shoppers: [] },
     ...routes,
   });
@@ -66,6 +67,26 @@ describe("opcje czatu", () => {
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(title).toHaveFocus();
+  });
+
+  it("link do dawnych rozmów tylko przy niepustym archiwum (#78)", async () => {
+    renderMain({ "GET /api/chat/archive": [message] });
+    await userEvent.click(screen.getByRole("button", { name: "Dom" }));
+
+    expect(await screen.findByRole("link", { name: "Moje dawne rozmowy" })).toHaveAttribute(
+      "href",
+      "/chat-archive",
+    );
+  });
+
+  it("bez archiwum nie ma linku do dawnych rozmów", async () => {
+    const fetch = renderMain();
+    await userEvent.click(screen.getByRole("button", { name: "Dom" }));
+
+    await vi.waitFor(() =>
+      expect(fetch.mock.calls.some(([url]) => url === "/api/chat/archive")).toBe(true),
+    );
+    expect(screen.queryByRole("link", { name: "Moje dawne rozmowy" })).not.toBeInTheDocument();
   });
 
   it("„Zamknij” zamyka opcje", async () => {

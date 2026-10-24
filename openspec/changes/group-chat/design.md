@@ -29,11 +29,11 @@ Nie dokładamy tabeli wątków: wątek gospodarstwa to wiadomości z `household_
 
 ### D2. Dotychczasowe prywatne historie — archiwum, nie wątek gospodarstwa
 
-Rozważone: (a) przeniesienie do wątku gospodarstwa, (b) usunięcie, (c) archiwum. Wybrane (c): migracja dodaje `chat_messages.private BOOLEAN NOT NULL` i oznacza wszystkie istniejące wiadomości jako prywatne (`server_default` `true` przy dodaniu kolumny, potem `false` dla nowych wierszy). Archiwum nie jest widoczne w wątku gospodarstwa ani w kontekście modelu i nie ma UI.
+Rozważone: (a) przeniesienie do wątku gospodarstwa, (b) usunięcie, (c) archiwum. Wybrane (c): migracja dodaje `chat_messages.private BOOLEAN NOT NULL` i oznacza wszystkie istniejące wiadomości jako prywatne (`server_default` `true` przy dodaniu kolumny, potem `false` dla nowych wierszy). Archiwum nie jest widoczne w wątku gospodarstwa ani w kontekście modelu. Autor ma do niego dostęp tylko do odczytu: `GET /api/chat/archive` zwraca wiadomości `private = true AND user_id = ja` — jego wiadomości i odpowiedzi asystenta na nie (zapisane z `user_id` autora prośby), nic cudzego. W opcjach czatu jest link „Moje dawne rozmowy” (`/chat-archive`, prosta lista bez wysyłania), ukryty, gdy archiwum jest puste.
 
 - Przeciw (a): wiadomości pisano jako prywatne — ujawnienie ich domownikom bez zgody autora to zmiana umowy z użytkownikiem; do tego przeplecione po czasie rozmowy kilku osób z asystentem (każda ze swoimi „tak” i propozycjami) byłyby nieczytelne i myliłyby model.
 - Przeciw (b): nieodwracalne; backup przed wdrożeniem pomaga tylko przy pełnym odtworzeniu bazy.
-- (c) jest w pełni odwracalne: `downgrade` usuwa kolumnę i wszystkie wiadomości (także grupowe, zapisane z `user_id` autora prośby) wracają do prywatnych wątków, jak przed zmianą. Archiwum można później udostępnić autorowi albo usunąć osobną migracją.
+- (c) jest w pełni odwracalne: `downgrade` usuwa kolumnę i wszystkie wiadomości (także grupowe, zapisane z `user_id` autora prośby) wracają do prywatnych wątków, jak przed zmianą. Archiwum można później usunąć osobną migracją.
 
 ### D3. Imię: `users.name`, wymagane przy rejestracji, uzupełniane po zalogowaniu
 
@@ -47,9 +47,10 @@ Funkcja `display_name(user)` zwraca imię, a gdy go brak — login. Używają je
 
 ### D5. Kontekst modelu: ostatnie 20 wiadomości z 24 h, z imionami autorów
 
-- Historia: ostatnie `chat_history_limit` (20) nieprywatnych wiadomości wątku, najwyżej z ostatnich `chat_history_max_age_hours` (24) godzin — w grupie wątek rośnie szybciej, a rozmowa sprzed doby rzadko jest potrzebna, za to kosztuje tokeny w każdej turze. Bieżąca wiadomość jest zawsze ostatnia.
-- Wiadomości członków mają przedrostek imienia: `{"role": "user", "content": "Ala: kup mleko"}`; odpowiedzi asystenta bez zmian (bez przedrostka, by model go nie naśladował). Bez godzin — kolejność wystarcza, a znacznik czasu w każdej wiadomości to kilkanaście tokenów więcej.
-- Instrukcja: „Rozmawiasz z…” zastępuje „Piszesz w czacie grupowym gospodarstwa „X”. Ostatnią wiadomość napisał(a) Ala — odpowiadasz jej; zmiany na liście zapisują się jako jej.” oraz jedno zdanie zasady potwierdzeń (D6). Prompt rośnie o ok. 60 tokenów; zasady bez innych zmian.
+- Historia: ostatnie `chat_history_limit` (20) nieprywatnych wiadomości wątku, najwyżej z ostatnich `chat_history_max_age_hours` (24) godzin — w grupie wątek rośnie szybciej, a rozmowa sprzed doby rzadko jest potrzebna, za to kosztuje tokeny w każdej turze. Przycinanie jest w jednym miejscu (`_model_history`); `build_input` tylko formatuje.
+- Historia kończy się na bieżącej wiadomości autora (`ChatMessage.id <= id` zapisanej wiadomości, przekazanego do strumienia odpowiedzi): wiadomość innego domownika wysłana w trakcie tej tury nie trafia do modelu, więc „Ostatnią wiadomość napisał(a) X” jest prawdą. Bieżąca wiadomość jest zawsze w środku — także przy `chat_history_limit = 0` (wtedy jest jedyną).
+- Wiadomości członków mają przedrostek imienia: `{"role": "user", "content": "Ala: kup mleko"}`. Odpowiedzi asystenta mają znacznik adresata (autora prośby): `"[do: Ala] Dodałem mleko."` — bez niego zasada potwierdzeń (D6) byłaby niewykonalna, bo model nie wiedziałby, komu złożył propozycję. Format w nawiasach kwadratowych różni się od przedrostka wiadomości członków, a zasada 11 mówi wprost, że znacznik dopisuje system i model go nie pisze. Bez godzin — kolejność wystarcza, a znacznik czasu w każdej wiadomości to kilkanaście tokenów więcej.
+- Instrukcja: „Rozmawiasz z…” zastępuje „Piszesz w czacie grupowym gospodarstwa „X”. Ostatnią wiadomość napisał(a) Ala — odpowiadasz jej; zmiany na liście zapisują się jako jej.” oraz jedno zdanie zasady potwierdzeń (D6). Prompt rośnie o ok. 90 tokenów (zasada 11 ze znacznikiem adresata); zasady bez innych zmian.
 - Ukrycie historii u siebie (D8) nie zmienia kontekstu modelu.
 
 ### D6. Potwierdzenia tylko od autora prośby
@@ -61,7 +62,7 @@ Rekomendacja z #78 przyjęta: potwierdzić może tylko osoba, która złożyła 
 
 ### D7. Asystent odpowiada na każdą wiadomość
 
-Rozważono odpowiadanie tylko po zaadresowaniu („@Kupto”, „asystencie”). MVP: na każdą wiadomość — tak działa dzisiejszy czat, domownicy piszą głównie do asystenta (zgłaszanie potrzeb), a wykrywanie adresowania wymagałoby albo konwencji, której nikt nie zna, albo dodatkowego wywołania modelu (drożej niż odpowiedź). Koszt: rozmowa domowników między sobą („będę o 18”) też wywołuje model; zasada 1 każe wtedy krótko odpowiedzieć. Jeśli w logach `llm_usage` takie tury okażą się istotne, kolejnym krokiem jest przełącznik „asystent tylko na @Kupto” — bez zmiany modelu danych.
+Rozważono odpowiadanie tylko po zaadresowaniu („@Kupto”, „asystencie”). MVP: na każdą wiadomość — tak działa dzisiejszy czat, domownicy piszą głównie do asystenta (zgłaszanie potrzeb), a wykrywanie adresowania wymagałoby albo konwencji, której nikt nie zna, albo dodatkowego wywołania modelu (drożej niż odpowiedź). Koszt: rozmowa domowników między sobą („będę o 18”) też wywołuje model; zasada 1 każe wtedy krótko odpowiedzieć. Na darmowym Groq (200k tokenów dziennie) jedna wymiana to ok. 7k tokenów (instrukcja z listą i preferencjami + historia, często w dwóch wywołaniach przy narzędziach), czyli limit wystarcza na ok. 25–30 wymian dziennie na całą instalację — w czacie grupowym kilka luźnych wiadomości domowników zużywa go szybciej niż dotąd. Na razie zostawiamy odpowiadanie na każdą wiadomość; follow-up: tryb „asystent tylko na @Kupto” (wiadomości bez wywołania trafiają do wątku i do historii, ale nie wywołują modelu) — bez zmiany modelu danych.
 
 ### D8. Ukrycie historii u siebie zamiast usuwania
 
@@ -86,10 +87,11 @@ Addytywna: `users.name` (NULL), `users.chat_hidden_before` (NULL), `chat_message
 
 ## Risks / Trade-offs
 
-- [Więcej wywołań modelu w grupie — każda wiadomość domownika to tura] → limit 30 wiadomości/h na użytkownika bez zmian; logi `llm_usage` pokażą, czy potrzebny przełącznik z D7.
+- [Limit Groq: ok. 7k tokenów na wymianę przy 200k TPD, a w grupie każda wiadomość domownika to tura] → limit 30 wiadomości/h na użytkownika bez zmian; logi `llm_usage` pokażą zużycie; follow-up „tylko na @Kupto” (D7).
 - [Model może uznać „tak” innego domownika za potwierdzenie propozycji] → zasada w prompcie i ewaluacja; zakończenie zakupów jest chronione stanem serwera niezależnie od modelu.
 - [Równoległe wiadomości dwóch osób] → każda tura odpowiada swojemu autorowi i działa na jego koncie; odpowiedź zapisuje się po zakończeniu, więc w wątku może wylądować po cudzej wiadomości — model i UI rozróżniają adresata po kolejności i imieniu w instrukcji.
-- [Archiwum prywatnych rozmów bez UI] → dane zostają (odwracalność); decyzja o udostępnieniu lub usunięciu w osobnym issue.
+- [Archiwum prywatnych rozmów] → tylko do odczytu dla autora; decyzja o ewentualnym usunięciu w osobnym issue.
+- [Model może naśladować znacznik „[do: …]” we własnej odpowiedzi] → zasada 11 tego zabrania; ewaluacja `test_group_context_is_used_and_change_belongs_to_author` sprawdza początek odpowiedzi.
 - [Konta bez imienia z otwartą starą wersją PWA] → backend akceptuje je dalej, a w czacie podpisuje loginem; nowa wersja frontu poprosi o imię.
 - [Opcja „Ukryj historię u siebie” różni się od specyfikacji app-navigation z #80 („Wyczyść historię czatu”)] → zmiana `simple-nav` nie jest jeszcze zarchiwizowana; przy archiwizacji spec `app-navigation` trzeba zaktualizować o nową nazwę opcji.
 
