@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { App } from "./App";
 import { FakeEventSource } from "./test/fakeEventSource";
 import { jsonResponse, mockFetch } from "./test/utils";
@@ -37,6 +38,20 @@ test("member removed from household is moved to setup instead of a stale list", 
   act(() => FakeEventSource.last.fail({ closed: true }));
 
   expect(await screen.findByRole("heading", { name: "Utwórz gospodarstwo" })).toBeInTheDocument();
+});
+
+test("profile page logs out to the login screen", async () => {
+  const fetch = mockFetch({
+    "GET /api/users/me": { id: 1, login: "ala", household: { id: 1, name: "Dom" } },
+    "POST /api/auth/logout": () => jsonResponse(null, 204),
+  });
+  window.history.pushState({}, "", "/profile");
+  render(<App />);
+
+  await userEvent.click(await screen.findByRole("button", { name: "Wyloguj" }));
+
+  expect(await screen.findByRole("button", { name: "Zaloguj" })).toBeInTheDocument();
+  expect(fetch).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST" }));
 });
 
 test("user without household sees setup", async () => {
