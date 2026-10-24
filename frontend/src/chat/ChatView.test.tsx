@@ -148,16 +148,3 @@ test("too long message is blocked locally", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("najwyżej 8000 znaków");
   expect(fetch.mock.calls.every(([, init]) => init?.method !== "POST")).toBe(true);
 });
-
-test("clears history", async () => {
-  const fetch = mockFetch({
-    "GET /api/chat/messages": [{ id: 1, role: "user", content: "stara wiadomość", created_at: "" }],
-    "DELETE /api/chat/messages": () => jsonResponse(null, 204),
-  });
-  renderWithProviders(<ChatView />);
-
-  await userEvent.click(await screen.findByRole("button", { name: "Wyczyść historię" }));
-
-  await vi.waitFor(() => expect(screen.queryByText("stara wiadomość")).not.toBeInTheDocument());
-  expect(fetch).toHaveBeenCalledWith("/api/chat/messages", expect.objectContaining({ method: "DELETE" }));
-});

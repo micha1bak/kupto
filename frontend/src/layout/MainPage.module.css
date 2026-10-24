@@ -6,40 +6,58 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Pasek w jednym wierszu (#80): „Kupto” i ikona profilu mają stałą szerokość, tytuł czatu bierze
+   resztę i skraca się wielokropkiem — długa nazwa nie zawija paska ani nie poszerza strony (#76). */
 .header {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 0.5rem;
-  padding: calc(0.6rem + env(safe-area-inset-top, 0px)) 16px 0.6rem;
+  padding: calc(0.3rem + env(safe-area-inset-top, 0px)) 8px 0.3rem 16px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 
-.header h1 {
+.brand {
   font-size: 1.2rem;
-  margin: 0;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
 }
 
-/* Linki zawijają się do kolejnego wiersza zamiast poszerzać stronę (#76) — na wąskim telefonie
-   zmieści się też dodatkowy link. Długą nazwę gospodarstwa albo login wolno złamać. */
-.header nav {
+.chatTitle {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
-  gap: 0.35rem 0.6rem;
+  gap: 0.3rem;
   min-width: 0;
-  font-size: 0.9rem;
+  min-height: 44px;
+  border: none;
+  background: none;
+  padding: 0 0.5rem;
+  font-weight: 600;
 }
 
-.header nav > * {
+.titleText {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.header a {
+.caret {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 0.8em;
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   color: var(--accent);
 }
 
