@@ -25,7 +25,10 @@ export function EmailSection({ profile }: { profile: Profile }) {
           </p>
           {mailEnabled && (
             <>
-              <ResendButton email={email} />
+              <ResendButton
+                email={email}
+                label={profile.verify_email_by ? "Wyślij link ponownie" : "Wyślij link"}
+              />
               <EmailForm initial={email} submitLabel="Zmień adres" />
             </>
           )}

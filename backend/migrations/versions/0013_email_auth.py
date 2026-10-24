@@ -71,6 +71,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_auth_rate_events_lookup", "auth_rate_events", ["action", "key_hash", "created_at"]
     )
+    op.create_index("ix_auth_rate_events_created_at", "auth_rate_events", ["created_at"])
 
 
 def downgrade() -> None:

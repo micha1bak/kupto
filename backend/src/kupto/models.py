@@ -111,7 +111,11 @@ class AuthRateEvent(Base):
     """Zdarzenie liczone do limitu prób (rejestracja, reset hasła, wysyłka linku, #77)."""
 
     __tablename__ = "auth_rate_events"
-    __table_args__ = (Index("ix_auth_rate_events_lookup", "action", "key_hash", "created_at"),)
+    __table_args__ = (
+        Index("ix_auth_rate_events_lookup", "action", "key_hash", "created_at"),
+        # Sprzątanie zdarzeń starszych niż doba (`kupto.auth.rate_limit`).
+        Index("ix_auth_rate_events_created_at", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     action: Mapped[str] = mapped_column(String(30))

@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import Cookie, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kupto.auth.accounts import is_blocked
+from kupto.auth.accounts import email_status, is_blocked
 from kupto.auth.security import SESSION_COOKIE, read_session, session_is_revoked
 from kupto.config import Settings
 from kupto.db import get_session
@@ -60,7 +60,7 @@ async def get_current_household(user: CurrentUser, session: SessionDep, mail: Ma
     # Konto bez potwierdzonego adresu po terminie (albo stare konto bez adresu) nie korzysta
     # z gospodarstwa, gdy wysyłka maili działa (#77, design D3, D4). Profil i adres — tak.
     if is_blocked(user, mail.delivers):
-        if user.verify_email_by is None:
+        if email_status(user) == "missing":
             raise Forbidden("Podaj adres e-mail, aby dalej korzystać z Kupto.", code=EMAIL_REQUIRED)
         raise Forbidden(
             "Potwierdź adres e-mail linkiem z wiadomości, aby dalej korzystać z Kupto.",

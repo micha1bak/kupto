@@ -39,18 +39,24 @@ export function EmailForm({ initial, submitLabel }: { initial: string; submitLab
   );
 }
 
-/** Ponowne wysłanie linku na adres czekający na potwierdzenie. */
-export function ResendButton({ email }: { email: string }) {
+/** (Ponowne) wysłanie linku na adres czekający na potwierdzenie. */
+export function ResendButton({
+  email,
+  label = "Wyślij link ponownie",
+}: {
+  email: string;
+  label?: string;
+}) {
   const send = useSendVerification();
   const error = errorText(send.error);
   return (
     <>
       <button onClick={() => send.mutate(email)} disabled={send.isPending || send.isSuccess}>
-        {send.isSuccess ? "Wysłano" : "Wyślij link ponownie"}
+        {send.isSuccess ? "Wysłano" : label}
       </button>
       {send.isSuccess && (
         <p className="muted" role="status">
-          Wysłaliśmy nowy link na {email}. Poprzedni przestał działać.
+          Wysłaliśmy link na {email}. Wcześniejsze linki przestały działać.
         </p>
       )}
       {error && (

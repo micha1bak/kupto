@@ -41,12 +41,12 @@ Linki: `https://<KUPTO_DOMAIN>/verify-email#token=…` i `…/reset-password#tok
 
 ### D3. Konto niezweryfikowane: 7 dni z banerem, potem blokada
 
-Rozważone: (a) brak logowania do czasu weryfikacji, (b) pełny dostęp z banerem bez terminu, (c) dostęp z banerem i terminem. Wybrane (c): nowe konto od razu działa (można założyć gospodarstwo i dodać pierwsze produkty), a `verify_email_by = rejestracja + 7 dni` (`EMAIL_VERIFICATION_GRACE_DAYS`). Do terminu aplikacja pokazuje baner „Potwierdź adres e-mail” z przyciskiem ponownego wysłania i zmiany adresu. Po terminie:
+Rozważone: (a) brak logowania do czasu weryfikacji, (b) pełny dostęp z banerem bez terminu, (c) dostęp z banerem i terminem. Wybrane (c): nowe konto od razu działa (można założyć gospodarstwo i dodać pierwsze produkty), a `verify_email_by = pierwszy faktycznie wysłany link + 7 dni` (`EMAIL_VERIFICATION_GRACE_DAYS`). Przy niedostępnej wysyłce (D8) link nie wychodzi i termin nie jest ustawiany — konto bez terminu nigdy nie jest blokowane, a gdy wysyłka zacznie działać, widzi baner „Potwierdź adres — wyślemy na niego link” i dostaje 7 dni od wysłania. Do terminu aplikacja pokazuje baner „Potwierdź adres e-mail” z przyciskiem ponownego wysłania i zmiany adresu. Po terminie:
 
 - backend: `get_current_household` zwraca 403 z kodem `email_unverified` — zablokowane są wszystkie funkcje gospodarstwa (lista, czat, historia, przepisy, plan, push, strumień zmian). Profil, zmiana imienia, podanie/zmiana adresu, wylogowanie działają;
 - frontend: blokujący ekran „Potwierdź adres e-mail” (adres, „Wyślij link ponownie”, „Zmień adres”, „Wyloguj”).
 
-(a) odpada, bo opóźniony lub zaspamowany mail blokowałby pierwsze użycie, a przy niedostępnej wysyłce (D8) nikt nie mógłby się zarejestrować. (b) pozwalałby trwale zająć cudzy adres. Termin liczy się od rejestracji (albo od pierwszego podania adresu w starym koncie, D4) i nie jest przesuwany przy ponownym wysłaniu linku. Blokada działa tylko, gdy wysyłka jest dostępna (D8).
+(a) odpada, bo opóźniony lub zaspamowany mail blokowałby pierwsze użycie, a przy niedostępnej wysyłce (D8) nikt nie mógłby się zarejestrować. (b) pozwalałby trwale zająć cudzy adres. Termin liczy się od pierwszego wysłanego linku (przy rejestracji albo przy pierwszym podaniu adresu w starym koncie, D4) i nie jest przesuwany przy ponownym wysłaniu. Blokada działa tylko, gdy wysyłka jest dostępna (D8).
 
 Zmiana adresu przed potwierdzeniem (`POST /api/users/me/email` z innym adresem) wysyła link na nowy adres; `users.email` zmienia się dopiero po kliknięciu (do tego czasu logowanie dotychczasowym adresem). Zmiana już potwierdzonego adresu jest poza zakresem (powinna wymagać hasła) — endpoint zwraca 409.
 
@@ -61,7 +61,7 @@ Wyszukiwanie konta przy logowaniu: `lower(email) = :id` albo `login = :id AND em
 
 ### D5. Limity prób
 
-Tabela `auth_rate_events` zamiast pamięci procesu: przeżywa restart i wdrożenie, działa przy wielu workerach. Klucz to `sha256(akcja + wartość)` — w bazie nie ma adresów ani IP otwartym tekstem. Zdarzenie zapisywane i zatwierdzane przed właściwą akcją (także gdy konto nie istnieje — inaczej limit zdradzałby istnienie konta). Przy każdym zapisie usuwane są zdarzenia danej akcji starsze niż doba.
+Tabela `auth_rate_events` zamiast pamięci procesu: przeżywa restart i wdrożenie, działa przy wielu workerach. Klucz to `sha256(akcja + wartość)` — w bazie nie ma adresów ani IP otwartym tekstem. Zdarzenie zapisywane i zatwierdzane przed właściwą akcją (także gdy konto nie istnieje — inaczej limit zdradzałby istnienie konta). Sprawdzenie i zapis są atomowe: w tej samej transakcji, przed liczeniem, `pg_advisory_xact_lock` na 64 bitach skrótu każdego klucza (w stałej kolejności — bez zakleszczeń) szereguje równoległe żądania z tym samym kluczem do zatwierdzenia, więc seria równoległych prób nie przekroczy limitu. Zdarzenia starsze niż doba usuwa średnio co setny zapis (losowo; indeks na `created_at`) — nie każde żądanie; starsze zdarzenia i tak nie są liczone.
 
 | Akcja | Klucz | Limit |
 |---|---|---|
@@ -91,6 +91,8 @@ SES przez HTTPS API zamiast SMTP: SMTP wymagałby użytkownika IAM z kluczem dos
 
 Kontener backendu łączy się z IMDS przez most Dockera, czyli o jeden skok dalej niż host — przy `http_put_response_hop_limit = 1` odpowiedź IMDSv2 nie dociera i boto3 nie dostaje poświadczeń. Dlatego `infra/main.tf` ustawia limit 2 (zalecany przez AWS dla kontenerów; zmiana w miejscu, bez restartu instancji).
 
+**Ryzyko:** przy limicie 2 każdy kontener na serwerze (także `web`, `caddy`, `db`) mógłby pobrać poświadczenia roli instancji (zrzuty w S3, sekrety SSM `/kupto/*`, SES) — np. po przejęciu Caddy lub nginx. **Ograniczenie:** kontenery są w sieci `app` ze stałą podsiecią `172.30.0.0/24`, backend ma stały adres `172.30.0.10`, a `kupto-update.sh` (co 5 min, jako root, idempotentnie) dodaje w łańcuchu `DOCKER-USER` regułę `RETURN` dla backendu i `DROP` dla pozostałego ruchu z kontenerów do `169.254.169.254`. Procesów hosta (AWS CLI w skryptach) to nie dotyczy — ich ruch nie przechodzi przez `FORWARD`. Podszycie się pod adres backendu nie wystarczy: IMDSv2 wymaga pełnego połączenia TCP (odpowiedź trafiłaby do backendu). Pozostałe luki: po restarcie serwera reguły wracają przy pierwszym ticku timera (`OnBootSec=1min`); IMDS po IPv6 jest wyłączone (domyślne `http_protocol_ipv6`). Rozważone alternatywy: osobny proces-pośrednik do SES na hoście (więcej ruchomych części), klucz IAM użytkownika w SSM (długowieczny sekret), `network_mode: host` dla backendu (traci izolację sieci Compose).
+
 Niepoprawna konfiguracja (`ses` bez `MAIL_FROM`) nie zatrzymuje aplikacji: błąd w logu i zachowanie jak `log` — wzorem kluczy VAPID.
 
 ### D8. Wysyłka niedostępna (produkcja przed konfiguracją SES)
@@ -102,6 +104,10 @@ Niepoprawna konfiguracja (`ses` bez `MAIL_FROM`) nie zatrzymuje aplikacji: błą
 - logowanie loginem i e-mailem działa jak dotąd.
 
 Po włączeniu SES konta zarejestrowane w tym okresie mają termin weryfikacji już za sobą — zobaczą ekran blokady z „Wyślij link ponownie”, co zajmuje minutę. Stare konta zobaczą ekran „Podaj adres e-mail”.
+
+### D8a. Rejestracja zdradza, że adres ma konto (świadomy kompromis)
+
+`POST /api/auth/register` z zajętym adresem zwraca 409 „Konto z tym adresem e-mail już istnieje.” — w przeciwieństwie do resetu hasła (D6) ujawnia to istnienie konta. Zostawiamy, bo alternatywa (zawsze 201 i mail „masz już konto” na podany adres) myli użytkownika, który pomylił formularz, a do tego nie działa przy niedostępnej wysyłce (D8). Ryzyko ogranicza limit 5 rejestracji na godzinę z IP (D5) — odpytanie listy adresów jest powolne; aplikacja nie przechowuje danych, dla których samo istnienie konta byłoby wrażliwe.
 
 ### D9. Imiona zamiast loginów, dodawanie domownika
 
@@ -131,7 +137,8 @@ Endpointy weryfikacji i resetu nie wymagają sesji (link otwierany na innym urz�
 - [Zajęcie cudzego adresu niepotwierdzoną rejestracją] → po włączeniu wysyłki takie konto po 7 dniach jest zablokowane, nie da się go dodać do gospodarstwa (D9), a właściciel adresu przejmuje je resetem hasła (D6).
 - [Literówka w adresie starego konta] → adres nie jest zapisywany do potwierdzenia; reset hasła nie działa na adres z tokenu (D6).
 - [Stare karty PWA wysyłają `login`] → aliasy pól w logowaniu i dodawaniu domownika; formularz rejestracji starej wersji dostanie 422 do czasu aktualizacji service workera.
-- [IMDS hop limit 2] → kontenery na instancji mogą pobrać poświadczenia roli; na serwerze działają tylko nasze kontenery, rola ma wąskie uprawnienia.
+- [IMDS hop limit 2: kontenery mogą pobrać poświadczenia roli] → reguła `DOCKER-USER` przepuszcza do IMDS tylko stały adres backendu (D7); rola ma wąskie uprawnienia.
+- [Rejestracja ujawnia istnienie konta (409)] → świadomy kompromis UX (D8a), limit rejestracji na IP.
 - [Logi z linkami] → tylko przy jawnym `MAIL_LOG_LINKS=true`; test sprawdza, że domyślnie log nie zawiera tokenu.
 
 ## Migration Plan

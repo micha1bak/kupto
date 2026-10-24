@@ -86,7 +86,7 @@ Link weryfikacyjny MUST zawierać jednorazowy token ważny 48 godzin; system MUS
 - **THEN** system wysyła nowy link, a poprzedni przestaje działać
 
 ### Requirement: Termin potwierdzenia adresu
-Gdy wysyłka e-maili jest dostępna, konto z niepotwierdzonym adresem MUST mieć pełny dostęp przez 7 dni od rejestracji (lub od podania adresu w koncie sprzed zmiany) i widzieć przypomnienie z możliwością ponownego wysłania linku i zmiany adresu. Po terminie funkcje gospodarstwa MUST być niedostępne (403 z kodem `email_unverified`) do potwierdzenia adresu; profil, zmiana adresu, ponowne wysłanie linku i wylogowanie MUST działać.
+Gdy wysyłka e-maili jest dostępna, konto z niepotwierdzonym adresem MUST mieć pełny dostęp przez 7 dni od wysłania pierwszego linku weryfikacyjnego (przy rejestracji lub przy podaniu adresu w koncie sprzed zmiany; konto zarejestrowane, gdy wysyłka nie działała, dostaje termin dopiero przy pierwszym wysłanym linku) i widzieć przypomnienie z możliwością ponownego wysłania linku i zmiany adresu. Po terminie funkcje gospodarstwa MUST być niedostępne (403 z kodem `email_unverified`) do potwierdzenia adresu; profil, zmiana adresu, ponowne wysłanie linku i wylogowanie MUST działać.
 
 #### Scenario: Konto w terminie
 - **WHEN** użytkownik trzeci dzień po rejestracji bez potwierdzenia otwiera listę

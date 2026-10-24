@@ -57,7 +57,7 @@ describe("ekran adresu e-mail", () => {
     expect(screen.getByRole("heading", { name: "Potwierdź adres e-mail" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Wyślij link ponownie" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Wysłaliśmy nowy link");
+    expect(await screen.findByRole("status")).toHaveTextContent("Wysłaliśmy link");
     expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({
       email: "ala@example.com",
     });
@@ -73,6 +73,13 @@ describe("baner potwierdzenia adresu", () => {
     expect(screen.getByRole("complementary", { name: "Potwierdzenie adresu e-mail" })).toHaveTextContent(
       /Potwierdź adres ala@example.com.*31 października/,
     );
+  });
+
+  it("bez wysłanego linku proponuje jego wysłanie", () => {
+    renderWithProviders(<EmailBanner profile={{ ...unverified, verify_email_by: null }} />);
+
+    expect(screen.getByText(/wyślemy na niego link/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Wyślij link" })).toBeInTheDocument();
   });
 
   it.each([

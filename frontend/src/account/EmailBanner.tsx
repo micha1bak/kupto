@@ -8,14 +8,24 @@ import { ResendButton } from "./EmailForm";
 export function EmailBanner({ profile }: { profile: Profile }) {
   if (!profile.mail_enabled || profile.email_status !== "unverified" || !profile.email) return null;
   if (profile.email_blocked) return null;
+  // Bez terminu: konto założone, gdy wysyłka nie działała — link nie został jeszcze wysłany.
+  const sent = profile.verify_email_by !== null;
   return (
     <aside className={styles.banner} aria-label="Potwierdzenie adresu e-mail">
       <p>
-        Potwierdź adres <strong>{profile.email}</strong> linkiem z wiadomości
-        {profile.verify_email_by ? <> (do {formatDeadline(profile.verify_email_by)})</> : null}.{" "}
+        {sent ? (
+          <>
+            Potwierdź adres <strong>{profile.email}</strong> linkiem z wiadomości (do{" "}
+            {formatDeadline(profile.verify_email_by!)}).
+          </>
+        ) : (
+          <>
+            Potwierdź adres <strong>{profile.email}</strong> — wyślemy na niego link.
+          </>
+        )}{" "}
         <Link to="/profile">Zmień adres</Link>
       </p>
-      <ResendButton email={profile.email} />
+      <ResendButton email={profile.email} label={sent ? "Wyślij link ponownie" : "Wyślij link"} />
     </aside>
   );
 }

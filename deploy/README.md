@@ -24,6 +24,12 @@ Certyfikaty leżą w wolumenie `caddy_data`.
 Od merge do działającej wersji mija zwykle 5–10 minut (budowa obrazów + najbliższy tick
 timera).
 
+Kontenery działają w sieci Compose `app` (`172.30.0.0/24`, backend ma stały adres
+`172.30.0.10`). Tylko backend może sięgnąć do IMDS po poświadczenia roli instancji (Amazon
+SES, #77) — `kupto-update.sh` przy każdym ticku pilnuje reguł `DOCKER-USER`
+([infra/README.md](../infra/README.md#wysyłka-maili--amazon-ses-77)). Pierwsze wdrożenie
+z tą siecią odtwarza wszystkie kontenery (chwila niedostępności; dane bazy są w wolumenie).
+
 ## Sekrety (SSM Parameter Store)
 
 Wszystkie jako `SecureString` w regionie `eu-north-1`, nazwy = zmienne środowiskowe z

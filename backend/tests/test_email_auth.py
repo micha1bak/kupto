@@ -1,15 +1,17 @@
 """Weryfikacja adresu, adres w starych kontach, reset hasła i limity prób (#77)."""
 
-from datetime import timedelta
+import asyncio
+from datetime import datetime, timedelta
 
 import jwt
 import pytest
 from sqlalchemy import select, text, update
 
+from kupto.auth import rate_limit
 from kupto.auth.security import SESSION_COOKIE, hash_password
 from kupto.auth.tokens import token_hash
 from kupto.db import utcnow
-from kupto.models import AuthToken, User
+from kupto.models import AuthRateEvent, AuthToken, User
 
 PASSWORD = "haslo-testowe"
 
@@ -500,3 +502,56 @@ async def test_legacy_member_can_be_added_by_login(household_with, session):
 
     assert response.status_code == 201
     assert [m["name"] for m in response.json()["members"]] == ["ala", "Stary"]
+
+
+async def test_parallel_requests_do_not_exceed_limit(login_as, mail, make_client):
+    await login_as("ala")
+    mail.sent.clear()
+    clients = [make_client() for _ in range(8)]  # osobne IP — liczy się limit na adres
+
+    responses = await asyncio.gather(*(request_reset(c, "ala@example.com") for c in clients))
+
+    assert sorted(r.status_code for r in responses) == [202] * 3 + [429] * 5
+    assert len(mail.sent) == 3
+
+
+async def test_old_rate_events_are_cleaned_up_occasionally(make_client, session, monkeypatch):
+    monkeypatch.setattr(rate_limit, "CLEANUP_EVERY", 1)  # sprzątanie przy tym zapisie
+    session.add(
+        AuthRateEvent(
+            action="register_ip", key_hash="0" * 64, created_at=utcnow() - timedelta(days=2)
+        )
+    )
+    await session.commit()
+
+    await request_reset(make_client(), "ktos@example.com")
+
+    rows = (await session.execute(text("SELECT action FROM auth_rate_events"))).scalars().all()
+    assert sorted(rows) == ["password_reset_email", "password_reset_ip"]
+
+
+@pytest.mark.parametrize("mail_delivers", [False])
+async def test_deadline_starts_with_first_sent_link(login_as, mail, session):
+    """Konto założone przy MAIL_BACKEND=log nie jest blokowane od razu po włączeniu SES."""
+    ala = await login_as("ala")
+    assert (await profile(ala))["verify_email_by"] is None
+    await session.execute(update(User).values(created_at=utcnow() - timedelta(days=8)))
+    await session.commit()
+    await ala.post("/api/households", json={"name": "Dom"})
+
+    mail.delivers = True  # włączenie SES (MAIL_BACKEND=ses)
+
+    me = await profile(ala)
+    assert (me["email_status"], me["email_blocked"], me["verify_email_by"]) == (
+        "unverified",
+        False,
+        None,
+    )
+    assert (await ala.get("/api/list")).status_code == 200
+
+    response = await ala.post("/api/users/me/email", json={"email": "ala@example.com"})
+
+    assert response.status_code == 200
+    deadline = datetime.fromisoformat(response.json()["verify_email_by"])
+    assert timedelta(days=6, hours=23) < deadline - utcnow() <= timedelta(days=7)
+    assert mail.sent[-1].to == "ala@example.com"

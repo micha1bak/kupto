@@ -186,7 +186,8 @@ async def test_profile_without_household(login_as):
     assert profile["email"] == "ala@example.com"
     assert profile["email_verified"] is False
     assert profile["email_status"] == "unverified"
-    assert profile["verify_email_by"] is not None
+    # Bez wysyłki link nie wyszedł, więc termin potwierdzenia nie biegnie.
+    assert profile["verify_email_by"] is None
     # Wysyłka niedostępna (domyślny fixture) — nikt nie jest blokowany.
     assert (profile["mail_enabled"], profile["email_blocked"]) == (False, False)
     assert profile["household"] is None

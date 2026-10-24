@@ -127,9 +127,10 @@ async def _start_verification(
     user: User,
     email: str,
 ) -> None:
-    """Wystawia link weryfikacyjny (unieważnia poprzedni) i zatwierdza zapis; termin
-    potwierdzenia liczy się od pierwszego podania adresu i nie przesuwa przy ponownym wysłaniu."""
-    if user.verify_email_by is None:
+    """Wystawia link weryfikacyjny (unieważnia poprzedni) i zatwierdza zapis. Termin
+    potwierdzenia liczy się od pierwszego faktycznie wysłanego linku (bez wysyłki — przy
+    MAIL_BACKEND=log — nie jest ustawiany) i nie przesuwa się przy ponownym wysłaniu."""
+    if mail.delivers and user.verify_email_by is None:
         user.verify_email_by = utcnow() + timedelta(days=settings.email_verification_grace_days)
     token = await tokens.issue(
         session,

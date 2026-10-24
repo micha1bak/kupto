@@ -95,12 +95,22 @@ EmailStatus = Literal["verified", "unverified", "missing"]
 def email_status(user: User) -> EmailStatus:
     if user.email_verified_at is not None:
         return "verified"
-    # Konto sprzed #77 dostaje termin dopiero po podaniu adresu (D4).
-    return "unverified" if user.verify_email_by is not None else "missing"
+    # Konto zarejestrowane e-mailem ma adres od początku; konto sprzed #77 podaje go dopiero
+    # przy wysłanym linku (wtedy dostaje termin, D4).
+    if user.email is not None or user.verify_email_by is not None:
+        return "unverified"
+    return "missing"
 
 
 def is_blocked(user: User, mail_enabled: bool, now: datetime | None = None) -> bool:
-    """Czy funkcje gospodarstwa są zablokowane do potwierdzenia adresu (D3, D4, D8)."""
+    """Czy funkcje gospodarstwa są zablokowane do podania/potwierdzenia adresu (D3, D4, D8).
+
+    Termin (`verify_email_by`) liczy się od pierwszego faktycznie wysłanego linku. Konto
+    z adresem, ale bez terminu (zarejestrowane, gdy wysyłka nie działała), nie jest blokowane —
+    widzi prośbę o wysłanie linku, a termin dostaje przy wysyłce.
+    """
     if not mail_enabled or user.email_verified_at is not None:
         return False
-    return user.verify_email_by is None or (now or utcnow()) >= user.verify_email_by
+    if email_status(user) == "missing":
+        return True
+    return user.verify_email_by is not None and (now or utcnow()) >= user.verify_email_by

@@ -90,6 +90,19 @@ wywołać `ses:SendEmail` tylko dla tej tożsamości i tylko z adresów `*@kupto
 dodatkowy skok) dostał poświadczenia roli z IMDSv2. Aplikacja wysyła przez API SES v2
 (boto3) — bez użytkownika IAM i haseł SMTP.
 
+**Ryzyko hop limitu 2:** każdy kontener na serwerze mógłby pobrać poświadczenia roli
+instancji (S3 ze zrzutami, sekrety SSM `/kupto/*`, SES), np. po przejęciu Caddy lub nginx.
+Dlatego `deploy/docker-compose.yml` daje backendowi stały adres `172.30.0.10` w sieci
+`172.30.0.0/24`, a `deploy/kupto-update.sh` (co 5 minut, idempotentnie) dodaje w łańcuchu
+`DOCKER-USER` regułę przepuszczającą do `169.254.169.254` tylko ten adres i odrzucającą
+resztę ruchu z kontenerów. Host (AWS CLI w skryptach) nie jest ograniczany. Po restarcie
+serwera reguły wracają przy pierwszym ticku (ok. 1 min po starcie). Sprawdzenie na serwerze:
+
+```bash
+iptables -S DOCKER-USER | grep 169.254.169.254   # RETURN dla 172.30.0.10, potem DROP
+docker compose -p kupto exec web wget -T 3 -qO- http://169.254.169.254/ || echo zablokowane
+```
+
 Do czasu wykonania poniższych kroków produkcja działa z `MAIL_BACKEND=log`: maile nie są
 wysyłane, weryfikacja adresów nie jest wymagana, a „Zapomniałem hasła” pokazuje komunikat o
 niedostępnej wysyłce. Kroki właściciela, po kolei:
