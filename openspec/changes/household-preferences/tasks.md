@@ -12,7 +12,7 @@
 ## 3. Czat (spec: needs-chat — preferencje)
 
 - [x] 3.1 Blok preferencji w instrukcjach (tylko niepuste), narzędzie `update_preferences` i zasada 4d (D3, D4); testy promptu, narzędzia i API z `FakeLLMClient`
-- [x] 3.2 Ewaluacje: wykluczenie i dieta w propozycji, prośba o zapamiętanie → zapis z zachowaniem dotychczasowych, wzmianka bez prośby → bez zapisu
+- [x] 3.2 Ewaluacje: wykluczenie i dieta w propozycji, prośba o zapamiętanie → zapis z zachowaniem dotychczasowych, wzmianka bez prośby → bez zapisu (dopisane; przebieg `-m llm` do wykonania przed merge)
 
 ## 4. Frontend (spec: household-preferences)
 
