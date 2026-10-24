@@ -5,6 +5,7 @@ import { useListEvents } from "./listEvents";
 import type {
   ChatMessage,
   Household,
+  HouseholdPreferences,
   NotificationPreferences,
   ProductHit,
   Profile,
@@ -25,6 +26,7 @@ export const keys = {
   usual: ["usual"] as const,
   notificationPreferences: ["notification-preferences"] as const,
   recipes: ["recipes"] as const,
+  householdPreferences: ["household-preferences"] as const,
 };
 
 /**
@@ -38,6 +40,13 @@ export const useProfile = () =>
 
 export const useHousehold = () =>
   useQuery({ queryKey: keys.household, queryFn: () => api<Household>("/api/households/me") });
+
+/** Preferencje żywieniowe gospodarstwa (wspólne dla domowników). */
+export const useHouseholdPreferences = () =>
+  useQuery({
+    queryKey: keys.householdPreferences,
+    queryFn: () => api<HouseholdPreferences>("/api/households/me/preferences"),
+  });
 
 export function useShoppingList() {
   const queryClient = useQueryClient();

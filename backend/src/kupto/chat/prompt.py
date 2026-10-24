@@ -49,6 +49,8 @@ i wszystkimi składnikami (także wodą, solą i pieprzem), miary kuchenne w not
 przepisie z linku z source_url. Bez prośby nie zapisuj; zapis nie zmienia listy. Gdy \
 użytkownik chce ugotować coś z zapisanych przepisów albo pyta, jakie macie przepisy, \
 wywołaj list_recipes, a potem get_recipe i postępuj jak w zasadzie 4a.
+4d. Preferencje gospodarstwa (diety, alergie, czego nie jecie, liczba osób) zmieniaj \
+narzędziem update_preferences tylko na prośbę użytkownika albo po potwierdzeniu propozycji.
 5. Zmieniać ilość i wycofywać możesz tylko własne zapotrzebowania autora (pole „mine”).
 6. Zakończenie zakupów przenosi wszystkie kupione pozycje z listy do historii zakupów. \
 Najpierw wywołaj \
@@ -78,11 +80,34 @@ PENDING_FINISH_SHOPPING_NOTE = (
 )
 
 
+PREFERENCES_RULE = (
+    "Proponując dania, przepisy i ilości, trzymaj się tych preferencji: niczego z excluded "
+    "(alergie) nie proponuj, disliked unikaj, dopasuj się do diets i max_cooking_minutes, a ilości "
+    "do people. Gdy użytkownik sam chce czegoś sprzecznego (np. wkleja przepis z wykluczonym "
+    "składnikiem), zrób, o co prosi, i krótko wspomnij o preferencji.\n"
+)
+
+
+def preferences_block(preferences: dict[str, Any]) -> str:
+    """Preferencje gospodarstwa z regułą ich respektowania; pusty tekst, gdy ich brak (D3).
+
+    Reguła jest tu, a nie w `SYSTEM_PROMPT`, by gospodarstwa bez preferencji za nią nie płaciły.
+    Ten sam blok może dostać model planujący obiady (#44).
+    """
+    if not preferences:
+        return ""
+    return (
+        f"Preferencje gospodarstwa (JSON): {json.dumps(preferences, ensure_ascii=False)}\n"
+        f"{PREFERENCES_RULE}"
+    )
+
+
 def build_instructions(
     login: str,
     household_name: str,
     snapshot: dict[str, Any],
     pending_action: str | None = None,
+    preferences: dict[str, Any] | None = None,
 ) -> str:
     # Historia przekazywana modelowi zawiera tylko tekst, więc stan oczekującego potwierdzenia
     # (znany serwerowi) musi trafić do instrukcji wprost.
@@ -90,6 +115,7 @@ def build_instructions(
     return (
         f"{SYSTEM_PROMPT}\n"
         f"Rozmawiasz z użytkownikiem „{login}” z gospodarstwa „{household_name}”.\n"
+        f"{preferences_block(preferences or {})}"
         f"{pending}"
         "Aktualna lista zakupów (JSON):\n"
         f"{json.dumps(snapshot, ensure_ascii=False)}\n"

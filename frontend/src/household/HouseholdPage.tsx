@@ -5,6 +5,7 @@ import { ApiError, del, post } from "../api/client";
 import { keys, useHousehold, useProfile } from "../api/queries";
 import type { Household } from "../api/types";
 import { NotificationSettings } from "../notifications/NotificationSettings";
+import { HouseholdPreferences } from "./HouseholdPreferences";
 import styles from "./HouseholdPage.module.css";
 
 function errorMessage(error: unknown): string | null {
@@ -139,6 +140,7 @@ export function HouseholdPage() {
           {addMember.error && <p className="error">{errorMessage(addMember.error)}</p>}
         </section>
       )}
+      <HouseholdPreferences />
       <NotificationSettings />
       <button className="danger" onClick={confirmLeave} disabled={leave.isPending}>
         Opuść gospodarstwo

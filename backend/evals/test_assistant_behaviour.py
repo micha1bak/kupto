@@ -455,3 +455,75 @@ async def test_saved_recipe_is_proposed_then_only_missing_ingredients_are_added(
     found = await items(ala)
     assert set(found) == {"mleko"}
     assert "naleśnik" in (found["mleko"]["needs"][0]["note"] or "").lower()
+
+
+PREFERENCES_URL = "/api/households/me/preferences"
+
+
+async def test_excluded_ingredient_is_not_proposed(household_with, chat, items):
+    (ala,) = await household_with("ala")
+    await ala.put(PREFERENCES_URL, json={"excluded": ["orzechy"]})
+
+    await chat(ala, "zaproponuj zakupy na coś słodkiego do upieczenia na deser")
+    assert await items(ala) == {}
+
+    await chat(ala, "tak")
+
+    found = await items(ala)
+    assert found
+    assert not any(stem in name for name in found for stem in ("orzech", "migdał", "nutell"))
+
+
+async def test_vegetarian_diet_shapes_dinner_proposal(household_with, chat, items):
+    (ala,) = await household_with("ala")
+    await ala.put(PREFERENCES_URL, json={"people": 4, "diets": ["wegetariańska"]})
+
+    await chat(ala, "coś na obiad na jutro, zaproponuj zakupy")
+    assert await items(ala) == {}
+
+    await chat(ala, "tak")
+
+    found = await items(ala)
+    assert found
+    assert not [name for name, i in found.items() if i["category"] == "Mięso i ryby"], found
+
+
+async def test_pasted_recipe_with_excluded_ingredient_mentions_preference(
+    household_with, chat, items
+):
+    (ala,) = await household_with("ala")
+    await ala.put(PREFERENCES_URL, json={"excluded": ["orzechy"]})
+
+    reply = await chat(
+        ala,
+        "Ciasto marchewkowe: 2 szklanki mąki, 3 marchewki, 3 jajka, 1 szklanka cukru, "
+        "100 g orzechów włoskich, 1 łyżeczka cynamonu. Wymieszaj i piecz 50 minut.",
+    )
+
+    assert await items(ala) == {}
+    assert "orzech" in reply.lower()
+    assert any(word in reply.lower() for word in ("alerg", "wyklucz", "preferenc", "nie je")), reply
+
+
+async def test_asked_preference_is_saved_with_existing_ones(household_with, chat, items):
+    ala, ola = await household_with("ala", "ola")
+    await ola.put(PREFERENCES_URL, json={"people": 4, "excluded": ["orzechy"]})
+
+    await chat(ala, "zapamiętaj, że Ola nie je selera")
+
+    saved = (await ala.get(PREFERENCES_URL)).json()
+    excluded = " ".join(saved["excluded"]).lower()
+    assert "orzech" in excluded and "seler" in excluded, saved
+    assert saved["people"] == 4
+    # Zmiana preferencji nie zmienia listy.
+    assert await items(ala) == {}
+
+
+async def test_mention_without_request_does_not_change_preferences(household_with, chat, items):
+    (ala,) = await household_with("ala")
+
+    await chat(ala, "kup mleko bez laktozy, bo Ola go nie toleruje")
+
+    assert "mleko" in await items(ala)
+    saved = (await ala.get(PREFERENCES_URL)).json()
+    assert saved["updated_at"] is None, saved
