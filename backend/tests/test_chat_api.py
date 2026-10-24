@@ -1,11 +1,12 @@
 import json
 import logging
-from datetime import timedelta
+from datetime import date, timedelta
 
 from sqlalchemy import update
 
 from kupto.chat.llm import LLMUnavailable, TextDelta, ToolCall, Usage
 from kupto.chat.tools import TOOL_DEFINITIONS
+from kupto.meal_plan import service as meal_plan
 from kupto.models import ChatMessage
 
 
@@ -435,3 +436,74 @@ async def test_household_preferences_reach_the_model_and_chat_can_change_them(
         ["orzechy", "seler"],
         "ala",
     )
+
+
+async def test_meal_plan_saved_via_chat_then_only_missing_ingredients_are_added(
+    household_with, fake_llm, monkeypatch
+):
+    monkeypatch.setattr(meal_plan, "today", lambda: date(2026, 10, 24))
+    ala, ola = await household_with("ala", "ola")
+    recipe = (
+        await ola.post(
+            "/api/recipes",
+            json={
+                "name": "Naleśniki",
+                "ingredients": [
+                    {"name": "mleko", "amount": 0.5, "unit": "l", "category": "Nabiał"},
+                    {"name": "jajka", "amount": 2, "unit": "szt", "category": "Nabiał"},
+                ],
+            },
+        )
+    ).json()
+    days = [
+        {"date": "2026-10-25", "name": "Naleśniki", "recipe_id": recipe["id"]},
+        {"date": "2026-10-26", "name": "Zupa pomidorowa", "recipe_id": None},
+    ]
+    fake_llm.rounds += [
+        [ToolCall("call_1", "save_meal_plan", json.dumps({"days": days}))],
+        [TextDelta("Zapisałem plan. Składniki: mleko, jajka, pomidory. Czego brakuje?")],
+        [
+            ToolCall(
+                "call_2",
+                "add_needs",
+                json.dumps(
+                    {
+                        "items": [
+                            {
+                                "name": "mleko",
+                                "amount": 0.5,
+                                "unit": "l",
+                                "note": "na: naleśniki",
+                                "category": "Nabiał",
+                            }
+                        ]
+                    }
+                ),
+            )
+        ],
+        [TextDelta("Dodałem mleko.")],
+    ]
+
+    response, events = await send(ala, "tak, zapisz ten plan")
+
+    assert response.status_code == 200
+    assert "Dziś jest sobota 2026-10-24." in fake_llm.calls[0]["instructions"]
+    # Zapis planu nie zmienia listy, a model dostaje od razu składniki dania z przepisu.
+    assert ("list_changed", {}) not in events
+    saved = json.loads(fake_llm.calls[1]["input"][-1]["output"])["saved"]
+    assert [i["name"] for i in saved[0]["ingredients"]] == ["mleko", "jajka"]
+    plan = (
+        await ola.get("/api/meal-plan", params={"from": "2026-10-24", "to": "2026-10-31"})
+    ).json()
+    assert [(e["day"], e["name"], e["recipe_id"], e["planned_by"]) for e in plan] == [
+        ("2026-10-25", "Naleśniki", recipe["id"], "ala"),
+        ("2026-10-26", "Zupa pomidorowa", None, "ala"),
+    ]
+    assert list_items((await ala.get("/api/list")).json()) == {}
+
+    _, events = await send(ala, "brakuje tylko mleka")
+
+    assert ("list_changed", {}) in events
+    items = list_items((await ala.get("/api/list")).json())
+    assert set(items) == {"mleko"}
+    assert items["mleko"]["needs"][0]["note"] == "na: naleśniki"

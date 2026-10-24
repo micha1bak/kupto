@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -366,6 +366,32 @@ class RecipeIngredient(Base):
     category: Mapped[Category | None] = mapped_column(_enum(Category, "category"))
 
     recipe: Mapped[Recipe] = relationship(back_populates="ingredients")
+
+
+class MealPlanEntry(Base):
+    """Obiad w planie gospodarstwa (#44): jeden na dzień, wspólny dla członków.
+
+    Nazwa dania jest zawsze zapisana — danie bez przepisu ma tylko ją, a po usunięciu przepisu
+    (`recipe_id` → NULL) danie zostaje w planie. Dzień jest kluczem wpisu w gospodarstwie, więc
+    kalendarz (#47) odczytuje zakres dat i edytuje plan po dniach.
+    """
+
+    __tablename__ = "meal_plan_entries"
+    __table_args__ = (UniqueConstraint("household_id", "day"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"))
+    day: Mapped[date]
+    name: Mapped[str] = mapped_column(String(100))
+    recipe_id: Mapped[int | None] = mapped_column(
+        ForeignKey("recipes.id", ondelete="SET NULL"), index=True
+    )
+    planned_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    recipe: Mapped[Recipe | None] = relationship()
+    planned_by: Mapped[User | None] = relationship()
 
 
 class HouseholdPreferences(Base):

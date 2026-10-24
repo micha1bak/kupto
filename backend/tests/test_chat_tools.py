@@ -1,4 +1,5 @@
 import json
+from datetime import date
 
 import pytest
 
@@ -10,6 +11,7 @@ from kupto.chat.tools import (
 )
 from kupto.households import preferences
 from kupto.households import service as households
+from kupto.meal_plan import service as meal_plan
 from kupto.models import User
 
 
@@ -433,3 +435,104 @@ async def test_update_preferences_rejects_invalid_values_without_change(home):
     assert "error" in result.output
     saved = await preferences.load(home["ala"].session, home["ala"].household)
     assert saved.people == 4
+
+
+TODAY = date(2026, 10, 24)  # sobota
+
+
+@pytest.fixture
+def fixed_today(monkeypatch):
+    monkeypatch.setattr(meal_plan, "today", lambda: TODAY)
+
+
+def plan_day(day, name, recipe_id=None):
+    return {"date": day, "name": name, "recipe_id": recipe_id}
+
+
+async def test_saved_meal_plan_returns_recipe_ingredients_and_does_not_change_list(
+    home, fixed_today
+):
+    recipe = (await save_recipe(home["ala"], PANCAKES)).output["saved"]
+
+    result = await call(
+        home["ala"],
+        "save_meal_plan",
+        days=[
+            plan_day("2026-10-26", "Naleśniki", recipe["recipe_id"]),
+            plan_day("2026-10-25", "Pierogi ruskie"),
+        ],
+    )
+
+    assert result.list_changed is False
+    first, second = result.output["saved"]
+    assert first == {
+        "date": "2026-10-25",
+        "weekday": "niedziela",
+        "name": "Pierogi ruskie",
+        "recipe_id": None,
+    }
+    assert (second["date"], second["weekday"], second["recipe_id"]) == (
+        "2026-10-26",
+        "poniedziałek",
+        recipe["recipe_id"],
+    )
+    # Składniki dania z przepisu od razu — model nie potrzebuje rundy get_recipe.
+    assert [i["name"] for i in second["ingredients"]] == ["mąka pszenna", "mleko", "sól"]
+    assert second["ingredients"][1] == {
+        "name": "mleko",
+        "amount": 0.5,
+        "unit": "l",
+        "note": None,
+        "category": "Nabiał",
+    }
+    assert (await call(home["ala"], "get_list")).output["items"] == []
+
+    shown = await call(home["ola"], "get_meal_plan", date_from="2026-10-24", date_to="2026-10-30")
+    assert shown.output == {
+        "meal_plan": [
+            {k: v for k, v in e.items() if k != "ingredients"} for e in result.output["saved"]
+        ]
+    }
+    assert shown.list_changed is False
+
+
+async def test_saving_a_day_again_replaces_the_dish(home, fixed_today):
+    await call(home["ala"], "save_meal_plan", days=[plan_day("2026-10-26", "Zupa")])
+
+    await call(home["ola"], "save_meal_plan", days=[plan_day("2026-10-26", "Bigos")])
+
+    shown = await call(home["ala"], "get_meal_plan", date_from="2026-10-26", date_to="2026-10-26")
+    assert [e["name"] for e in shown.output["meal_plan"]] == ["Bigos"]
+
+
+async def test_meal_plan_tools_reject_bad_input_without_change(home, fixed_today):
+    foreign = (await save_recipe(home["ewa"], PANCAKES)).output["saved"]
+    ala = home["ala"]
+
+    results = [
+        await call(ala, "save_meal_plan", days=[plan_day("2026-10-26", "N", foreign["recipe_id"])]),
+        # Wczoraj i za ponad 60 dni — prawdopodobnie pomyłka daty.
+        await call(ala, "save_meal_plan", days=[plan_day("2026-10-23", "Zupa")]),
+        await call(ala, "save_meal_plan", days=[plan_day("2026-12-24", "Karp")]),
+        await call(
+            ala, "save_meal_plan", days=[plan_day("2026-10-26", "A"), plan_day("2026-10-26", "B")]
+        ),
+        await call(ala, "save_meal_plan", days=[plan_day("26.10.2026", "Zupa")]),
+        await call(ala, "save_meal_plan", days=[]),
+        await call(ala, "get_meal_plan", date_from="2026-10-01", date_to="2027-01-01"),
+        await call(ala, "get_meal_plan", date_from="jutro", date_to="2026-10-30"),
+    ]
+
+    assert [("error" in r.output, r.list_changed) for r in results] == [(True, False)] * 8
+    assert results[0].output["error"] == "Nie ma takiego przepisu."
+    assert "poza oknem planu 2026-10-24–2026-12-23" in results[1].output["error"]
+    shown = await call(ala, "get_meal_plan", date_from="2026-10-24", date_to="2026-12-23")
+    assert shown.output == {"meal_plan": []}
+
+
+async def test_meal_plan_is_isolated_between_households(home, fixed_today):
+    await call(home["ala"], "save_meal_plan", days=[plan_day("2026-10-26", "Zupa")])
+
+    shown = await call(home["ewa"], "get_meal_plan", date_from="2026-10-24", date_to="2026-10-30")
+
+    assert shown.output == {"meal_plan": []}
