@@ -17,6 +17,7 @@ cat > .env <<'ENV'
 DATABASE_URL=postgresql+asyncpg://kupto:kupto@127.0.0.1:55432/kupto
 JWT_SECRET=dev-secret-change-me-0123456789abcdef
 COOKIE_SECURE=false
+MAIL_LOG_LINKS=true
 OPENAI_API_KEY=sk-...
 ENV
 uv run alembic upgrade head
@@ -40,6 +41,34 @@ uv run uvicorn --factory kupto.main:create_app --reload    # http://localhost:80
 | `LIST_EVENTS_HEARTBEAT_SECONDS` | `20` | co ile strumień zmian listy wysyła podtrzymanie (≤ 30) |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | — (powiadomienia wyłączone) | para kluczy Web Push z `uv run python -m kupto.push.keys` (base64url) |
 | `VAPID_SUBJECT` | — | kontakt dla usług push: `mailto:adres@domena` lub `https://domena` |
+| `KUPTO_DOMAIN` | — (`http://localhost:5173`) | domena w linkach z maili: `https://KUPTO_DOMAIN/verify-email#token=…`, `/reset-password#token=…` |
+| `MAIL_BACKEND` | `log` | `log` — bez wysyłki (weryfikacja adresów niewymagana, reset hasła niedostępny); `ses` — Amazon SES v2 przez boto3 |
+| `MAIL_FROM` | — | nadawca, np. `Kupto <no-reply@kupto.bakweb.pl>`; wymagany przy `ses` (bez niego wysyłka wyłączona z błędem w logu) |
+| `MAIL_SES_REGION` | `eu-north-1` | region SES |
+| `MAIL_LOG_LINKS` | `false` | **tylko dev**: backend `log` wypisuje treść maili z linkami na INFO i udaje działającą wysyłkę |
+| `EMAIL_VERIFICATION_TTL_HOURS` | `48` | ważność linku weryfikacyjnego |
+| `EMAIL_VERIFICATION_GRACE_DAYS` | `7` | ile dni konto działa bez potwierdzenia adresu (gdy wysyłka działa) |
+| `PASSWORD_RESET_TTL_MINUTES` | `30` | ważność linku do ustawienia nowego hasła |
+
+### Maile i konta (#77)
+
+Logowanie adresem e-mail; konta sprzed #77 logują się loginem, dopóki nie potwierdzą adresu.
+Wysyłka idzie przez `kupto.mail.MailSender`:
+
+- `MAIL_BACKEND=log` (domyślnie) nic nie wysyła i loguje tylko zdarzenie `mail_not_sent` —
+  bez adresu i linku. Aplikacja uznaje wtedy wysyłkę za niedostępną: nie wymaga potwierdzenia
+  adresów i odrzuca prośby o reset hasła (503 `mail_unavailable`).
+- W dev ustaw `MAIL_LOG_LINKS=true`: treść maili z linkami trafia do logu na poziomie INFO
+  (`event: mail_logged`), a aplikacja działa jak z prawdziwą wysyłką. Link skopiuj do
+  przeglądarki z frontem na `http://localhost:5173`.
+- `MAIL_BACKEND=ses` wysyła przez Amazon SES v2 (`boto3`, region `MAIL_SES_REGION`).
+  Poświadczenia z łańcucha boto3: na EC2 z roli instancji, lokalnie np. `AWS_PROFILE=kupto`
+  (konto w sandboxie SES wysyła tylko na zweryfikowane adresy). API zamiast SMTP: bez
+  długowiecznych haseł SMTP — szczegóły w `openspec/changes/email-auth/design.md` (D7).
+
+Linki mają token we fragmencie (`#token=`), więc nie trafia on do logów proxy. W bazie leży
+tylko skrót SHA-256 tokenu; limity prób (rejestracja, reset, wysyłka linku) liczy tabela
+`auth_rate_events`.
 
 ## Testy
 

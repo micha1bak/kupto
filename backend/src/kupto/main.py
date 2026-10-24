@@ -14,6 +14,7 @@ from kupto.households.router import router as households_router
 from kupto.lists.events import ListEventBroker
 from kupto.lists.router import router as list_router
 from kupto.logs import configure_logging
+from kupto.mail import MailSender, mail_sender_from_settings
 from kupto.meal_plan.router import router as meal_plan_router
 from kupto.push.notifier import Notifier, PushTransport
 from kupto.push.router import router as push_router
@@ -32,6 +33,7 @@ def create_app(
     settings: Settings | None = None,
     llm_client: LLMClient | None = None,
     push_transport: PushTransport | None = None,
+    mail_sender: MailSender | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -51,6 +53,8 @@ def create_app(
     app.state.notifier = Notifier.from_settings(
         settings, app.state.sessionmaker, transport=push_transport
     )
+    # Wysyłka maili (#77); testy podają atrapę.
+    app.state.mail_sender = mail_sender or mail_sender_from_settings(settings)
     register_error_handlers(app)
     app.include_router(auth_router)
     app.include_router(households_router)

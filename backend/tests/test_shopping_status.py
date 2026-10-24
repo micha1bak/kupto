@@ -24,7 +24,7 @@ async def home(session):
 
 async def shoppers(session, household, now=None):
     return [
-        (s.login, s.since) for s in await shopping_status.active_shoppers(session, household, now)
+        (s.name, s.since) for s in await shopping_status.active_shoppers(session, household, now)
     ]
 
 
@@ -35,7 +35,7 @@ async def test_start_sets_status_visible_to_household(session, home):
     assert await shopping_status.start(session, ala, now) is True
 
     (shopper,) = await shopping_status.active_shoppers(session, household, now)
-    assert (shopper.user_id, shopper.login, shopper.since) == (ala.id, "ala", now)
+    assert (shopper.user_id, shopper.name, shopper.since) == (ala.id, "ala", now)
     assert shopper.expires_at == now + timedelta(hours=3)
     assert await shoppers(session, other, now) == []
 

@@ -3,6 +3,7 @@ import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
+import type { Profile } from "../api/types";
 
 export function renderWithProviders(ui: ReactElement, { route = "/" } = {}) {
   const queryClient = new QueryClient({
@@ -19,6 +20,23 @@ export function renderWithProviders(ui: ReactElement, { route = "/" } = {}) {
         </MemoryRouter>
       </QueryClientProvider>,
     ),
+  };
+}
+
+/** Profil zalogowanego użytkownika z potwierdzonym adresem (#77); testy nadpisują pola. */
+export function testProfile(overrides: Partial<Profile> = {}): Profile {
+  return {
+    id: 1,
+    login: null,
+    name: "Ala",
+    email: "ala@example.com",
+    email_verified: true,
+    email_status: "verified",
+    verify_email_by: null,
+    email_blocked: false,
+    mail_enabled: true,
+    household: { id: 1, name: "Dom" },
+    ...overrides,
   };
 }
 

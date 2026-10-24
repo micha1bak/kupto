@@ -10,9 +10,12 @@ export class ApiError extends Error {
 
 /** Kod błędu backendu: użytkownik nie należy (już) do żadnego gospodarstwa. */
 export const NO_HOUSEHOLD = "no_household";
+/** Kody błędów backendu: gospodarstwo zablokowane do podania lub potwierdzenia adresu (#77). */
+export const EMAIL_BLOCKED_CODES = ["email_required", "email_unverified"];
 
 let onUnauthorized: () => void = () => {};
 let onNoHousehold: () => void = () => {};
+let onEmailBlocked: () => void = () => {};
 
 /** Rejestruje reakcję na wygaśnięcie sesji (np. przejście do ekranu logowania). */
 export function setUnauthorizedHandler(handler: () => void) {
@@ -22,6 +25,11 @@ export function setUnauthorizedHandler(handler: () => void) {
 /** Rejestruje reakcję na utratę gospodarstwa (np. usunięcie przez właściciela). */
 export function setNoHouseholdHandler(handler: () => void) {
   onNoHousehold = handler;
+}
+
+/** Rejestruje reakcję na blokadę do potwierdzenia adresu (np. odświeżenie profilu). */
+export function setEmailBlockedHandler(handler: () => void) {
+  onEmailBlocked = handler;
 }
 
 export async function errorFromResponse(response: Response): Promise<ApiError> {
@@ -48,6 +56,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   if (!response.ok) {
     const error = await errorFromResponse(response);
     if (error.code === NO_HOUSEHOLD) onNoHousehold();
+    if (error.code && EMAIL_BLOCKED_CODES.includes(error.code)) onEmailBlocked();
     throw error;
   }
   return response;

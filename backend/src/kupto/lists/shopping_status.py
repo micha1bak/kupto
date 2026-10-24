@@ -26,8 +26,7 @@ SHOPPING_STATUS_TTL = timedelta(hours=3)
 @dataclass(frozen=True)
 class Shopper:
     user_id: int
-    login: str
-    name: str  # imię albo login (`display_name`) — dla modelu w czacie
+    name: str  # imię albo login (`display_name`) — dla domowników i modelu w czacie
     since: datetime
     expires_at: datetime
 
@@ -99,8 +98,7 @@ async def active_shoppers(
     return [
         Shopper(
             user_id=uid,
-            login=login,
-            name=name or login,
+            name=name or login or "Domownik",
             since=since,
             expires_at=expires_at(since),
         )

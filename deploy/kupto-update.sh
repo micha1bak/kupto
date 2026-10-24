@@ -56,6 +56,27 @@ render_env() {
   mv "$tmp" "$env_file"
 }
 
+# Hop limit IMDSv2 = 2 (infra/main.tf, #77) pozwala kontenerom sięgnąć po poświadczenia roli
+# instancji. Potrzebuje ich tylko backend (Amazon SES), więc w łańcuchu DOCKER-USER (ruch
+# przekazywany z kontenerów; procesów hosta nie dotyczy) przepuszczamy do 169.254.169.254
+# wyłącznie stały adres backendu z deploy/docker-compose.yml, a resztę odrzucamy.
+# Idempotentne — reguły znikają po restarcie serwera i wracają przy pierwszym ticku (OnBootSec).
+restrict_imds() {
+  local imds=169.254.169.254 backend_ip=172.30.0.10
+  if ! iptables -n -L DOCKER-USER >/dev/null 2>&1; then
+    echo "Brak łańcucha DOCKER-USER (iptables) — dostęp kontenerów do IMDS nieograniczony" >&2
+    return 0
+  fi
+  if ! iptables -C DOCKER-USER -d "$imds" -j DROP 2>/dev/null; then
+    # RETURN musi stać przed DROP: usuwamy go i wstawiamy oba na początek w dobrej kolejności.
+    iptables -D DOCKER-USER -s "$backend_ip" -d "$imds" -j RETURN 2>/dev/null || true
+    iptables -I DOCKER-USER -d "$imds" -j DROP
+  fi
+  if ! iptables -C DOCKER-USER -s "$backend_ip" -d "$imds" -j RETURN 2>/dev/null; then
+    iptables -I DOCKER-USER -s "$backend_ip" -d "$imds" -j RETURN
+  fi
+}
+
 # Sprawdzane wewnątrz sieci Compose (web → backend), niezależnie od Caddy i certyfikatu.
 # Backend przy starcie wykonuje migracje, więc pierwsze próby mogą trafić na 502.
 check_health() {
@@ -74,6 +95,7 @@ main() {
   sync_repo
   sync_units
   render_env
+  restrict_imds
   compose pull --quiet
   compose up -d --remove-orphans --wait --wait-timeout 180
   check_health

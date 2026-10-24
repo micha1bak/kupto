@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from kupto.errors import DomainError, NotFound
 from kupto.lists.quantities import normalize_name
-from kupto.models import Household, PurchasedItem, ShoppingTrip, User
+from kupto.models import Household, PurchasedItem, ShoppingTrip, User, display_name
 
 DEFAULT_PAGE_SIZE = 10
 MAX_PAGE_SIZE = 50
@@ -118,10 +118,10 @@ async def search_products(
     return [ProductMatch(last=item, times_bought=times) for item, times in rows.all()]
 
 
-async def logins(session: AsyncSession, user_ids: Iterable[int | None]) -> dict[int, str]:
-    """Loginy autorów wpisów historii; usunięte konta (NULL) po prostu nie mają loginu."""
+async def names(session: AsyncSession, user_ids: Iterable[int | None]) -> dict[int, str]:
+    """Imiona (`display_name`) autorów wpisów historii; usunięte konta (NULL) nie mają imienia."""
     ids = {user_id for user_id in user_ids if user_id is not None}
     if not ids:
         return {}
-    rows = await session.execute(select(User.id, User.login).where(User.id.in_(ids)))
-    return dict(rows.all())
+    users = await session.scalars(select(User).where(User.id.in_(ids)))
+    return {user.id: display_name(user) for user in users}

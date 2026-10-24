@@ -48,7 +48,9 @@ async def live_client(server_url):
     async def factory(login: str) -> httpx.AsyncClient:
         client = httpx.AsyncClient(base_url=server_url, timeout=10)
         clients.append(client)
-        response = await client.post("/api/auth/login", json={"login": login, "password": PASSWORD})
+        response = await client.post(
+            "/api/auth/login", json={"email": f"{login}@example.com", "password": PASSWORD}
+        )
         assert response.status_code == 200, response.text
         return client
 
@@ -184,7 +186,7 @@ async def test_stream_ends_when_member_is_removed(
 ):
     ala, _ = await household_with("ala", "ola")
     stream = await open_stream(await live_client("ola"))
-    ola_id = await session.scalar(select(User.id).where(User.login == "ola"))
+    ola_id = await session.scalar(select(User.id).where(User.name == "ola"))
 
     assert (await ala.delete(f"/api/households/me/members/{ola_id}")).status_code == 200
 

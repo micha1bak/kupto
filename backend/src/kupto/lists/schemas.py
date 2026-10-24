@@ -8,7 +8,7 @@ from kupto.lists.category_order import AUTOMATIC, CategoryOrder
 from kupto.lists.product_order import BASE, ProductOrder
 from kupto.lists.quantities import aggregate_quantities
 from kupto.lists.shopping_status import Shopper
-from kupto.models import Category, ListItem, ShoppingList, Unit
+from kupto.models import Category, ListItem, ShoppingList, Unit, display_name
 
 
 class NeedCreate(BaseModel):
@@ -48,7 +48,7 @@ class QuantityOut(BaseModel):
 class NeedOut(BaseModel):
     id: int
     user_id: int | None
-    login: str | None
+    name: str | None  # imię autora (`display_name`); None po usunięciu konta
     amount: float | None
     unit: Unit | None
     note: str | None
@@ -83,7 +83,7 @@ class ShopperOut(BaseModel):
     """Członek gospodarstwa, który teraz robi zakupy."""
 
     user_id: int
-    login: str
+    name: str  # imię (`display_name`)
     since: datetime
     expires_at: datetime
 
@@ -108,7 +108,7 @@ def item_out(item: ListItem, pinned: bool = False) -> ItemOut:
             NeedOut(
                 id=n.id,
                 user_id=n.user_id,
-                login=n.user.login if n.user else None,
+                name=display_name(n.user) if n.user else None,
                 amount=float(n.amount) if n.amount is not None else None,
                 unit=n.unit,
                 note=n.note,
@@ -118,7 +118,7 @@ def item_out(item: ListItem, pinned: bool = False) -> ItemOut:
         ],
         bought=item.bought_at is not None,
         bought_at=item.bought_at,
-        bought_by=item.bought_by.login if item.bought_by else None,
+        bought_by=display_name(item.bought_by) if item.bought_by else None,
         pinned=pinned,
     )
 
@@ -148,7 +148,7 @@ def list_out(
         id=shopping_list.id,
         groups=groups,
         shoppers=[
-            ShopperOut(user_id=s.user_id, login=s.login, since=s.since, expires_at=s.expires_at)
+            ShopperOut(user_id=s.user_id, name=s.name, since=s.since, expires_at=s.expires_at)
             for s in shoppers
         ],
     )

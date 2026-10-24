@@ -5,6 +5,7 @@ import { chatTitle } from "../chat/chatTitle";
 import { ListView } from "../list/ListView";
 import type { Profile } from "../api/types";
 import { ChatOptions } from "./ChatOptions";
+import { EmailBanner } from "../account/EmailBanner";
 import { InstallBanner } from "./InstallBanner";
 import styles from "./MainPage.module.css";
 
@@ -76,6 +77,7 @@ export function MainPage({ profile }: { profile: Profile }) {
           </button>
         ))}
       </div>
+      <EmailBanner profile={profile} />
       <InstallBanner />
       <main className={styles.content}>
         {/* Na telefonie widoczna jest jedna zakładka, na desktopie obie kolumny. */}

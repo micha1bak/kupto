@@ -30,6 +30,7 @@ export const keys = {
   recipes: ["recipes"] as const,
   householdPreferences: ["household-preferences"] as const,
   mealPlan: ["meal-plan"] as const,
+  authConfig: ["auth-config"] as const,
 };
 
 /**
@@ -40,6 +41,13 @@ export const LIST_FALLBACK_POLL_MS = 30_000;
 
 export const useProfile = () =>
   useQuery({ queryKey: keys.profile, queryFn: () => api<Profile>("/api/users/me") });
+
+/** Czy serwer wysyła maile (#77) — dostępne bez logowania (strona „Zapomniałem hasła”). */
+export const useAuthConfig = () =>
+  useQuery({
+    queryKey: keys.authConfig,
+    queryFn: () => api<{ mail_enabled: boolean }>("/api/auth/config"),
+  });
 
 export const useHousehold = () =>
   useQuery({ queryKey: keys.household, queryFn: () => api<Household>("/api/households/me") });

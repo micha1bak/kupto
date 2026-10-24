@@ -533,3 +533,65 @@ async def test_group_chat_migration_archives_private_history(empty_database):
     await migrate(empty_database, "up", "head")
     rows = (await snapshot(empty_database, ("chat_messages",)))["chat_messages"]
     assert [row[-1] for row in rows] == [True, True, True]
+
+
+async def test_email_auth_migration_keeps_existing_accounts(empty_database):
+    await migrate(empty_database, "up", "0012")
+    await execute(empty_database, *SEED_STATEMENTS, "UPDATE users SET name = 'Ala' WHERE id = 1")
+    tables = (*EXISTING_TABLES, *HISTORY_TABLES, *RECIPE_TABLES, "household_preferences")
+    before = await snapshot(empty_database, tables)
+
+    await migrate(empty_database, "up", "0013")
+
+    # Istniejące konta bez zmian (loginy, hasła, imiona); nowe kolumny puste.
+    after = await snapshot(empty_database, tables)
+    assert [row[:-4] for row in after["users"]] == before["users"]
+    assert [row[-4:] for row in after["users"]] == [(None,) * 4, (None,) * 4]
+    assert {t: rows for t, rows in after.items() if t != "users"} == {
+        t: rows for t, rows in before.items() if t != "users"
+    }
+    assert await snapshot(empty_database, ("auth_tokens", "auth_rate_events")) == {
+        "auth_tokens": [],
+        "auth_rate_events": [],
+    }
+    # Nowe konto bez loginu; adres unikalny bez względu na wielkość liter.
+    long_email = "ewa.kowalska-z-bardzo-dluga-nazwa-skrzynki@example.com"
+    insert = "INSERT INTO users (id, email, name, password_hash, created_at) VALUES "
+    await execute(empty_database, insert + f"(3, '{long_email}', 'Ewa', 'x', now())")
+    with pytest.raises(IntegrityError):
+        await execute(empty_database, insert + f"(4, '{long_email.upper()}', 'E', 'x', now())")
+    # Token należy do konta (bez konta — błąd); skrót tokenu unikalny.
+    token = (
+        "INSERT INTO auth_tokens (user_id, purpose, token_hash, email, created_at, expires_at) "
+        "VALUES "
+    )
+    await execute(
+        empty_database,
+        token + f"(3, 'verify_email', '{'a' * 64}', 'ewa@example.com', now(), now())",
+        "INSERT INTO auth_rate_events (action, key_hash, created_at) "
+        f"VALUES ('register_ip', '{'b' * 64}', now())",
+    )
+    with pytest.raises(IntegrityError):
+        await execute(
+            empty_database,
+            token + f"(1, 'reset_password', '{'a' * 64}', 'ala@example.com', now(), now())",
+        )
+    with pytest.raises(IntegrityError):
+        await execute(
+            empty_database,
+            token + f"(99, 'reset_password', '{'c' * 64}', 'x@example.com', now(), now())",
+        )
+
+    await migrate(empty_database, "down", "0012")
+
+    # Konto bez loginu dostaje login z adresu i id; pozostałe dane jak przed migracją.
+    users = (await snapshot(empty_database, ("users",)))["users"]
+    assert users[:2] == before["users"]
+    assert users[2][1] == long_email[:40] + "#3"
+    assert await snapshot(empty_database, tables) == {**before, "users": users}
+    for table in ("auth_tokens", "auth_rate_events"):
+        assert not await table_exists(empty_database, table)
+    assert not await column_exists(empty_database, "users", "email")
+
+    await migrate(empty_database, "up", "head")
+    assert await column_exists(empty_database, "users", "email")

@@ -1,4 +1,5 @@
 import asyncio
+import re
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from testcontainers.community.postgres import PostgresContainer
 from kupto.chat.llm import FakeLLMClient, LLMClient
 from kupto.config import Settings
 from kupto.db import Base
+from kupto.mail import EmailMessage
 from kupto.main import create_app
 from kupto.models import PurchasedItem, ShoppingTrip
 from kupto.push.notifier import PushTransport
@@ -65,11 +67,45 @@ def push_transport() -> PushTransport | None:
     return None
 
 
+class FakeMailSender:
+    """Atrapa wysyłki maili: zapamiętuje wiadomości. `delivers` = czy wysyłka „działa”."""
+
+    def __init__(self, delivers: bool):
+        self.delivers = delivers
+        self.sent: list[EmailMessage] = []
+
+    async def send(self, message: EmailMessage) -> None:
+        self.sent.append(message)
+
+    def last_token(self, to: str | None = None) -> str:
+        """Token z linku w ostatnim mailu (opcjonalnie do danego adresata)."""
+        messages = [m for m in self.sent if to is None or m.to == to]
+        assert messages, "brak maili"
+        return re.search(r"#token=([\w-]+)", messages[-1].body).group(1)
+
+
+@pytest.fixture
+def mail_delivers() -> bool:
+    """Domyślnie wysyłka niedostępna (jak produkcja przed SES) — nikt nie jest blokowany.
+    Testy weryfikacji adresów nadpisują ten fixture na `True`."""
+    return False
+
+
+@pytest.fixture
+def mail(mail_delivers: bool) -> FakeMailSender:
+    return FakeMailSender(delivers=mail_delivers)
+
+
 @pytest.fixture
 async def app(
-    settings: Settings, llm_client: LLMClient, push_transport: PushTransport | None
+    settings: Settings,
+    llm_client: LLMClient,
+    push_transport: PushTransport | None,
+    mail: FakeMailSender,
 ) -> AsyncIterator[FastAPI]:
-    app = create_app(settings, llm_client=llm_client, push_transport=push_transport)
+    app = create_app(
+        settings, llm_client=llm_client, push_transport=push_transport, mail_sender=mail
+    )
     yield app
     # ASGITransport nie uruchamia lifespan.
     await app.state.list_events.close()
@@ -88,12 +124,16 @@ async def session(app: FastAPI) -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture
-async def make_client(app: FastAPI) -> AsyncIterator[Callable[[], AsyncClient]]:
+async def make_client(app: FastAPI) -> AsyncIterator[Callable[..., AsyncClient]]:
     """Tworzy osobnych klientów HTTP — każdy z własnym słoikiem ciasteczek (osobny użytkownik)."""
     clients: list[AsyncClient] = []
 
-    def factory() -> AsyncClient:
-        client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    def factory(ip: str | None = None) -> AsyncClient:
+        # Każdy klient z własnego adresu IP (osobne urządzenie) — limity prób na IP (#77)
+        # nie łączą użytkowników jednego testu; `ip` wymusza wspólny adres.
+        address = ip or f"10.0.{len(clients) // 250}.{len(clients) % 250 + 1}"
+        transport = ASGITransport(app=app, client=(address, 123))
+        client = AsyncClient(transport=transport, base_url="http://test")
         clients.append(client)
         return client
 
@@ -109,16 +149,20 @@ def client(make_client: Callable[[], AsyncClient]) -> AsyncClient:
 
 @pytest.fixture
 def login_as(make_client: Callable[[], AsyncClient]):
-    """Fabryka użytkowników: rejestruje (jeśli trzeba) i loguje, zwraca zalogowanego klienta."""
+    """Fabryka użytkowników: rejestruje (jeśli trzeba) i loguje, zwraca zalogowanego klienta.
+
+    Konto „ala” ma adres ala@example.com i (domyślnie) imię „ala” — asercje na imionach
+    domowników zostają krótkie.
+    """
 
     async def factory(
         login: str, password: str = "haslo-testowe", name: str | None = None
     ) -> AsyncClient:
         client = make_client()
-        # Imię domyślnie równe loginowi — asercje na loginach i imionach się nie rozjeżdżają.
-        payload = {"login": login, "password": password, "name": name or login}
+        email = f"{login}@example.com"
+        payload = {"email": email, "password": password, "name": name or login}
         await client.post("/api/auth/register", json=payload)
-        response = await client.post("/api/auth/login", json={"login": login, "password": password})
+        response = await client.post("/api/auth/login", json={"email": email, "password": password})
         assert response.status_code == 200, response.text
         return client
 
@@ -134,7 +178,9 @@ def household_with(login_as):
         response = await clients[0].post("/api/households", json={"name": name})
         assert response.status_code == 201, response.text
         for login in logins[1:]:
-            response = await clients[0].post("/api/households/me/members", json={"login": login})
+            response = await clients[0].post(
+                "/api/households/me/members", json={"email": f"{login}@example.com"}
+            )
             assert response.status_code == 201, response.text
         return clients
 

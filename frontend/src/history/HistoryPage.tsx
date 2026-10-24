@@ -47,7 +47,7 @@ function ItemRow({ item }: { item: PurchasedItem }) {
                 const details = [formatQuantity(n.amount, n.unit), n.note && `„${n.note}”`]
                   .filter(Boolean)
                   .join(", ");
-                return details ? `${n.login ?? "—"} (${details})` : (n.login ?? "—");
+                return details ? `${n.name ?? "—"} (${details})` : (n.name ?? "—");
               })
               .join(", ")}
           </>

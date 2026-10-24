@@ -24,6 +24,7 @@ services:
       timeout: 5s
       retries: 10
     logging: *logging
+    networks: [app]
     restart: always
 
   backend:
@@ -41,6 +42,13 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      # Linki w mailach (#77) prowadzą do https://KUPTO_DOMAIN/…
+      KUPTO_DOMAIN: ${KUPTO_DOMAIN}
+      # Wysyłka maili (#77): bez parametrów SSM `log` — nic nie jest wysyłane ani wymagane.
+      # `ses` używa poświadczeń roli instancji (infra/ses.tf, infra/README.md).
+      MAIL_BACKEND: ${MAIL_BACKEND:-log}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_SES_REGION: ${MAIL_SES_REGION:-eu-north-1}
     depends_on:
       db:
         condition: service_healthy
@@ -50,6 +58,11 @@ services:
       driver: journald
       options:
         tag: kupto-backend
+    networks:
+      app:
+        # Stały adres: tylko on ma dostęp do IMDS (poświadczenia roli dla SES, #77) — reguła
+        # DOCKER-USER w kupto-update.sh blokuje 169.254.169.254 pozostałym kontenerom.
+        ipv4_address: 172.30.0.10
     restart: always
 
   web:
@@ -57,6 +70,7 @@ services:
     depends_on:
       - backend
     logging: *logging
+    networks: [app]
     restart: always
 
   # HTTPS z automatycznym certyfikatem Let's Encrypt dla KUPTO_DOMAIN (#19); jedyny kontener
@@ -76,7 +90,16 @@ services:
     depends_on:
       - web
     logging: *logging
+    networks: [app]
     restart: always
+
+networks:
+  # Sieć ze stałą podsiecią (zamiast domyślnej), żeby backend miał stały adres dla reguły IMDS.
+  # Poza 172.31.0.0/16 (domyślne VPC) i typowymi podsieciami Dockera (172.17–172.29).
+  app:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
 
 volumes:
   db_data:

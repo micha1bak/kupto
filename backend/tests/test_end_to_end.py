@@ -32,7 +32,7 @@ async def test_two_members_build_and_finish_list_through_chat(household_with, fa
     (milk,) = await shopping_list(ala)
     assert milk["name"] == "mleko"
     assert milk["quantities"] == [{"amount": 3.0, "unit": "l"}]
-    assert [n["login"] for n in milk["needs"]] == ["ala", "ola"]
+    assert [n["name"] for n in milk["needs"]] == ["ala", "ola"]
 
     fake_llm.rounds += [
         [ToolCall("buy", "mark_bought", json.dumps({"item_ids": [milk["id"]]}))],

@@ -1,12 +1,12 @@
 from datetime import datetime
 
 from fastapi import APIRouter, status
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
-from kupto.deps import CurrentHousehold, CurrentUser, SessionDep
+from kupto.deps import CurrentHousehold, CurrentUser, MailDep, SessionDep
 from kupto.households import preferences, service
 from kupto.households.preferences import PreferencesIn
-from kupto.models import Household
+from kupto.models import Household, display_name
 
 router = APIRouter(prefix="/api/households", tags=["households"])
 
@@ -16,12 +16,15 @@ class HouseholdCreate(BaseModel):
 
 
 class MemberAdd(BaseModel):
-    login: str = Field(min_length=1, max_length=50)
+    # Adres e-mail, a dla konta sprzed #77 bez adresu — login (stare klienty wysyłają `login`).
+    email: str = Field(
+        min_length=1, max_length=300, validation_alias=AliasChoices("email", "login")
+    )
 
 
 class MemberOut(BaseModel):
     id: int
-    login: str
+    name: str  # imię (`display_name`) — bez loginu i adresu (#77)
     is_owner: bool
     joined_at: datetime | None
 
@@ -45,7 +48,7 @@ async def _household_out(session: SessionDep, household: Household) -> Household
         members=[
             MemberOut(
                 id=m.id,
-                login=m.login,
+                name=display_name(m),
                 is_owner=m.id == household.owner_id,
                 joined_at=m.joined_household_at,
             )
@@ -69,9 +72,15 @@ async def get_my_household(household: CurrentHousehold, session: SessionDep) -> 
 
 @router.post("/me/members", status_code=status.HTTP_201_CREATED)
 async def add_member(
-    payload: MemberAdd, user: CurrentUser, household: CurrentHousehold, session: SessionDep
+    payload: MemberAdd,
+    user: CurrentUser,
+    household: CurrentHousehold,
+    session: SessionDep,
+    mail: MailDep,
 ) -> HouseholdOut:
-    await service.add_member(session, user, household, payload.login)
+    # Gdy wysyłka działa, tylko potwierdzony adres — inaczej cudzy adres zarejestrowany bez
+    # potwierdzenia mógłby trafić do gospodarstwa zamiast właściciela skrzynki (#77, D9).
+    await service.add_member(session, user, household, payload.email, verified_only=mail.delivers)
     return await _household_out(session, household)
 
 

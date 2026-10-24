@@ -11,7 +11,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kupto.errors import DomainError
@@ -296,14 +296,7 @@ async def execute_tool(ctx: ToolContext, name: str, arguments: str) -> ToolResul
 async def list_snapshot(ctx: ToolContext) -> dict[str, Any]:
     """Lista w zwięzłej postaci dla modelu — pochodna tej samej serializacji co REST API."""
     shopping_list = list_out(await service.get_list(ctx.session, ctx.household))
-    # Model zna domowników po imionach (czat grupowy, #78), nie po loginach.
-    author_ids = {n.user_id for g in shopping_list.groups for i in g.items for n in i.needs}
-    names = {
-        uid: name or login
-        for uid, name, login in await ctx.session.execute(
-            select(User.id, User.name, User.login).where(User.id.in_(author_ids - {None}))
-        )
-    }
+    # Model zna domowników po imionach (czat grupowy, #78) — `NeedOut.name` to już imię.
     return {
         "items": [
             {
@@ -315,7 +308,7 @@ async def list_snapshot(ctx: ToolContext) -> dict[str, Any]:
                 "needs": [
                     {
                         "need_id": n.id,
-                        "requested_by": names.get(n.user_id, n.login),
+                        "requested_by": n.name,
                         "mine": n.user_id == ctx.user.id,
                         "amount": n.amount,
                         "unit": n.unit.value if n.unit else None,

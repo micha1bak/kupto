@@ -47,7 +47,7 @@ const milkTrip: ShoppingTrip = {
           needs: [
             {
               user_id: 1,
-              login: "ala",
+              name: "ala",
               amount: null,
               unit: null,
               note: null,
@@ -70,7 +70,7 @@ const milkTrip: ShoppingTrip = {
           needs: [
             {
               user_id: 1,
-              login: "ala",
+              name: "ala",
               amount: 2,
               unit: "l",
               note: "bez laktozy",
@@ -78,7 +78,7 @@ const milkTrip: ShoppingTrip = {
             },
             {
               user_id: 2,
-              login: "ola",
+              name: "ola",
               amount: 1,
               unit: "l",
               note: null,

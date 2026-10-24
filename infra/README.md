@@ -80,3 +80,88 @@ potwierdzenia. Sprawdzenie: `aws budgets describe-budgets --profile kupto --acco
 "$(aws sts get-caller-identity --profile kupto --query Account --output text)"`,
 `aws cloudwatch describe-alarms --profile kupto --alarm-name-prefix kupto-`,
 `aws sns list-subscriptions-by-topic --profile kupto --topic-arn <arn kupto-alerts>`.
+
+## Wysyłka maili — Amazon SES (#77)
+
+`ses.tf`: tożsamość domenowa SES `kupto.bakweb.pl` (zmienna `mail_domain`) z Easy DKIM
+(RSA 2048) i własną domeną MAIL FROM `mail.kupto.bakweb.pl`; `iam.tf`: rola instancji może
+wywołać `ses:SendEmail` tylko dla tej tożsamości i tylko z adresów `*@kupto.bakweb.pl`;
+`main.tf`: `http_put_response_hop_limit = 2`, żeby kontener backendu (most Dockera to
+dodatkowy skok) dostał poświadczenia roli z IMDSv2. Aplikacja wysyła przez API SES v2
+(boto3) — bez użytkownika IAM i haseł SMTP.
+
+**Ryzyko hop limitu 2:** każdy kontener na serwerze mógłby pobrać poświadczenia roli
+instancji (S3 ze zrzutami, sekrety SSM `/kupto/*`, SES), np. po przejęciu Caddy lub nginx.
+Dlatego `deploy/docker-compose.yml` daje backendowi stały adres `172.30.0.10` w sieci
+`172.30.0.0/24`, a `deploy/kupto-update.sh` (co 5 minut, idempotentnie) dodaje w łańcuchu
+`DOCKER-USER` regułę przepuszczającą do `169.254.169.254` tylko ten adres i odrzucającą
+resztę ruchu z kontenerów. Host (AWS CLI w skryptach) nie jest ograniczany. Po restarcie
+serwera reguły wracają przy pierwszym ticku (ok. 1 min po starcie). Sprawdzenie na serwerze:
+
+```bash
+iptables -S DOCKER-USER | grep 169.254.169.254   # RETURN dla 172.30.0.10, potem DROP
+docker compose -p kupto exec web wget -T 3 -qO- http://169.254.169.254/ || echo zablokowane
+```
+
+Do czasu wykonania poniższych kroków produkcja działa z `MAIL_BACKEND=log`: maile nie są
+wysyłane, weryfikacja adresów nie jest wymagana, a „Zapomniałem hasła” pokazuje komunikat o
+niedostępnej wysyłce. Kroki właściciela, po kolei:
+
+1. **Apply** (z katalogu `infra/`, po `aws login --profile kupto`):
+
+   ```bash
+   export TF_VAR_budget_email='adres@domena'
+   terraform plan    # oczekiwane: 2 zasoby SES do utworzenia, zmiana w miejscu polityki
+                     # kupto-app i metadata_options instancji (bez jej wymiany)
+   terraform apply
+   terraform output ses_dns_records
+   ```
+
+2. **Rekordy DNS w SEOHOST** (strefa `bakweb.pl`) — dokładnie te z `ses_dns_records`:
+   - 3 × `CNAME` `<token>._domainkey.kupto.bakweb.pl` → `<token>.dkim.amazonses.com` (DKIM),
+   - `MX` `mail.kupto.bakweb.pl` → `10 feedback-smtp.eu-north-1.amazonses.com` (MAIL FROM),
+   - `TXT` `mail.kupto.bakweb.pl` → `v=spf1 include:amazonses.com ~all` (SPF dla MAIL FROM),
+   - `TXT` `_dmarc.kupto.bakweb.pl` → `v=DMARC1; p=none` (DMARC; po kilku tygodniach bez
+     problemów można zaostrzyć do `p=quarantine`; adres raportów `rua=mailto:…` opcjonalnie).
+
+   Jeśli panel SEOHOST dopisuje domenę strefy sam, wpisz nazwy bez `.bakweb.pl`
+   (np. `abc123._domainkey.kupto`). Weryfikacja trwa zwykle od kilku minut do kilku godzin:
+
+   ```bash
+   $(terraform output -raw ses_identity_status)   # verified: true, dkim: SUCCESS, mail_from: SUCCESS
+   ```
+
+3. **Wyjście z sandboxa SES.** Nowe konto SES może wysyłać tylko na zweryfikowane adresy
+   (do 200 maili na dobę). Wniosek o production access — konsola SES (eu-north-1) → *Account
+   dashboard* → *Request production access*, albo:
+
+   ```bash
+   aws sesv2 put-account-details --profile kupto --region eu-north-1 \
+     --production-access-enabled --mail-type TRANSACTIONAL \
+     --website-url https://kupto.bakweb.pl --contact-language EN \
+     --use-case-description "Transactional e-mails of a small household shopping-list app: address verification links and password reset links, sent only on user action. Expected volume: under 50 e-mails per day. Bounces and complaints are monitored in the SES console."
+   aws sesv2 get-account --profile kupto --region eu-north-1 --query '{prod: ProductionAccessEnabled, review: Details.ReviewDetails.Status}'
+   ```
+
+   Odpowiedź AWS przychodzi zwykle w ciągu doby. Do tego czasu można sprawdzić wysyłkę na
+   własny, zweryfikowany adres (`aws sesv2 create-email-identity --email-identity adres@domena`
+   i kliknięcie linku z maila od AWS).
+
+4. **Parametry SSM** — włączenie wysyłki w aplikacji (działa od najbliższego ticku
+   `kupto-update`, zob. [deploy/README.md](../deploy/README.md#sekrety-ssm-parameter-store)):
+
+   ```bash
+   aws ssm put-parameter --profile kupto --name /kupto/MAIL_FROM --type SecureString \
+     --value 'Kupto <no-reply@kupto.bakweb.pl>'
+   aws ssm put-parameter --profile kupto --name /kupto/MAIL_BACKEND --type SecureString --value ses
+   ```
+
+   `KUPTO_DOMAIN` (już ustawiony) wyznacza adres w linkach (`https://kupto.bakweb.pl/...`).
+   Region SES to domyślnie `eu-north-1` (`MAIL_SES_REGION`). Sprawdzenie po wdrożeniu:
+   `docker compose -p kupto logs backend | grep -i mail` powinno pokazać „Wysyłka maili przez
+   Amazon SES”; po rejestracji testowego konta — zdarzenie `mail_sent` (bez adresu i treści).
+   Błąd wysyłki daje zdarzenie `mail_failed` z typem wyjątku (np. `MessageRejected` w
+   sandboxie, `NoCredentialsError` przy hop limicie 1).
+
+Wycofanie: `aws ssm delete-parameter --profile kupto --name /kupto/MAIL_BACKEND` — aplikacja
+wraca do `log` (nikt nie jest blokowany do potwierdzenia adresu).

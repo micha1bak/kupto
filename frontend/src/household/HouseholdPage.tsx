@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError, del, post } from "../api/client";
 import { keys, useHousehold, useProfile } from "../api/queries";
-import type { Household } from "../api/types";
+import type { Household, Profile } from "../api/types";
 import { NotificationSettings } from "../notifications/NotificationSettings";
 import { HouseholdPreferences } from "./HouseholdPreferences";
 import styles from "./HouseholdPage.module.css";
@@ -14,7 +14,7 @@ function errorMessage(error: unknown): string | null {
 }
 
 /** Formularz dla użytkownika bez gospodarstwa. */
-export function HouseholdSetup({ login }: { login: string }) {
+export function HouseholdSetup({ profile }: { profile: Profile }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("Dom");
   const create = useMutation({
@@ -49,9 +49,19 @@ export function HouseholdSetup({ login }: { login: string }) {
       </section>
       <section className="card">
         <h2>Dołącz do istniejącego</h2>
-        <p className="muted">
-          Poproś właściciela gospodarstwa, aby dodał Twój login: <strong>{login}</strong>
-        </p>
+        {profile.email ? (
+          <p className="muted">
+            Poproś właściciela gospodarstwa, aby dodał Twój adres e-mail:{" "}
+            <strong>{profile.email}</strong>
+            {profile.mail_enabled && !profile.email_verified && (
+              <> — najpierw potwierdź go linkiem z wiadomości</>
+            )}
+          </p>
+        ) : (
+          <p className="muted">
+            Poproś właściciela gospodarstwa, aby dodał Twój login: <strong>{profile.login}</strong>
+          </p>
+        )}
       </section>
     </main>
   );
@@ -61,14 +71,14 @@ export function HouseholdPage() {
   const queryClient = useQueryClient();
   const profile = useProfile();
   const household = useHousehold();
-  const [login, setLogin] = useState("");
+  const [email, setEmail] = useState("");
   const refresh = () => queryClient.invalidateQueries();
 
   const addMember = useMutation({
-    mutationFn: () => post<Household>("/api/households/me/members", { login: login.trim() }),
+    mutationFn: () => post<Household>("/api/households/me/members", { email: email.trim() }),
     onSuccess: (data) => {
       queryClient.setQueryData(keys.household, data);
-      setLogin("");
+      setEmail("");
     },
   });
   const removeMember = useMutation({
@@ -86,7 +96,7 @@ export function HouseholdPage() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (login.trim()) addMember.mutate();
+    if (email.trim()) addMember.mutate();
   }
 
   function confirmLeave() {
@@ -106,14 +116,14 @@ export function HouseholdPage() {
           {household.data.members.map((member) => (
             <li key={member.id}>
               <span>
-                {member.login}
+                {member.name}
                 {member.is_owner && <span className={styles.badge}>właściciel</span>}
               </span>
               {isOwner && member.id !== me.id && (
                 <button
                   className="danger"
                   onClick={() => removeMember.mutate(member.id)}
-                  aria-label={`Usuń ${member.login}`}
+                  aria-label={`Usuń ${member.name}`}
                 >
                   Usuń
                 </button>
@@ -128,10 +138,13 @@ export function HouseholdPage() {
           <h3>Dodaj domownika</h3>
           <form className={styles.inline} onSubmit={submit}>
             <input
-              aria-label="Login domownika"
-              placeholder="login"
-              value={login}
-              onChange={(e) => setLogin(e.target.value)}
+              aria-label="Adres e-mail domownika"
+              placeholder="adres e-mail"
+              type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
             <button className="primary" type="submit" disabled={addMember.isPending}>
               Dodaj

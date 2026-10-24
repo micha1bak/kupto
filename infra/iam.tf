@@ -45,6 +45,19 @@ data "aws_iam_policy_document" "app" {
       "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/kupto/*",
     ]
   }
+
+  # Maile aplikacji (#77, ses.tf): tylko z tożsamości domeny aplikacji i z adresów w tej domenie.
+  statement {
+    sid       = "SendAppMail"
+    actions   = ["ses:SendEmail"]
+    resources = [aws_sesv2_email_identity.app.arn]
+
+    condition {
+      test     = "StringLike"
+      variable = "ses:FromAddress"
+      values   = ["*@${var.mail_domain}"]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "app" {

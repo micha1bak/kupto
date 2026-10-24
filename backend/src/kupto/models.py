@@ -12,6 +12,8 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     false,
+    func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -47,9 +49,22 @@ def _enum(enum_cls: type[enum.Enum], name: str) -> Enum:
 
 class User(Base):
     __tablename__ = "users"
+    # Adres unikalny bez względu na wielkość liter (zapisywany i tak małymi literami, #77).
+    __table_args__ = (Index("uq_users_email_lower", func.lower(text("email")), unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    login: Mapped[str] = mapped_column(String(50), unique=True)
+    # Login kont sprzed adresów e-mail (#77); NULL w kontach zarejestrowanych e-mailem. Logowanie
+    # loginem działa tylko, dopóki konto nie ma adresu w `email`. Nie pokazuj go domownikom.
+    login: Mapped[str | None] = mapped_column(String(50), unique=True)
+    # Adres logowania (małe litery). Konto zarejestrowane e-mailem ma go od początku (może być
+    # niepotwierdzony); konto sprzed #77 dostaje go dopiero po kliknięciu linku weryfikacyjnego.
+    email: Mapped[str | None] = mapped_column(String(254))
+    email_verified_at: Mapped[datetime | None]
+    # Termin potwierdzenia adresu; po nim (gdy wysyłka maili działa) gospodarstwo jest
+    # niedostępne. NULL w koncie sprzed #77, które jeszcze nie podało adresu.
+    verify_email_by: Mapped[datetime | None]
+    # Sesje (JWT) wydane przed tą chwilą są nieważne — ustawiane przy resecie hasła.
+    sessions_valid_after: Mapped[datetime | None]
     # Imię pokazywane domownikom (czat, push); NULL tylko w kontach sprzed czatu grupowego (#78).
     # Do wyświetlania używaj `display_name`, które zastępuje brak imienia loginem.
     name: Mapped[str | None] = mapped_column(String(40))
@@ -71,8 +86,42 @@ class User(Base):
 
 
 def display_name(user: User) -> str:
-    """Nazwa pokazywana domownikom: imię, a w koncie bez imienia — login."""
-    return user.name or user.login
+    """Nazwa pokazywana domownikom: imię, a w koncie bez imienia — login (nigdy adres e-mail)."""
+    return user.name or user.login or "Domownik"
+
+
+class AuthToken(Base):
+    """Jednorazowy token z linku w mailu (#77); w bazie tylko skrót SHA-256."""
+
+    __tablename__ = "auth_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # `verify_email` albo `reset_password` — tekst bez enuma bazy (nowy rodzaj bez migracji).
+    purpose: Mapped[str] = mapped_column(String(20))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    # Adres, na który wysłano link (przy weryfikacji: adres, który link potwierdza).
+    email: Mapped[str] = mapped_column(String(254))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    expires_at: Mapped[datetime]
+    used_at: Mapped[datetime | None]
+
+
+class AuthRateEvent(Base):
+    """Zdarzenie liczone do limitu prób (rejestracja, reset hasła, wysyłka linku, #77)."""
+
+    __tablename__ = "auth_rate_events"
+    __table_args__ = (
+        Index("ix_auth_rate_events_lookup", "action", "key_hash", "created_at"),
+        # Sprzątanie zdarzeń starszych niż doba (`kupto.auth.rate_limit`).
+        Index("ix_auth_rate_events_created_at", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    action: Mapped[str] = mapped_column(String(30))
+    # SHA-256 akcji i klucza (adresu, IP, id konta) — bez danych osobowych otwartym tekstem.
+    key_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
 class Household(Base):

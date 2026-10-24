@@ -38,6 +38,28 @@ class Settings(BaseSettings):
     vapid_private_key: str = ""
     vapid_subject: str = ""  # mailto:… albo https://…
 
+    # Domena aplikacji (jak w Caddy) — linki w mailach prowadzą do https://KUPTO_DOMAIN/…;
+    # pusta w dev: linki do serwera Vite.
+    kupto_domain: str = ""
+
+    # Wysyłka maili (#77): `log` (domyślnie) nic nie wysyła, `ses` — Amazon SES (API v2,
+    # poświadczenia z łańcucha boto3, na EC2 z roli instancji). Zob. kupto.mail.
+    mail_backend: Literal["log", "ses"] = "log"
+    mail_from: str = ""  # np. "Kupto <no-reply@kupto.bakweb.pl>" — domena zweryfikowana w SES
+    mail_ses_region: str = "eu-north-1"
+    # Tylko dev: backend `log` wypisuje treść maili z linkami (tokenami!) na poziomie INFO
+    # i udaje działającą wysyłkę. Nigdy na produkcji.
+    mail_log_links: bool = False
+
+    email_verification_ttl_hours: int = Field(default=48, gt=0)
+    email_verification_grace_days: int = Field(default=7, ge=0)
+    password_reset_ttl_minutes: int = Field(default=30, gt=0)
+
+    @property
+    def app_url(self) -> str:
+        domain = self.kupto_domain.strip().strip("/")
+        return f"https://{domain}" if domain else "http://localhost:5173"
+
 
 @lru_cache
 def get_settings() -> Settings:

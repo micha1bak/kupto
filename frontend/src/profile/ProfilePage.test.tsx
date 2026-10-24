@@ -1,19 +1,20 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Profile } from "../api/types";
-import { jsonResponse, mockFetch, renderWithProviders } from "../test/utils";
+import { jsonResponse, mockFetch, renderWithProviders, testProfile } from "../test/utils";
 import { ProfilePage } from "./ProfilePage";
 
-const profile: Profile = { id: 1, login: "ala", name: "Ala", household: { id: 1, name: "Dom" } };
+const profile: Profile = testProfile();
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("strona profilu", () => {
-  it("pokazuje imię, login, gospodarstwo i linki przeniesione z paska", () => {
+  it("pokazuje imię, adres, gospodarstwo i linki przeniesione z paska", () => {
     renderWithProviders(<ProfilePage profile={profile} onLogout={vi.fn()} />, { route: "/profile" });
 
     expect(screen.getByRole("heading", { name: "Ala" })).toBeInTheDocument();
-    expect(screen.getByText("Login: ala")).toBeInTheDocument();
+    expect(screen.getByText("ala@example.com")).toBeInTheDocument();
+    expect(screen.queryByText(/loginem/)).not.toBeInTheDocument();
     expect(screen.getByText("Gospodarstwo „Dom”")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "← Wróć do listy" })).toHaveAttribute("href", "/");
 

@@ -6,7 +6,7 @@ async def test_create_household(login_as):
     assert response.status_code == 201
     body = response.json()
     assert body["name"] == "Dom"
-    assert [(m["login"], m["is_owner"]) for m in body["members"]] == [("ala", True)]
+    assert [(m["name"], m["is_owner"]) for m in body["members"]] == [("ala", True)]
 
 
 async def test_create_household_validates_name(login_as):
@@ -67,7 +67,7 @@ async def test_add_member_and_list_members(household_with):
 
     body = (await ola.get("/api/households/me")).json()
 
-    assert [(m["login"], m["is_owner"]) for m in body["members"]] == [
+    assert [(m["name"], m["is_owner"]) for m in body["members"]] == [
         ("ala", True),
         ("ola", False),
     ]
@@ -85,7 +85,7 @@ async def test_add_user_from_other_household_returns_409(household_with):
     (ala,) = await household_with("ala")
     await household_with("ola", name="Inny dom")
 
-    response = await ala.post("/api/households/me/members", json={"login": "ola"})
+    response = await ala.post("/api/households/me/members", json={"email": "ola@example.com"})
 
     assert response.status_code == 409
 
@@ -94,7 +94,7 @@ async def test_regular_member_cannot_add_members(household_with, login_as):
     _, ola = await household_with("ala", "ola")
     await login_as("ewa")
 
-    response = await ola.post("/api/households/me/members", json={"login": "ewa"})
+    response = await ola.post("/api/households/me/members", json={"email": "ewa@example.com"})
 
     assert response.status_code == 403
 
@@ -126,7 +126,7 @@ async def test_member_leaves(household_with):
 
     assert (await ola.get("/api/users/me")).json()["household"] is None
     members = (await ala.get("/api/households/me")).json()["members"]
-    assert [m["login"] for m in members] == ["ala"]
+    assert [m["name"] for m in members] == ["ala"]
 
 
 async def test_owner_leaves_and_ownership_passes(household_with):
@@ -135,7 +135,7 @@ async def test_owner_leaves_and_ownership_passes(household_with):
     await ala.post("/api/households/me/leave")
 
     members = (await ewa.get("/api/households/me")).json()["members"]
-    assert [(m["login"], m["is_owner"]) for m in members] == [("ola", True), ("ewa", False)]
+    assert [(m["name"], m["is_owner"]) for m in members] == [("ola", True), ("ewa", False)]
 
 
 async def test_last_member_leaving_removes_household(household_with):
@@ -145,3 +145,22 @@ async def test_last_member_leaving_removes_household(household_with):
 
     assert (await ala.get("/api/households/me")).status_code == 409
     assert (await ala.post("/api/households", json={"name": "Nowy"})).status_code == 201
+
+
+async def test_members_see_names_not_addresses(login_as):
+    # #77: domownicy widzą imiona — adres e-mail (i login) zna tylko właściciel konta.
+    ala = await login_as("ala", name="Ala")
+    ola = await login_as("ola", name="Ola")
+    await ala.post("/api/households", json={"name": "Dom"})
+    await ala.post("/api/households/me/members", json={"email": "ola@example.com"})
+    await ola.post("/api/list/needs", json={"name": "mleko", "category": "Nabiał"})
+    await ola.post("/api/list/shopping")
+
+    household = await ala.get("/api/households/me")
+    shopping_list = await ala.get("/api/list")
+
+    assert [m["name"] for m in household.json()["members"]] == ["Ala", "Ola"]
+    assert [s["name"] for s in shopping_list.json()["shoppers"]] == ["Ola"]
+    for response in (household, shopping_list):
+        assert "example.com" not in response.text
+        assert '"login"' not in response.text

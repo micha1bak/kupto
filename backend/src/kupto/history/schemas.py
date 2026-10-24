@@ -11,7 +11,7 @@ from kupto.models import Category, PurchasedItem, PurchasedNeed, ShoppingTrip, U
 
 class PurchasedNeedOut(BaseModel):
     user_id: int | None
-    login: str | None
+    name: str | None  # imię autora; None po usunięciu konta
     amount: float | None
     unit: Unit | None
     note: str | None
@@ -65,7 +65,7 @@ def _quantities(needs: list[PurchasedNeed]) -> list[QuantityOut]:
     ]
 
 
-def purchased_item_out(item: PurchasedItem, logins: dict[int, str]) -> PurchasedItemOut:
+def purchased_item_out(item: PurchasedItem, names: dict[int, str]) -> PurchasedItemOut:
     return PurchasedItemOut(
         id=item.id,
         name=item.name,
@@ -74,7 +74,7 @@ def purchased_item_out(item: PurchasedItem, logins: dict[int, str]) -> Purchased
         needs=[
             PurchasedNeedOut(
                 user_id=n.user_id,
-                login=logins.get(n.user_id) if n.user_id is not None else None,
+                name=names.get(n.user_id) if n.user_id is not None else None,
                 amount=float(n.amount) if n.amount is not None else None,
                 unit=n.unit,
                 note=n.note,
@@ -83,11 +83,11 @@ def purchased_item_out(item: PurchasedItem, logins: dict[int, str]) -> Purchased
             for n in item.needs
         ],
         bought_at=item.bought_at,
-        bought_by=logins.get(item.bought_by_id) if item.bought_by_id is not None else None,
+        bought_by=names.get(item.bought_by_id) if item.bought_by_id is not None else None,
     )
 
 
-def trip_out(trip: ShoppingTrip, order: CategoryOrder, logins: dict[int, str]) -> TripOut:
+def trip_out(trip: ShoppingTrip, order: CategoryOrder, names: dict[int, str]) -> TripOut:
     groups = []
     for category in order.categories:
         items = sorted(
@@ -96,24 +96,24 @@ def trip_out(trip: ShoppingTrip, order: CategoryOrder, logins: dict[int, str]) -
         if items:
             groups.append(
                 PurchasedGroup(
-                    category=category, items=[purchased_item_out(i, logins) for i in items]
+                    category=category, items=[purchased_item_out(i, names) for i in items]
                 )
             )
     return TripOut(
         id=trip.id,
         finished_at=trip.finished_at,
-        finished_by=logins.get(trip.finished_by_id) if trip.finished_by_id is not None else None,
+        finished_by=names.get(trip.finished_by_id) if trip.finished_by_id is not None else None,
         item_count=len(trip.items),
         groups=groups,
     )
 
 
-def product_out(item: PurchasedItem, times_bought: int, logins: dict[int, str]) -> ProductOut:
+def product_out(item: PurchasedItem, times_bought: int, names: dict[int, str]) -> ProductOut:
     return ProductOut(
         name=item.name,
         category=item.category,
         last_bought_at=item.bought_at,
-        last_bought_by=logins.get(item.bought_by_id) if item.bought_by_id is not None else None,
+        last_bought_by=names.get(item.bought_by_id) if item.bought_by_id is not None else None,
         last_trip_id=item.trip_id,
         last_quantities=_quantities(item.needs),
         times_bought=times_bought,
