@@ -53,8 +53,15 @@ describe("szerokość widoku na telefonie", () => {
     }
   });
 
-  it("nagłówek zawija linki zamiast poszerzać stronę", () => {
-    expect(strip(mainPageCss)).toMatch(/\.header nav \{[^}]*flex-wrap:\s*wrap/);
+  it("pasek nawigacji mieści się w jednym wierszu i skraca długi tytuł czatu (#80)", () => {
+    const css = strip(mainPageCss);
+    expect(css).toMatch(/\.header \{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto/);
+    expect(css).not.toMatch(/\.header \{[^}]*flex-wrap/);
+    expect(css).toMatch(/\.titleText \{[^}]*text-overflow:\s*ellipsis/);
+    expect(css).toMatch(/\.titleText \{[^}]*white-space:\s*nowrap/);
+    // Ikona profilu: cel dotyku co najmniej 44 × 44 px.
+    expect(css).toMatch(/\.profile \{[^}]*width:\s*44px/);
+    expect(css).toMatch(/\.profile \{[^}]*height:\s*44px/);
   });
 
   it("wiersz listy pozwala zawinąć długą nazwę produktu", () => {
