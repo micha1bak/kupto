@@ -54,6 +54,8 @@ test("shows history and streams assistant reply incrementally", async () => {
   expect(invalidate).toHaveBeenCalledWith({ queryKey: ["list"] });
   // Asystent mógł zmienić preferencje gospodarstwa (update_preferences).
   expect(invalidate).toHaveBeenCalledWith({ queryKey: ["household-preferences"] });
+  // …albo zapisać plan obiadów (save_meal_plan), który pokazuje kalendarz.
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ["meal-plan"] });
   const post = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
   expect(JSON.parse(post[1]!.body as string)).toEqual({ content: "kup chleb" });
 });

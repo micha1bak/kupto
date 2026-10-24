@@ -256,3 +256,20 @@ export interface RecipeInput {
 export interface RecipeToList {
   added: { name: string; category: Category; already_on_list: boolean }[];
 }
+
+/** Obiad zaplanowany na dzień (`GET /api/meal-plan`); `day` w formacie `YYYY-MM-DD`. */
+export interface MealPlanEntry {
+  id: number;
+  day: string;
+  name: string;
+  /** Przepis gospodarstwa; null — danie bez przepisu albo przepis usunięty. */
+  recipe_id: number | null;
+  planned_by: string | null;
+  updated_at: string;
+}
+
+/** Danie na dzień do zapisu (`PUT /api/meal-plan/{day}`); bez nazwy — nazwa przepisu. */
+export interface MealPlanDayInput {
+  name: string | null;
+  recipe_id: number | null;
+}

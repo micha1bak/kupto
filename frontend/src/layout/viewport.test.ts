@@ -2,6 +2,7 @@ import indexHtml from "../../index.html?raw";
 import globalCss from "../index.css?raw";
 import mainPageCss from "./MainPage.module.css?raw";
 import listCss from "../list/ListView.module.css?raw";
+import mealPlanCss from "../mealPlan/MealPlanPage.module.css?raw";
 
 // Regresja #76: na iPhonie (PWA i Safari) widok nie może wychodzić poza szerokość ekranu.
 // jsdom nie liczy układu, więc pilnujemy tu reguł, które do tego prowadziły; scrollWidth przy
@@ -62,6 +63,15 @@ describe("szerokość widoku na telefonie", () => {
     // Ikona profilu: cel dotyku co najmniej 44 × 44 px.
     expect(css).toMatch(/\.profile \{[^}]*width:\s*44px/);
     expect(css).toMatch(/\.profile \{[^}]*height:\s*44px/);
+  });
+
+  it("plan obiadów zawija przyciski i długie nazwy dań (#47)", () => {
+    const css = strip(mealPlanCss);
+    expect(css).toMatch(/\.weeks \{[^}]*flex-wrap:\s*wrap/);
+    expect(css).toMatch(/\.actions \{[^}]*flex-wrap:\s*wrap/);
+    expect(css).toMatch(/\.name \{[^}]*overflow-wrap:\s*anywhere/);
+    // Dni jako pionowa lista, nie siatka tygodnia.
+    expect(css).not.toMatch(/grid-template-columns/);
   });
 
   it("wiersz listy pozwala zawinąć długą nazwę produktu", () => {

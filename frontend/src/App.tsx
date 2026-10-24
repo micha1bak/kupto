@@ -7,6 +7,7 @@ import { AuthForm } from "./auth/AuthForm";
 import { HistoryPage } from "./history/HistoryPage";
 import { HouseholdPage, HouseholdSetup } from "./household/HouseholdPage";
 import { MainPage } from "./layout/MainPage";
+import { MealPlanPage } from "./mealPlan/MealPlanPage";
 import { ProfilePage } from "./profile/ProfilePage";
 import { RecipesPage } from "./recipes/RecipesPage";
 import { disablePushOnLogout } from "./pwa/push";
@@ -19,7 +20,9 @@ const queryClient = new QueryClient({
   },
 });
 
-function Authenticated({ page }: { page: "main" | "household" | "history" | "recipes" | "profile" }) {
+type Page = "main" | "household" | "history" | "recipes" | "meal-plan" | "profile";
+
+function Authenticated({ page }: { page: Page }) {
   const profile = useProfile();
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -40,6 +43,7 @@ function Authenticated({ page }: { page: "main" | "household" | "history" | "rec
   if (page === "household") return <HouseholdPage />;
   if (page === "history") return <HistoryPage />;
   if (page === "recipes") return <RecipesPage />;
+  if (page === "meal-plan") return <MealPlanPage />;
   if (page === "profile") return <ProfilePage profile={profile.data} onLogout={logout} />;
   return <MainPage profile={profile.data} />;
 }
@@ -62,6 +66,7 @@ function Routing() {
       client.removeQueries({ queryKey: keys.history });
       client.removeQueries({ queryKey: keys.historySearch });
       client.removeQueries({ queryKey: keys.recipes });
+      client.removeQueries({ queryKey: keys.mealPlan });
       client.invalidateQueries({ queryKey: keys.profile });
     });
   }, [navigate, client]);
@@ -73,6 +78,7 @@ function Routing() {
       <Route path="/household" element={<Authenticated page="household" />} />
       <Route path="/history" element={<Authenticated page="history" />} />
       <Route path="/recipes/*" element={<Authenticated page="recipes" />} />
+      <Route path="/meal-plan" element={<Authenticated page="meal-plan" />} />
       <Route path="/profile" element={<Authenticated page="profile" />} />
       <Route path="*" element={<Authenticated page="main" />} />
     </Routes>
