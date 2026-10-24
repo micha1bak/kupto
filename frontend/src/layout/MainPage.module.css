@@ -2,14 +2,17 @@
   height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* Pole czatu nie chowa się pod wskaźnikiem ekranu głównego (viewport-fit=cover). */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.6rem 16px;
+  padding: calc(0.6rem + env(safe-area-inset-top, 0px)) 16px 0.6rem;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
@@ -19,11 +22,21 @@
   margin: 0;
 }
 
+/* Linki zawijają się do kolejnego wiersza zamiast poszerzać stronę (#76) — na wąskim telefonie
+   zmieści się też dodatkowy link. Długą nazwę gospodarstwa albo login wolno złamać. */
 .header nav {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.35rem 0.6rem;
+  min-width: 0;
   font-size: 0.9rem;
+}
+
+.header nav > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .header a {
@@ -59,6 +72,7 @@
 
 .panel {
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
   padding: 16px;
 }

@@ -17,6 +17,7 @@
 }
 
 .actions {
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -84,7 +85,8 @@
 
 .item {
   display: grid;
-  grid-template-columns: auto auto 1fr auto;
+  /* minmax(0, …): długa nazwa bez spacji zawija się zamiast wypychać kosz poza ekran (#76). */
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   gap: 0.6rem;
   align-items: start;
   padding: 0.55rem 0;
@@ -142,6 +144,7 @@
 
 .name {
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .quantity {
@@ -156,6 +159,7 @@
   padding: 0;
   font-size: 0.85rem;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .needs button {
@@ -175,7 +179,7 @@
 
 .addForm {
   display: grid;
-  grid-template-columns: 1fr 5rem 5.5rem;
+  grid-template-columns: minmax(0, 1fr) 5rem 5.5rem;
   gap: 0.5rem;
 }
 
@@ -198,4 +202,5 @@
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   background: var(--surface);
+  overflow-wrap: anywhere;
 }

@@ -15,6 +15,7 @@
 }
 
 .products {
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
@@ -27,6 +28,7 @@
   font-size: 0.85rem;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
+  overflow-wrap: anywhere;
 }
 
 .amount {
