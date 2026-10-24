@@ -59,7 +59,8 @@ async def list_events(
     settings: SettingsDep,
 ) -> StreamingResponse:
     """Strumień SSE: sygnał `list_changed`, gdy lista gospodarstwa (albo własna kolejność
-    kategorii) się zmieni. Treść listy klient pobiera zwykłym `GET /api/list` (design D1)."""
+    kategorii) się zmieni, i `chat_changed`, gdy w czacie gospodarstwa pojawi się wiadomość
+    (#78). Treść klient pobiera zwykłym `GET /api/list` / `GET /api/chat/messages` (design D1)."""
     user_id, household_id = user.id, household.id
     # Strumień żyje długo — połączenie z puli bazy wraca od razu, zostaje tylko subskrypcja.
     await session.close()
@@ -86,10 +87,15 @@ async def _event_stream(
     try:
         yield f"retry: {RECONNECT_DELAY_MS}\n\nevent: ready\ndata: {{}}\n\n"
         while True:
-            changed = await subscription.wait(heartbeat)
+            signals = await subscription.wait(heartbeat)
             if subscription.closed:
                 return
-            yield "event: list_changed\ndata: {}\n\n" if changed else ": ping\n\n"
+            if not signals:
+                yield ": ping\n\n"
+            if "list" in signals:
+                yield "event: list_changed\ndata: {}\n\n"
+            if "chat" in signals:
+                yield "event: chat_changed\ndata: {}\n\n"
     finally:
         broker.unsubscribe(subscription)
 

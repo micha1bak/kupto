@@ -2,7 +2,7 @@ from datetime import date
 
 from kupto.chat.prompt import PREFERENCES_RULE, SYSTEM_PROMPT, build_input, build_instructions
 from kupto.chat.tools import TOOL_DEFINITIONS
-from kupto.models import ChatMessage
+from kupto.models import ChatMessage, User
 
 
 def test_instructions_contain_rules_user_and_current_list():
@@ -13,6 +13,32 @@ def test_instructions_contain_rules_user_and_current_list():
     assert "asystentem zakupowym" in instructions
     assert "„ala”" in instructions and "„Dom”" in instructions
     assert '"name": "mleko"' in instructions
+
+
+def test_group_chat_rule_names_author_and_limits_confirmations_to_them():
+    instructions = build_instructions("Ala", "Dom", {"items": []})
+
+    assert "czacie gospodarstwa „Dom”" in instructions
+    assert "Ostatnią wiadomość napisał(a) „Ala”" in instructions
+    assert "zaczynają się od imienia autora" in SYSTEM_PROMPT
+    assert "Potwierdzeniem Twojej propozycji jest tylko odpowiedź osoby" in SYSTEM_PROMPT
+    assert "„shopping_now” to imiona" in SYSTEM_PROMPT
+
+
+def test_input_prefixes_members_messages_with_author_name():
+    ala = User(login="ala", name="Ala")
+    ola = User(login="ola")  # konto bez imienia — login
+    history = [
+        ChatMessage(role="user", content="kup mleko", user=ala),
+        ChatMessage(role="assistant", content="Dodałem mleko.", user=ala),
+        ChatMessage(role="user", content="i chleb", user=ola),
+    ]
+
+    assert build_input(history, limit=20) == [
+        {"role": "user", "content": "Ala: kup mleko"},
+        {"role": "assistant", "content": "Dodałem mleko."},
+        {"role": "user", "content": "ola: i chleb"},
+    ]
 
 
 def test_pending_finish_shopping_is_stated_in_instructions():

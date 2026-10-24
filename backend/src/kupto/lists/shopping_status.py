@@ -27,6 +27,7 @@ SHOPPING_STATUS_TTL = timedelta(hours=3)
 class Shopper:
     user_id: int
     login: str
+    name: str  # imię albo login (`display_name`) — dla modelu w czacie
     since: datetime
     expires_at: datetime
 
@@ -91,13 +92,19 @@ async def active_shoppers(
     """Członkowie gospodarstwa z aktywnym statusem, najdawniej rozpoczęty pierwszy."""
     now = now or utcnow()
     rows = await session.execute(
-        select(User.id, User.login, User.shopping_since)
+        select(User.id, User.login, User.name, User.shopping_since)
         .where(User.household_id == household.id, _active(now))
         .order_by(User.shopping_since, User.id)
     )
     return [
-        Shopper(user_id=uid, login=login, since=since, expires_at=expires_at(since))
-        for uid, login, since in rows
+        Shopper(
+            user_id=uid,
+            login=login,
+            name=name or login,
+            since=since,
+            expires_at=expires_at(since),
+        )
+        for uid, login, name, since in rows
     ]
 
 

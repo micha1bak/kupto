@@ -9,8 +9,9 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, func, select
+from sqlalchemy import Select, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from kupto.chat.agent import AgentStats, Delta, ListChanged, run_agent
 from kupto.chat.llm import LLMClient, LLMUnavailable, OpenAIResponsesClient
@@ -21,14 +22,17 @@ from kupto.db import utcnow
 from kupto.deps import CurrentHousehold, CurrentUser, SessionDep, SettingsDep
 from kupto.errors import TooManyRequests
 from kupto.households import preferences
+from kupto.lists import events
 from kupto.meal_plan import service as meal_plan
-from kupto.models import ChatMessage, ChatPendingAction, Household, User
+from kupto.models import ChatMessage, ChatPendingAction, Household, User, display_name
 from kupto.push.notifier import Notifier
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
 
 MAX_MESSAGE_LENGTH = 8000  # mieści wklejony przepis z opisem przygotowania
+# Ile ostatnich wiadomości wątku gospodarstwa dostaje klient (bez paginacji, design D1).
+THREAD_LIMIT = 200
 UNAVAILABLE_MESSAGE = (
     "Asystent jest chwilowo niedostępny. Spróbuj ponownie za chwilę — "
     "listę możesz w tym czasie edytować ręcznie."
@@ -39,11 +43,30 @@ class MessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=MAX_MESSAGE_LENGTH, pattern=r"\S")
 
 
+class Author(BaseModel):
+    id: int
+    name: str  # imię, a w koncie bez imienia login
+
+
 class MessageOut(BaseModel):
     id: int
     role: Literal["user", "assistant"]
     content: str
     created_at: datetime
+    author: Author | None  # None dla odpowiedzi asystenta
+    mine: bool  # wiadomość bieżącego użytkownika (odpowiedzi asystenta — nigdy)
+
+
+def message_out(message: ChatMessage, user: User) -> MessageOut:
+    is_user = message.role == "user"
+    return MessageOut(
+        id=message.id,
+        role=message.role,
+        content=message.content,
+        created_at=message.created_at,
+        author=Author(id=message.user.id, name=display_name(message.user)) if is_user else None,
+        mine=is_user and message.user_id == user.id,
+    )
 
 
 def get_llm_client(request: Request) -> LLMClient:
@@ -78,34 +101,47 @@ async def check_rate_limit(session: AsyncSession, user: User, settings: Settings
         )
 
 
-async def _history(session: AsyncSession, user: User, household: Household) -> list[ChatMessage]:
-    result = await session.scalars(
+def _thread(household: Household, limit: int) -> Select[tuple[ChatMessage]]:
+    """Ostatnie `limit` wiadomości wątku gospodarstwa (bez archiwum prywatnych rozmów, D2),
+    od najnowszych — wołający odwraca kolejność."""
+    return (
         select(ChatMessage)
-        .where(ChatMessage.user_id == user.id, ChatMessage.household_id == household.id)
-        .order_by(ChatMessage.created_at, ChatMessage.id)
+        .options(selectinload(ChatMessage.user))
+        .where(ChatMessage.household_id == household.id, ChatMessage.private.is_(False))
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+        .limit(limit)
     )
-    return list(result)
+
+
+async def _model_history(
+    session: AsyncSession, household: Household, settings: Settings
+) -> list[ChatMessage]:
+    """Kontekst modelu: ostatnie wiadomości wątku z ostatnich `chat_history_max_age_hours` (D5)."""
+    since = utcnow() - timedelta(hours=settings.chat_history_max_age_hours)
+    statement = _thread(household, max(settings.chat_history_limit, 1)).where(
+        ChatMessage.created_at > since
+    )
+    return list(reversed((await session.scalars(statement)).all()))
 
 
 @router.get("/messages")
 async def get_messages(
     user: CurrentUser, household: CurrentHousehold, session: SessionDep
 ) -> list[MessageOut]:
-    return [
-        MessageOut.model_validate(m, from_attributes=True)
-        for m in await _history(session, user, household)
-    ]
+    statement = _thread(household, THREAD_LIMIT)
+    if user.chat_hidden_before is not None:
+        statement = statement.where(ChatMessage.created_at > user.chat_hidden_before)
+    messages = reversed((await session.scalars(statement)).all())
+    return [message_out(m, user) for m in messages]
 
 
 @router.delete("/messages", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_messages(
+async def hide_messages(
     user: CurrentUser, household: CurrentHousehold, session: SessionDep
 ) -> None:
-    await session.execute(
-        delete(ChatMessage).where(
-            ChatMessage.user_id == user.id, ChatMessage.household_id == household.id
-        )
-    )
+    """Ukrywa dotychczasowy wątek tylko u bieżącego użytkownika (D8) — wiadomości zostają
+    dla domowników i modelu. Własna oczekująca akcja przepada, jak przy dawnym czyszczeniu."""
+    user.chat_hidden_before = utcnow()
     await session.execute(delete(ChatPendingAction).where(ChatPendingAction.user_id == user.id))
     await session.commit()
 
@@ -127,8 +163,9 @@ async def send_message(
             user_id=user.id, household_id=household.id, role="user", content=payload.content
         )
     )
+    await events.chat_changed(session, household.id)
     await session.commit()
-    events = _stream_reply(
+    reply = _stream_reply(
         request.app.state.sessionmaker,
         llm,
         settings,
@@ -137,7 +174,7 @@ async def send_message(
         household.id,
     )
     return StreamingResponse(
-        events,
+        reply,
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -158,7 +195,7 @@ async def _stream_reply(
         ctx = ToolContext(session, household, user, notifier=notifier)
         ctx.pending_action = await clear_pending_action(session, user)
         instructions = build_instructions(
-            user.login,
+            display_name(user),
             household.name,
             await list_snapshot(ctx),
             ctx.pending_action,
@@ -166,7 +203,7 @@ async def _stream_reply(
             meal_plan.today(),
         )
         conversation = build_input(
-            await _history(session, user, household), settings.chat_history_limit
+            await _model_history(session, household, settings), settings.chat_history_limit
         )
         reply: list[str] = []
         stats = AgentStats()
@@ -212,6 +249,7 @@ async def _stream_reply(
                     user_id=user_id, household_id=household_id, role="assistant", content=text
                 )
             )
+            await events.chat_changed(session, household_id)
             await session.commit()
         yield _sse("done", {})
 

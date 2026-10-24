@@ -34,7 +34,8 @@ uv run uvicorn --factory kupto.main:create_app --reload    # http://localhost:80
 | `OPENAI_BASE_URL` | — (OpenAI) | adres dostawcy zgodnego z Responses API, np. `https://api.groq.com/openai/v1` |
 | `OPENAI_MODEL` | `gpt-4.1-mini` | model asystenta |
 | `CHAT_RATE_LIMIT_PER_HOUR` | `30` | limit wiadomości na użytkownika |
-| `CHAT_HISTORY_LIMIT` | `20` | ile ostatnich wiadomości trafia do modelu |
+| `CHAT_HISTORY_LIMIT` | `20` | ile ostatnich wiadomości czatu gospodarstwa trafia do modelu |
+| `CHAT_HISTORY_MAX_AGE_HOURS` | `24` | starsze wiadomości czatu nie trafiają do modelu |
 | `CHAT_MAX_TOOL_ROUNDS` | `5` | maks. rund wywołań narzędzi na wiadomość |
 | `LIST_EVENTS_HEARTBEAT_SECONDS` | `20` | co ile strumień zmian listy wysyła podtrzymanie (≤ 30) |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | — (powiadomienia wyłączone) | para kluczy Web Push z `uv run python -m kupto.push.keys` (base64url) |

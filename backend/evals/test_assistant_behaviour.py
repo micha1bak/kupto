@@ -613,3 +613,55 @@ async def test_dinner_plan_question_reads_saved_plan(household_with, chat, items
     assert "pierog" in reply.lower(), reply
     assert await meal_plan(ala) == before
     assert await items(ala) == {}
+
+
+# --- czat grupowy gospodarstwa (#78) ---
+
+
+async def named_household(household_with):
+    """Ala i Ola w jednym gospodarstwie, z imionami innymi niż loginy."""
+    ala, ola = await household_with("ala", "ola")
+    await ala.patch("/api/users/me", json={"name": "Ala"})
+    await ola.patch("/api/users/me", json={"name": "Ola"})
+    return ala, ola
+
+
+async def test_group_context_is_used_and_change_belongs_to_author(household_with, chat, items):
+    ala, ola = await named_household(household_with)
+
+    await chat(ala, "w sobotę robię naleśniki")
+    reply = await chat(ola, "to dopisz do tego mleko")
+
+    found = await items(ola)
+    assert "mleko" in found, reply
+    assert "ola" in [n["login"] for n in found["mleko"]["needs"]]
+    assert not reply.lstrip().startswith("Asystent:"), reply
+
+
+async def test_confirmation_from_other_member_does_not_accept_proposal(household_with, chat, items):
+    ala, ola = await named_household(household_with)
+
+    await chat(ala, "potrzebujemy czegoś na grilla w sobotę, zaproponuj coś z kiełbasą")
+    await chat(ola, "tak")
+
+    assert await items(ala) == {}
+
+    await chat(ala, "tak, dodaj")
+    assert await items(ala)
+
+
+async def test_finish_shopping_is_not_confirmed_by_other_member(
+    household_with, chat, items, purchase_history
+):
+    ala, ola = await named_household(household_with)
+    body = (await ala.post("/api/list/needs", json={"name": "mleko"})).json()
+    await ala.post(f"/api/list/items/{body['groups'][0]['items'][0]['id']}/bought")
+
+    await chat(ala, "skończyłam zakupy")
+    await chat(ola, "tak, potwierdzam")
+
+    assert await purchase_history() == []
+
+    await chat(ala, "tak, potwierdzam")
+    (trip,) = await purchase_history()
+    assert [i.name for i in trip.items] == ["mleko"]

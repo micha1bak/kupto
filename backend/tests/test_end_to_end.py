@@ -56,6 +56,9 @@ async def test_two_members_build_and_finish_list_through_chat(household_with, fa
     await chat(ola, "tak")
     assert await shopping_list(ala) == []
 
-    ola_history = [m["content"] for m in (await ola.get("/api/chat/messages")).json()]
-    assert ola_history[-1] == "Zakupy zakończone."
-    assert "kup litr mleka" not in ola_history
+    # Jeden wątek gospodarstwa (#78): ola widzi też rozmowę ali, podpisaną jej imieniem.
+    ola_thread = (await ola.get("/api/chat/messages")).json()
+    assert ola_thread[-1]["content"] == "Zakupy zakończone."
+    assert ("kup litr mleka", "ala", False) in [
+        (m["content"], m["author"]["name"], m["mine"]) for m in ola_thread if m["author"]
+    ]

@@ -1,7 +1,7 @@
 """Powiadomienia push o zakupach (#29–#31).
 
 Każda funkcja jest wołana PO commicie zmiany, która ją wywołała: buduje treść z aktualnego
-stanu bazy i planuje wysyłkę (`Notifier` wysyła w tle). Treść zawiera tylko loginy i nazwy
+stanu bazy i planuje wysyłkę (`Notifier` wysyła w tle). Treść zawiera tylko imiona i nazwy
 produktów z listy gospodarstwa — nic, czego domownicy nie widzą w aplikacji.
 """
 
@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kupto.db import utcnow
 from kupto.lists import shopping_status
-from kupto.models import Household, ListItem, Need, ShoppingList, User
+from kupto.models import Household, ListItem, Need, ShoppingList, User, display_name
 from kupto.push.notification import Notification, NotificationType
 from kupto.push.notifier import Notifier
 
@@ -76,13 +76,13 @@ def shopping_finished_tag(household_id: int) -> str:
 
 
 def shopping_started(notifier: Notifier, household: Household, shopper: User) -> None:
-    """#29: pozostali domownicy dostają „{login} idzie na zakupy”. Wołać tylko, gdy `start`
+    """#29: pozostali domownicy dostają „{imię} idzie na zakupy”. Wołać tylko, gdy `start`
     zwrócił True (status faktycznie się zaczął)."""
     notifier.send_to_household(
         household.id,
         Notification(
             NotificationType.SHOPPING_STARTED,
-            title=f"{shopper.login} idzie na zakupy",
+            title=f"{display_name(shopper)} idzie na zakupy",
             body="Dopisz, czego potrzebujesz.",
             tag=shopping_started_tag(household.id),
         ),
@@ -131,7 +131,7 @@ async def items_added(
 async def shopping_finished(
     session: AsyncSession, notifier: Notifier, household: Household, shopper: User
 ) -> None:
-    """#31: pozostali domownicy dostają „{login}: zakupy zakończone” z tym, czego zabrakło
+    """#31: pozostali domownicy dostają „{imię}: zakupy zakończone” z tym, czego zabrakło
     (niekupione pozycje, które zostały na liście). Wołać po zakończeniu z przeniesionymi
     pozycjami."""
     remaining = list(
@@ -147,7 +147,7 @@ async def shopping_finished(
         household.id,
         Notification(
             NotificationType.SHOPPING_FINISHED,
-            title=f"{shopper.login}: zakupy zakończone",
+            title=f"{display_name(shopper)}: zakupy zakończone",
             body=body,
             tag=shopping_finished_tag(household.id),
         ),

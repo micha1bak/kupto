@@ -65,6 +65,29 @@ async def test_change_reaches_members_of_the_same_household_only(household_with,
     await assert_quiet(ola_stream)
 
 
+async def test_chat_and_list_signals_are_delivered_separately(
+    household_with, subscribe, session, fake_llm
+):
+    ala, _ = await household_with("ala", "ola")
+    await household_with("ewa", name="Sąsiedzi")
+    ola_stream, ewa_stream = await subscribe("ola"), await subscribe("ewa")
+    ((_, household_id),) = await user_ids(session, "ala")
+
+    await events.chat_changed(session, household_id)
+    await events.list_changed(session, household_id)
+    await session.commit()
+
+    signals = await ola_stream.wait(5)
+    if signals != {"list", "chat"}:
+        signals |= await ola_stream.wait(5)  # mogły przyjść w dwóch powiadomieniach
+    assert signals == {"list", "chat"}
+    await assert_quiet(ewa_stream)
+
+    fake_llm.rounds.append([TextDelta("Cześć!")])
+    await ala.post("/api/chat/messages", json={"content": "Hej"})
+    assert await ola_stream.wait(5) == {"chat"}
+
+
 async def test_every_list_operation_publishes(household_with, subscribe):
     ala, ola = await household_with("ala", "ola")
     stream = await subscribe("ola")
@@ -173,7 +196,7 @@ async def test_removed_member_stream_is_closed(household_with, subscribe, sessio
 
     assert (await ala.delete(f"/api/households/me/members/{ola_id}")).status_code == 200
 
-    assert await ola_stream.wait(5)
+    await ola_stream.wait(5)  # zamknięcie budzi oczekującego bez sygnału zmiany
     assert ola_stream.closed
     await assert_quiet(ala_stream)
 
@@ -187,7 +210,7 @@ async def test_leaving_household_closes_own_stream(household_with, subscribe):
 
     assert (await ola.post("/api/households/me/leave")).status_code == 204
 
-    assert await ola_stream.wait(5)
+    await ola_stream.wait(5)  # zamknięcie budzi oczekującego bez sygnału zmiany
     assert ola_stream.closed
 
 
@@ -222,7 +245,7 @@ async def test_lost_listen_connection_closes_streams_and_reconnects(
     for pid in listener_pids:
         await session.execute(select(func.pg_terminate_backend(pid)))
 
-    assert await stream.wait(5)
+    await stream.wait(5)  # zamknięcie budzi oczekującego bez sygnału zmiany
     assert stream.closed
     await broker.wait_ready(10)
     new_stream = broker.subscribe(household_id, ala_id)

@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -49,6 +50,9 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     login: Mapped[str] = mapped_column(String(50), unique=True)
+    # Imię pokazywane domownikom (czat, push); NULL tylko w kontach sprzed czatu grupowego (#78).
+    # Do wyświetlania używaj `display_name`, które zastępuje brak imienia loginem.
+    name: Mapped[str | None] = mapped_column(String(40))
     password_hash: Mapped[str] = mapped_column(String(255))
     household_id: Mapped[int | None] = mapped_column(
         ForeignKey("households.id", ondelete="SET NULL"), index=True
@@ -57,11 +61,18 @@ class User(Base):
     # Początek statusu „robię zakupy”; NULL = brak statusu. Aktywność (z wygasaniem) oceniaj
     # wyłącznie przez `kupto.lists.shopping_status`, nie bezpośrednio z tej kolumny.
     shopping_since: Mapped[datetime | None]
+    # Wiadomości czatu gospodarstwa sprzed tej chwili są ukryte u tego użytkownika (nie u innych).
+    chat_hidden_before: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     household: Mapped["Household | None"] = relationship(
         back_populates="members", foreign_keys=[household_id]
     )
+
+
+def display_name(user: User) -> str:
+    """Nazwa pokazywana domownikom: imię, a w koncie bez imienia — login."""
+    return user.name or user.login
 
 
 class Household(Base):
@@ -253,15 +264,28 @@ class PurchasedNeed(Base):
 
 
 class ChatMessage(Base):
+    """Wiadomość czatu gospodarstwa (#78).
+
+    `user_id` to autor wiadomości członka, a przy odpowiedzi asystenta — autor prośby, na którą
+    odpowiada. `private` oznacza archiwum prywatnych rozmów sprzed czatu grupowego: nie należą
+    do wątku gospodarstwa i nie trafiają do modelu.
+    """
+
     __tablename__ = "chat_messages"
-    __table_args__ = (Index("ix_chat_messages_user_id_created_at", "user_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_chat_messages_user_id_created_at", "user_id", "created_at"),
+        Index("ix_chat_messages_household_id_created_at", "household_id", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     household_id: Mapped[int] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"))
     role: Mapped[str] = mapped_column(String(16))
     content: Mapped[str] = mapped_column(Text)
+    private: Mapped[bool] = mapped_column(default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    user: Mapped[User] = relationship()
 
 
 class PushSubscription(Base):

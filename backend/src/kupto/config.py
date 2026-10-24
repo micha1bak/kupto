@@ -25,6 +25,8 @@ class Settings(BaseSettings):
 
     chat_rate_limit_per_hour: int = 30
     chat_history_limit: int = 20
+    # Starsze wiadomości wątku gospodarstwa nie trafiają do modelu (koszt tokenów, #78 D5).
+    chat_history_max_age_hours: float = Field(default=24.0, gt=0)
     chat_max_tool_rounds: int = 5
 
     # Podtrzymanie strumienia zmian listy (SSE) — poniżej limitów bezczynności proxy (nginx 300 s).
