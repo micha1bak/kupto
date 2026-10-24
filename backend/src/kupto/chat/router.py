@@ -20,6 +20,7 @@ from kupto.config import Settings
 from kupto.db import utcnow
 from kupto.deps import CurrentHousehold, CurrentUser, SessionDep, SettingsDep
 from kupto.errors import TooManyRequests
+from kupto.households import preferences
 from kupto.models import ChatMessage, ChatPendingAction, Household, User
 from kupto.push.notifier import Notifier
 
@@ -156,7 +157,11 @@ async def _stream_reply(
         ctx = ToolContext(session, household, user, notifier=notifier)
         ctx.pending_action = await clear_pending_action(session, user)
         instructions = build_instructions(
-            user.login, household.name, await list_snapshot(ctx), ctx.pending_action
+            user.login,
+            household.name,
+            await list_snapshot(ctx),
+            ctx.pending_action,
+            preferences.for_model(await preferences.load(session, household)),
         )
         conversation = build_input(
             await _history(session, user, household), settings.chat_history_limit

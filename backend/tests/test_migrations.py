@@ -384,3 +384,46 @@ async def test_household_recipes_migration_keeps_existing_data(empty_database):
 
     await migrate(empty_database, "up", "head")
     assert await snapshot(empty_database, RECIPE_TABLES) == {t: [] for t in RECIPE_TABLES}
+
+
+async def test_household_preferences_migration_keeps_existing_data(empty_database):
+    await migrate(empty_database, "up", "0009")
+    await execute(
+        empty_database,
+        *SEED_STATEMENTS,
+        "INSERT INTO recipes (id, household_id, name, normalized_name, created_by_id, "
+        "created_at, updated_at) VALUES (1, 1, 'Naleśniki', 'naleśniki', 1, now(), now())",
+    )
+    tables = (*EXISTING_TABLES, *HISTORY_TABLES, *RECIPE_TABLES)
+    before = await snapshot(empty_database, tables)
+
+    await migrate(empty_database, "up", "0010")
+
+    assert await snapshot(empty_database, tables) == before
+    preferences = ("household_preferences",)
+    assert await snapshot(empty_database, preferences) == {"household_preferences": []}
+    # Jeden wiersz na gospodarstwo, listy domyślnie puste.
+    insert = "INSERT INTO household_preferences (household_id, people, updated_at) VALUES "
+    await execute(empty_database, insert + "(1, 4, now())")
+    (row,) = (await snapshot(empty_database, preferences))["household_preferences"]
+    assert row[:5] == (1, 4, [], [], [])
+    with pytest.raises(IntegrityError):
+        await execute(empty_database, insert + "(1, 2, now())")
+    with pytest.raises(IntegrityError):
+        await execute(empty_database, insert + "(99, 2, now())")
+    # Usunięcie gospodarstwa usuwa jego preferencje.
+    await execute(
+        empty_database,
+        "INSERT INTO households (id, name, owner_id, created_at) VALUES (2, 'Inny', 1, now())",
+        insert + "(2, 1, now())",
+        "DELETE FROM households WHERE id = 2",
+    )
+    assert len((await snapshot(empty_database, preferences))["household_preferences"]) == 1
+
+    await migrate(empty_database, "down", "0009")
+
+    assert not await table_exists(empty_database, "household_preferences")
+    assert await snapshot(empty_database, tables) == before
+
+    await migrate(empty_database, "up", "head")
+    assert await snapshot(empty_database, preferences) == {"household_preferences": []}

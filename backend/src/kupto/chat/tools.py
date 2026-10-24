@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kupto.errors import DomainError
 from kupto.history import usual
+from kupto.households import preferences
+from kupto.households.preferences import PreferencesIn
 from kupto.lists import notifications, service, shopping_status
 from kupto.lists.schemas import NeedCreate, NeedUpdate, list_out
 from kupto.lists.service import NeedInput
@@ -56,6 +58,8 @@ def _function(name: str, description: str, properties: dict[str, Any]) -> dict[s
 
 
 _ID_LIST = {"type": "array", "items": {"type": "integer"}}
+
+_TEXT_LIST = {"type": "array", "items": {"type": "string"}}
 
 _RECIPE_INGREDIENT = {
     "type": "object",
@@ -171,6 +175,22 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "get_recipe",
         "Zwraca zapisany przepis gospodarstwa ze składnikami. Tylko odczyt — niczego nie dodaje.",
         {"recipe_id": {"type": "integer"}},
+    ),
+    _function(
+        "update_preferences",
+        "Zmienia preferencje gospodarstwa (wspólne dla domowników). Pole null = bez zmian; "
+        "lista zastępuje dotychczasową, więc podaj ją całą, z obecnymi pozycjami. "
+        "Nie zmienia listy zakupów.",
+        {
+            "people": _nullable({"type": "integer", "description": "Liczba osób."}),
+            "diets": _nullable({**_TEXT_LIST, "description": "Np. 'wegetariańska'."}),
+            "excluded": _nullable(
+                {**_TEXT_LIST, "description": "Alergie i to, czego domownicy nie jedzą wcale."}
+            ),
+            "disliked": _nullable({**_TEXT_LIST, "description": "Czego nie lubią (unikać)."}),
+            "max_cooking_minutes": _nullable({"type": "integer"}),
+            "notes": _nullable({"type": "string", "description": "Inne uwagi, np. budżet."}),
+        },
     ),
     _function(
         "start_shopping",
@@ -423,6 +443,30 @@ async def _get_recipe(ctx: ToolContext, recipe_id: int) -> dict[str, Any]:
     }
 
 
+async def _update_preferences(
+    ctx: ToolContext,
+    people: int | None,
+    diets: list[str] | None,
+    excluded: list[str] | None,
+    disliked: list[str] | None,
+    max_cooking_minutes: int | None,
+    notes: str | None,
+) -> dict[str, Any]:
+    changes = {
+        "people": people,
+        "diets": diets,
+        "excluded": excluded,
+        "disliked": disliked,
+        "max_cooking_minutes": max_cooking_minutes,
+        "notes": notes,
+    }
+    current = await preferences.load(ctx.session, ctx.household)
+    provided = {k: v for k, v in changes.items() if v is not None}
+    data = PreferencesIn.model_validate(preferences.to_input(current).model_dump() | provided)
+    saved = await preferences.save(ctx.session, ctx.household, ctx.user, data)
+    return {"preferences": preferences.for_model(saved)}
+
+
 async def _start_shopping(ctx: ToolContext) -> dict[str, Any]:
     started = await shopping_status.start(ctx.session, ctx.user)
     if started and ctx.notifier is not None:
@@ -476,6 +520,7 @@ _HANDLERS = {
     "save_recipe": _save_recipe,
     "list_recipes": _list_recipes,
     "get_recipe": _get_recipe,
+    "update_preferences": _update_preferences,
     "start_shopping": _start_shopping,
     "stop_shopping": _stop_shopping,
 }

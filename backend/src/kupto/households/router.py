@@ -4,7 +4,8 @@ from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
 from kupto.deps import CurrentHousehold, CurrentUser, SessionDep
-from kupto.households import service
+from kupto.households import preferences, service
+from kupto.households.preferences import PreferencesIn
 from kupto.models import Household
 
 router = APIRouter(prefix="/api/households", tags=["households"])
@@ -29,6 +30,11 @@ class HouseholdOut(BaseModel):
     id: int
     name: str
     members: list[MemberOut]
+
+
+class PreferencesOut(PreferencesIn):
+    updated_by: str | None
+    updated_at: datetime | None
 
 
 async def _household_out(session: SessionDep, household: Household) -> HouseholdOut:
@@ -80,3 +86,24 @@ async def remove_member(
 @router.post("/me/leave", status_code=status.HTTP_204_NO_CONTENT)
 async def leave(user: CurrentUser, household: CurrentHousehold, session: SessionDep) -> None:
     await service.leave_household(session, user, household)
+
+
+@router.get("/me/preferences")
+async def get_preferences(household: CurrentHousehold, session: SessionDep) -> PreferencesOut:
+    return _preferences_out(await preferences.load(session, household))
+
+
+@router.put("/me/preferences")
+async def put_preferences(
+    payload: PreferencesIn, user: CurrentUser, household: CurrentHousehold, session: SessionDep
+) -> PreferencesOut:
+    """Zastępuje całe preferencje gospodarstwa — może każdy członek (design D2)."""
+    return _preferences_out(await preferences.save(session, household, user, payload))
+
+
+def _preferences_out(prefs: preferences.Preferences) -> PreferencesOut:
+    return PreferencesOut(
+        **preferences.to_input(prefs).model_dump(),
+        updated_by=prefs.updated_by,
+        updated_at=prefs.updated_at,
+    )

@@ -12,6 +12,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kupto.db import Base, utcnow
@@ -365,6 +366,31 @@ class RecipeIngredient(Base):
     category: Mapped[Category | None] = mapped_column(_enum(Category, "category"))
 
     recipe: Mapped[Recipe] = relationship(back_populates="ingredients")
+
+
+class HouseholdPreferences(Base):
+    """Preferencje żywieniowe gospodarstwa (#45) — wspólne dla członków, jedne na gospodarstwo.
+
+    Brak wiersza = brak preferencji. Odczyt i zapis wyłącznie przez
+    `kupto.households.preferences` (normalizacja list, postać dla modelu).
+    """
+
+    __tablename__ = "household_preferences"
+
+    household_id: Mapped[int] = mapped_column(
+        ForeignKey("households.id", ondelete="CASCADE"), primary_key=True
+    )
+    people: Mapped[int | None] = mapped_column(SmallInteger)
+    diets: Mapped[list[str]] = mapped_column(ARRAY(String(50)), default=list)
+    # Alergie i twarde wykluczenia („nigdy”) — w odróżnieniu od miękkiego `disliked` („unikaj”).
+    excluded: Mapped[list[str]] = mapped_column(ARRAY(String(50)), default=list)
+    disliked: Mapped[list[str]] = mapped_column(ARRAY(String(50)), default=list)
+    max_cooking_minutes: Mapped[int | None] = mapped_column(SmallInteger)
+    notes: Mapped[str | None] = mapped_column(String(300))
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    updated_by: Mapped[User | None] = relationship()
 
 
 class ChatPendingAction(Base):

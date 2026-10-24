@@ -8,6 +8,7 @@ from kupto.chat.tools import (
     clear_pending_action,
     execute_tool,
 )
+from kupto.households import preferences
 from kupto.households import service as households
 from kupto.models import User
 
@@ -398,3 +399,37 @@ async def test_recipe_tools_respect_household_and_report_errors(home):
     invalid = await save_recipe(home["ala"], {**PANCAKES, "ingredients": []})
     assert invalid.output["error"].startswith("Nieprawidłowe dane")
     assert len((await call(home["ala"], "list_recipes")).output["recipes"]) == 1
+
+
+def preferences_args(**changes):
+    names = ("people", "diets", "excluded", "disliked", "max_cooking_minutes", "notes")
+    return dict.fromkeys(names) | changes
+
+
+async def test_update_preferences_keeps_unchanged_fields_and_is_shared(home):
+    first = await call(
+        home["ala"], "update_preferences", **preferences_args(people=4, excluded=["orzechy"])
+    )
+    assert first.output == {"preferences": {"people": 4, "excluded": ["orzechy"]}}
+
+    result = await call(
+        home["ola"], "update_preferences", **preferences_args(excluded=["orzechy", "seler"])
+    )
+
+    # Zmiana preferencji nie dotyczy listy zakupów.
+    assert not result.list_changed
+    assert result.output == {"preferences": {"people": 4, "excluded": ["orzechy", "seler"]}}
+    saved = await preferences.load(home["ala"].session, home["ala"].household)
+    assert saved.updated_by == "ola"
+    other = await preferences.load(home["ewa"].session, home["ewa"].household)
+    assert other == preferences.Preferences()
+
+
+async def test_update_preferences_rejects_invalid_values_without_change(home):
+    await call(home["ala"], "update_preferences", **preferences_args(people=4))
+
+    result = await call(home["ala"], "update_preferences", **preferences_args(people=0))
+
+    assert "error" in result.output
+    saved = await preferences.load(home["ala"].session, home["ala"].household)
+    assert saved.people == 4

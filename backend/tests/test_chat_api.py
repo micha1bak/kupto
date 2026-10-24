@@ -404,3 +404,34 @@ async def test_model_sees_who_is_shopping(household_with, fake_llm):
     await send(ala, "czy ktoś jest w sklepie?")
 
     assert '"shopping_now": ["ola"]' in fake_llm.calls[0]["instructions"]
+
+
+async def test_household_preferences_reach_the_model_and_chat_can_change_them(
+    household_with, fake_llm
+):
+    ala, ola = await household_with("ala", "ola")
+    await ola.put("/api/households/me/preferences", json={"people": 4, "excluded": ["orzechy"]})
+    change = {
+        "people": None,
+        "diets": None,
+        "excluded": ["orzechy", "seler"],
+        "disliked": None,
+        "max_cooking_minutes": None,
+        "notes": None,
+    }
+    fake_llm.rounds += [
+        [ToolCall("call_1", "update_preferences", json.dumps(change))],
+        [TextDelta("Zapamiętałem: bez selera.")],
+    ]
+
+    response, events = await send(ala, "zapamiętaj, że Ola nie je selera")
+
+    assert response.status_code == 200
+    assert '{"people": 4, "excluded": ["orzechy"]}' in fake_llm.calls[0]["instructions"]
+    assert ("list_changed", {}) not in events
+    body = (await ola.get("/api/households/me/preferences")).json()
+    assert (body["people"], body["excluded"], body["updated_by"]) == (
+        4,
+        ["orzechy", "seler"],
+        "ala",
+    )
