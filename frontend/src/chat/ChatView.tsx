@@ -65,10 +65,11 @@ export function ChatView() {
       setLocal((l) => l.filter((b) => b.role !== "assistant" || b.content !== ""));
       setSending(false);
       queryClient.invalidateQueries({ queryKey: keys.list });
-      // Asystent mógł zapisać przepis (save_recipe) albo zmienić preferencje gospodarstwa
-      // (update_preferences) — tego nie sygnalizuje strumień listy.
+      // Asystent mógł zapisać przepis (save_recipe), zmienić preferencje gospodarstwa
+      // (update_preferences) albo plan obiadów (save_meal_plan) — tego nie sygnalizuje strumień listy.
       queryClient.invalidateQueries({ queryKey: keys.recipes });
       queryClient.invalidateQueries({ queryKey: keys.householdPreferences });
+      queryClient.invalidateQueries({ queryKey: keys.mealPlan });
       try {
         // Zapisana historia zawiera już tę wymianę — lokalne dymki zastępujemy wersją z serwera.
         await queryClient.refetchQueries({ queryKey: keys.chat }, { throwOnError: true });

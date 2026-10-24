@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { RecipesPage, addedMessage, ingredientLabel, parseAmount } from "./RecipesPage";
+import { RecipesPage, parseAmount } from "./RecipesPage";
+import { addedMessage, ingredientLabel } from "./IngredientsToList";
 import { jsonResponse, mockFetch, renderWithProviders } from "../test/utils";
 import type { Recipe } from "../api/types";
 
@@ -61,6 +62,7 @@ test("lista przepisów gospodarstwa", async () => {
   expect(links[0]).toHaveAttribute("href", "/recipes/5");
   expect(within(list).getByText("10 sztuk · składniki: 3")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Nowy przepis" })).toHaveAttribute("href", "/recipes/new");
+  expect(screen.getByRole("link", { name: "Plan obiadów" })).toHaveAttribute("href", "/meal-plan");
 });
 
 test("pusta baza przepisów podpowiada zapis przez czat", async () => {

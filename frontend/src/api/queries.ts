@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   Household,
   HouseholdPreferences,
+  MealPlanEntry,
   NotificationPreferences,
   ProductHit,
   Profile,
@@ -27,6 +28,7 @@ export const keys = {
   notificationPreferences: ["notification-preferences"] as const,
   recipes: ["recipes"] as const,
   householdPreferences: ["household-preferences"] as const,
+  mealPlan: ["meal-plan"] as const,
 };
 
 /**
@@ -115,4 +117,11 @@ export const useRecipe = (id: number) =>
   useQuery({
     queryKey: [...keys.recipes, id],
     queryFn: () => api<Recipe>(`/api/recipes/${id}`),
+  });
+
+/** Obiady z zakresu dat `YYYY-MM-DD` (włącznie) rosnąco po dniu; dni bez obiadu pominięte. */
+export const useMealPlan = (from: string, to: string) =>
+  useQuery({
+    queryKey: [...keys.mealPlan, from, to],
+    queryFn: () => api<MealPlanEntry[]>(`/api/meal-plan?from=${from}&to=${to}`),
   });

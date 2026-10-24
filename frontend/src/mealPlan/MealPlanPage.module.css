@@ -1,0 +1,107 @@
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.section {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+}
+
+/* Przyciski tygodni zawijają się zamiast poszerzać stronę (#76). */
+.weeks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.days {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Dni jeden pod drugim — na 375 px tabela tygodnia nie zmieściłaby nazw dań. */
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.day:last-child {
+  border-bottom: none;
+}
+
+.today {
+  border-left: 3px solid var(--accent);
+  padding-left: 0.6rem;
+  margin-left: -0.6rem;
+}
+
+.date {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.weekday {
+  font-weight: 600;
+}
+
+.dish {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.name {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Długa nazwa przepisu w liście nie może poszerzyć pola ponad szerokość ekranu. */
+.field > * {
+  width: 100%;
+}
+
+.ingredients {
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
