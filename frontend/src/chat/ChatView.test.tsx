@@ -52,6 +52,8 @@ test("shows history and streams assistant reply incrementally", async () => {
   expect(await screen.findByText("Dodałem chleb.")).toBeInTheDocument();
   expect(screen.getByText("kup chleb")).toBeInTheDocument();
   expect(invalidate).toHaveBeenCalledWith({ queryKey: ["list"] });
+  // Asystent mógł zmienić preferencje gospodarstwa (update_preferences).
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ["household-preferences"] });
   const post = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
   expect(JSON.parse(post[1]!.body as string)).toEqual({ content: "kup chleb" });
 });

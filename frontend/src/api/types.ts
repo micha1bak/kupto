@@ -170,6 +170,23 @@ export interface NotificationPreferences {
   types: { type: NotificationType | (string & {}); enabled: boolean }[];
 }
 
+/** Preferencje gospodarstwa do zapisu — `PUT` zastępuje całość. */
+export interface HouseholdPreferencesInput {
+  people: number | null;
+  diets: string[];
+  /** Alergie i to, czego domownicy nie jedzą wcale. */
+  excluded: string[];
+  disliked: string[];
+  max_cooking_minutes: number | null;
+  notes: string | null;
+}
+
+/** Preferencje gospodarstwa (`GET /api/households/me/preferences`); puste, gdy nie zapisane. */
+export interface HouseholdPreferences extends HouseholdPreferencesInput {
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
 /** Produkt znaleziony w historii: kiedy i kto kupił go ostatnio. */
 export interface ProductHit {
   name: string;

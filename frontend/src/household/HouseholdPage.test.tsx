@@ -14,6 +14,17 @@ const household = {
   ],
 };
 
+const emptyPreferences = {
+  people: null,
+  diets: [],
+  excluded: [],
+  disliked: [],
+  max_cooking_minutes: null,
+  notes: null,
+  updated_by: null,
+  updated_at: null,
+};
+
 function profile(id: number, login: string) {
   return { id, login, household: { id: 1, name: "Dom" } };
 }
@@ -22,6 +33,7 @@ test("owner sees management controls", async () => {
   const fetch = mockFetch({
     "GET /api/users/me": profile(1, "ala"),
     "GET /api/households/me": household,
+    "GET /api/households/me/preferences": emptyPreferences,
     "POST /api/households/me/members": () =>
       jsonResponse(
         { ...household, members: [...household.members, { id: 3, login: "ewa", is_owner: false }] },
@@ -46,6 +58,7 @@ test("regular member cannot manage members", async () => {
   mockFetch({
     "GET /api/users/me": profile(2, "ola"),
     "GET /api/households/me": household,
+    "GET /api/households/me/preferences": emptyPreferences,
   });
   renderWithProviders(<HouseholdPage />);
 
@@ -59,6 +72,7 @@ test("add member shows server error", async () => {
   mockFetch({
     "GET /api/users/me": profile(1, "ala"),
     "GET /api/households/me": household,
+    "GET /api/households/me/preferences": emptyPreferences,
     "POST /api/households/me/members": () =>
       jsonResponse({ detail: "Użytkownik o tym loginie nie istnieje." }, 404),
   });
